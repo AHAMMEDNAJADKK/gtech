@@ -128,7 +128,9 @@ export const saveReport = async (req, res, next) => {
       performanceKpis: req.body.performanceKpis || [],
       issuesFeedback: req.body.issuesFeedback || [],
       finalHandover: req.body.finalHandover || {},
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await AcademicCounselorReport.findOneAndUpdate(

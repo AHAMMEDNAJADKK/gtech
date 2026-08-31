@@ -123,7 +123,9 @@ export const saveReport = async (req, res, next) => {
       keyNumbers: req.body.keyNumbers || {},
       blockers: req.body.blockers || [],
       tomorrowTasks: req.body.tomorrowTasks || [],
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await VideographerReport.findOneAndUpdate(

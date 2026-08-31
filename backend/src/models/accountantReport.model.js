@@ -101,6 +101,8 @@ const accountantReportSchema = new mongoose.Schema({
   accountantComments: {
     type: String
   },
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     accountantName: { type: String },
     accountantSignature: { type: String },

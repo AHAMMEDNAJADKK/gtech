@@ -105,7 +105,9 @@ export const saveReport = async (req, res, next) => {
       nextDayTaskPlan: req.body.nextDayTaskPlan || [],
       finalShiftHandover: req.body.finalShiftHandover || [],
       accountantComments: req.body.accountantComments,
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await AccountantReport.findOneAndUpdate(

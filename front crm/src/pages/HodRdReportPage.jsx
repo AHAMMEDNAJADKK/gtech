@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2,
+  MinusCircle, PlusCircle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -13,6 +15,15 @@ import SignatureUpload from '../components/SignatureUpload';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const isRowEmpty = (item) => {
+  if (!item || typeof item !== 'object') return true;
+  const skipKeys = new Set(['_id', 'id', '__v']);
+  return !Object.entries(item).some(([k, v]) => {
+    if (skipKeys.has(k)) return false;
+    return v !== null && v !== undefined && String(v).trim() !== '';
+  });
+};
 
 // Default items for Daily Task Summary
 const DEFAULT_TASK_SUMMARY = [
@@ -99,6 +110,15 @@ const HodRdReportPage = () => {
     managerSignature: '',
     managerDate: ''
   });
+
+  const [hiddenSections, setHiddenSections] = useState({});
+
+  const toggleSectionHidden = (sectionKey) => {
+    setHiddenSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
 
   // Weekly States
   const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
@@ -604,6 +624,8 @@ const HodRdReportPage = () => {
       const cleanKpiTracking = kpiTracking.filter(t => (t.project || '').trim() !== '' || (t.kpi || '').trim() !== '');
       const cleanIssuesSupportRequired = issuesSupportRequired.filter(t => (t.issue || '').trim() !== '');
 
+      const excludedSections = Object.entries(hiddenSections).filter(([_, h]) => h).map(([k]) => k);
+
       const payload = {
         userId: selectedUserId,
         dateString: selectedDate,
@@ -615,7 +637,9 @@ const HodRdReportPage = () => {
         issuesSupportRequired: cleanIssuesSupportRequired,
         nextDayPlanning,
         hodComments,
-        approval
+        approval,
+        excludedSections,
+        hiddenSections
       };
 
       const res = await fetch(`${API_BASE}/v1/hod-rd-reports`, {
@@ -2171,6 +2195,27 @@ const HodRdReportPage = () => {
               title="HOD R&D Report AI Analysis"
             />
 
+            {/* Excluded Sections Banner */}
+            {Object.values(hiddenSections).some(Boolean) && (
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <MinusCircle size={15} /> Excluded Sections (Will not appear in Report or PDF):
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {Object.entries(hiddenSections).map(([secKey, isHidden]) => isHidden && (
+                    <button
+                      key={secKey}
+                      type="button"
+                      onClick={() => toggleSectionHidden(secKey)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                    >
+                      <PlusCircle size={13} /> Restore {secKey.replace(/([A-Z])/g, ' $1')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -2295,16 +2340,41 @@ const HodRdReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">2</span>
                   Daily Task Summary
                 </h2>
-                <button
-                  type="button"
-                  onClick={addSummaryRow}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyTaskSummary')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addSummaryRow}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+              {hiddenSections.dailyTaskSummary ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Daily Task Summary (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyTaskSummary')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
@@ -2428,6 +2498,7 @@ const HodRdReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* 3. DEVELOPMENT WORK REPORT */}
@@ -2437,16 +2508,41 @@ const HodRdReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
                   Development Work Report
                 </h2>
-                <button
-                  type="button"
-                  onClick={addDevRow}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('developmentWorkReport')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addDevRow}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+              {hiddenSections.developmentWorkReport ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Development Work Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('developmentWorkReport')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
@@ -2559,6 +2655,7 @@ const HodRdReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* 4. R&D INNOVATION REPORT */}
@@ -2568,16 +2665,41 @@ const HodRdReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
                   R&D Innovation Report
                 </h2>
-                <button
-                  type="button"
-                  onClick={addInnovRow}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('rdInnovationReport')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addInnovRow}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+              {hiddenSections.rdInnovationReport ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    R&D Innovation Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('rdInnovationReport')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
@@ -2657,6 +2779,7 @@ const HodRdReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* 5. KPI TRACKING */}
@@ -2666,16 +2789,41 @@ const HodRdReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
                   KPI Tracking
                 </h2>
-                <button
-                  type="button"
-                  onClick={addKpiRow}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('kpiTracking')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addKpiRow}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+              {hiddenSections.kpiTracking ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    KPI Tracking (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('kpiTracking')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
@@ -2775,6 +2923,7 @@ const HodRdReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* 6. ISSUES / SUPPORT REQUIRED */}
@@ -2784,16 +2933,41 @@ const HodRdReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
                   Issues / Support Required
                 </h2>
-                <button
-                  type="button"
-                  onClick={addIssueRow}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('issuesSupportRequired')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addIssueRow}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+              {hiddenSections.issuesSupportRequired ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Issues / Support Required (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('issuesSupportRequired')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
@@ -2872,6 +3046,7 @@ const HodRdReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
             {/* 7. NEXT DAY PLANNING & 8. HOD COMMENTS */}
@@ -4276,9 +4451,9 @@ const HodRdReportPage = () => {
       </AnimatePresence>
 
       {/* Activity Detail Modal */}
-      {selectedActivityText && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+      {selectedActivityText && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative my-auto">
             <button
               type="button"
               onClick={() => setSelectedActivityText(null)}
@@ -4287,7 +4462,7 @@ const HodRdReportPage = () => {
               <X size={18} />
             </button>
             <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
-            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[65vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
               {selectedActivityText}
             </div>
             <div className="mt-6 flex justify-end">
@@ -4300,7 +4475,8 @@ const HodRdReportPage = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

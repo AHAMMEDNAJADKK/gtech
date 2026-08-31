@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, CalendarDays, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, RefreshCw
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, RefreshCw, X, Maximize2,
+  MinusCircle, PlusCircle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -134,6 +136,16 @@ const AcademicCounselorReportPage = () => {
     managerSignature: '',
     managerDate: ''
   });
+
+  const [hiddenSections, setHiddenSections] = useState({});
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
+
+  const toggleSectionHidden = (sectionKey) => {
+    setHiddenSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
 
   // Monthly Report States
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
@@ -519,6 +531,8 @@ const AcademicCounselorReportPage = () => {
       const cleanDailyOperations = dailyOperations.filter(t => (t.activity || '').trim() !== '');
       const cleanIssuesFeedback = issuesFeedback.filter(t => (t.issue || '').trim() !== '');
 
+      const excludedSections = Object.entries(hiddenSections).filter(([_, h]) => h).map(([k]) => k);
+
       const payload = {
         userId: selectedUserId,
         dateString: selectedDate,
@@ -530,7 +544,9 @@ const AcademicCounselorReportPage = () => {
         performanceKpis,
         issuesFeedback: cleanIssuesFeedback,
         finalHandover,
-        approval
+        approval,
+        excludedSections,
+        hiddenSections
       };
 
       const res = await fetch(getApiEndpoint('/academic-counselor-reports'), {
@@ -1693,6 +1709,27 @@ const AcademicCounselorReportPage = () => {
               contextData={aiModalContext}
               title="Academic Counselor Report AI Analysis"
             />
+
+            {/* Excluded Sections Banner */}
+            {Object.values(hiddenSections).some(Boolean) && (
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <MinusCircle size={15} /> Excluded Sections (Will not appear in Report or PDF):
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {Object.entries(hiddenSections).map(([secKey, isHidden]) => isHidden && (
+                    <button
+                      key={secKey}
+                      type="button"
+                      onClick={() => toggleSectionHidden(secKey)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                    >
+                      <PlusCircle size={13} /> Restore {secKey.replace(/([A-Z])/g, ' $1')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">
@@ -3576,6 +3613,35 @@ const AcademicCounselorReportPage = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Activity Detail Modal */}
+      {selectedActivityText && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative my-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[65vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

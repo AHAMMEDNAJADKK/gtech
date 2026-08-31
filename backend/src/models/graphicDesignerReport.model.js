@@ -60,6 +60,17 @@ const graphicDesignerReportSchema = new mongoose.Schema({
       notes: { type: String }
     }
   ],
+  teamLeadKpi: [
+    {
+      taskProjectName: { type: String },
+      assignedTo: { type: String },
+      dueDate: { type: String },
+      status: { type: String },
+      remarks: { type: String }
+    }
+  ],
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     designerName: { type: String },
     designerSignature: { type: String },

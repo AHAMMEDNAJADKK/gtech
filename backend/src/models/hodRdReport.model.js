@@ -61,8 +61,8 @@ const hodRdReportSchema = new mongoose.Schema({
       actionTaken: { type: String }
     }
   ],
-  nextDayPlanning: { type: String },
-  hodComments: { type: String },
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     hodName: { type: String },
     hodSignature: { type: String },

@@ -101,7 +101,9 @@ export const saveReport = async (req, res, next) => {
       challengesFaced: req.body.challengesFaced,
       nextDayPlan: req.body.nextDayPlan,
       internRemarks: req.body.internRemarks,
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await DeveloperReport.findOneAndUpdate(

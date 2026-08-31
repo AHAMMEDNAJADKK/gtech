@@ -47,6 +47,8 @@ const marketingReportSchema = new mongoose.Schema({
       notes: { type: String }
     }
   ],
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     staffName: { type: String },
     staffSignature: { type: String },

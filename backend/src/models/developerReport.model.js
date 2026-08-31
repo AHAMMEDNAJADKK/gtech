@@ -57,7 +57,8 @@ const developerReportSchema = new mongoose.Schema({
   toolsUsed: { type: String },
   challengesFaced: { type: String },
   nextDayPlan: { type: String },
-  internRemarks: { type: String },
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     internName: { type: String },
     internSignature: { type: String },
