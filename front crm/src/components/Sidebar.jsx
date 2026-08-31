@@ -106,6 +106,7 @@ const menuItems = [
   { icon: Palette, label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
   { icon: Code2, label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', allowedDepartmentNames: ['r&d', 'dev', 'developer', 'development'] },
   { icon: GraduationCap, label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
+  { icon: Wallet, label: 'Accountant Dashboard', path: '/accountant-dashboard', category: 'Dashboards', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['accounts', 'finance'], allowedDesignationNames: ['accountant', 'accounts', 'finance'] },
   { icon: LayoutDashboard, label: 'Dashboard', path: '/common-dashboard', category: 'Dashboards', isCommonDashboardFallback: true },
 
   // --- PEOPLE & HR ---
@@ -390,6 +391,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         const extraPathMappings = {
           'admin dashboard': '/dashboard',
           'md dashboard': '/md-dashboard',
+          'accountant dashboard': '/accountant-dashboard',
           'income': '/accounts/income',
           'sales': '/accounts/sales',
           'purchase': '/accounts/purchase',

@@ -28,7 +28,9 @@ import {
   deleteIncome,
   restoreIncome,
   permanentDeleteIncome,
-  recordPaymentSettlement
+  recordPaymentSettlement,
+  getOpeningBalance,
+  setOpeningBalance
 } from '../controllers/account.controller.js';
 import protectRoute from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
@@ -37,6 +39,11 @@ const router = Router();
 
 // Protect all account routes
 router.use(protectRoute);
+
+// ── Opening Balance Routes ──
+router.get('/opening-balance', getOpeningBalance);
+router.post('/opening-balance', setOpeningBalance);
+router.put('/opening-balance', setOpeningBalance);
 
 // ── Income Routes ──
 router.get('/income', getIncomes);

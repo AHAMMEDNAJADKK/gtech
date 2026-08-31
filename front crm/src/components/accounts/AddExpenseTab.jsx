@@ -18,8 +18,14 @@ import {
   RefreshCw, 
   Loader2,
   DollarSign,
-  Tag
+  Tag,
+  Receipt,
+  Coins,
+  SlidersHorizontal,
+  ArrowUpDown,
+  RotateCcw
 } from 'lucide-react';
+import { getOpeningBalance, setOpeningBalance as saveOpeningBalanceApi } from '../../services/accountsService';
 import { useToast } from '../ToastProvider';
 
 const AddExpenseTab = () => {
@@ -31,9 +37,75 @@ const AddExpenseTab = () => {
     return 'expenses';
   });
 
+  // Expense Opening Balance State
+  const [showExpenseObModal, setShowExpenseObModal] = useState(false);
+  const [expenseObSaving, setExpenseObSaving] = useState(false);
+  const [expenseObAmount, setExpenseObAmount] = useState(0);
+  const [expenseObForm, setExpenseObForm] = useState({
+    expenseAmount: '',
+    asOfDate: new Date().toISOString().split('T')[0],
+    paymentMode: 'ALL',
+    note: ''
+  });
+
+  const fetchExpenseOb = async () => {
+    try {
+      const res = await getOpeningBalance();
+      if (res && res.success && res.data) {
+        setExpenseObAmount(res.data.expenseAmount !== undefined ? res.data.expenseAmount : 0);
+      }
+    } catch (e) {
+      console.warn('Error fetching expense opening balance:', e);
+    }
+  };
+
+  const handleOpenExpenseObModal = async () => {
+    try {
+      const res = await getOpeningBalance();
+      if (res && res.success && res.data) {
+        setExpenseObForm({
+          expenseAmount: res.data.expenseAmount !== undefined ? res.data.expenseAmount : '',
+          asOfDate: res.data.asOfDate ? new Date(res.data.asOfDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          paymentMode: res.data.paymentMode || 'ALL',
+          note: res.data.note || ''
+        });
+      }
+    } catch (e) {
+      console.warn('Error opening expense OB modal:', e);
+    }
+    setShowExpenseObModal(true);
+  };
+
+  const handleSaveExpenseOpeningBalance = async (e) => {
+    e.preventDefault();
+    setExpenseObSaving(true);
+    try {
+      const res = await saveOpeningBalanceApi({
+        expenseAmount: expenseObForm.expenseAmount,
+        asOfDate: expenseObForm.asOfDate,
+        paymentMode: expenseObForm.paymentMode,
+        note: expenseObForm.note
+      });
+      if (res && res.success) {
+        setShowExpenseObModal(false);
+        showToast('Expense Opening Balance updated successfully!', 'success');
+        fetchExpenseOb();
+        loadData();
+      } else {
+        showToast(res?.message || 'Failed to update opening balance.', 'error');
+      }
+    } catch (err) {
+      console.error('Error saving expense opening balance:', err);
+      showToast('Error updating expense opening balance.', 'error');
+    } finally {
+      setExpenseObSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (expenseSubTab === 'expenses') {
       loadData();
+      fetchExpenseOb();
     }
   }, [expenseSubTab]);
 
@@ -122,11 +194,68 @@ const AddExpenseTab = () => {
 
   const currentTaxCalc = calculateTaxValues(amount, taxOption, gstRate, gstCategory);
 
-  // Filter State
+  // Filter & Sort States
   const [filterCategory, setFilterCategory] = useState('');
   const [filterMode, setFilterMode] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState('date'); // 'date' | 'amount' | 'paidTo' | 'category'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' | 'asc'
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  // Active Filter Count
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (filterCategory) count++;
+    if (filterMode) count++;
+    if (filterStatus) count++;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (sortBy !== 'date' || sortOrder !== 'desc') count++;
+    return count;
+  }, [filterCategory, filterMode, filterStatus, startDate, endDate, sortBy, sortOrder]);
+
+  // Sort & Filter Expenses Client-Side
+  const sortedAndFilteredExpenses = React.useMemo(() => {
+    let result = [...expenses];
+    if (startDate) {
+      result = result.filter(e => {
+        const d = e.date ? new Date(e.date).toISOString().split('T')[0] : '';
+        return d >= startDate;
+      });
+    }
+    if (endDate) {
+      result = result.filter(e => {
+        const d = e.date ? new Date(e.date).toISOString().split('T')[0] : '';
+        return d <= endDate;
+      });
+    }
+
+    result.sort((a, b) => {
+      let valA, valB;
+      if (sortBy === 'amount') {
+        valA = Number(a.totalAmount || a.amount || 0);
+        valB = Number(b.totalAmount || b.amount || 0);
+      } else if (sortBy === 'paidTo') {
+        valA = (a.paidTo || '').toLowerCase();
+        valB = (b.paidTo || '').toLowerCase();
+      } else if (sortBy === 'category') {
+        valA = (a.category?.name || a.categoryName || '').toLowerCase();
+        valB = (b.category?.name || b.categoryName || '').toLowerCase();
+      } else {
+        valA = new Date(a.date || 0).getTime();
+        valB = new Date(b.date || 0).getTime();
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [expenses, startDate, endDate, sortBy, sortOrder]);
 
   // View Attachment Modal
   const [previewFile, setPreviewFile] = useState(null);
@@ -291,7 +420,7 @@ const AddExpenseTab = () => {
           {/* Sleek 1-Row Toolbar Header */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Left Title */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <div className="w-8 h-8 rounded-xl bg-indigo-600/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4" />
           </div>
@@ -299,6 +428,12 @@ const AddExpenseTab = () => {
             <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
               Expense Records
             </h3>
+          </div>
+
+          {/* Expense Opening Balance Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-800 text-[11px] font-bold text-rose-700 dark:text-rose-300 shrink-0">
+            <Coins size={13} />
+            <span>OB: ₹{expenseObAmount.toLocaleString('en-IN')}</span>
           </div>
         </div>
 
@@ -317,40 +452,24 @@ const AddExpenseTab = () => {
             <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
           </div>
 
-          {/* Filter Category */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+          {/* Single Sort & Filter Button */}
+          <button
+            type="button"
+            onClick={() => setIsFilterModalOpen(true)}
+            className={`py-1.5 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border ${
+              activeFilterCount > 0
+                ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shadow-2xs'
+                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
           >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c._id} value={c._id}>{c.name}</option>
-            ))}
-          </select>
-
-          {/* Filter Mode */}
-          <select
-            value={filterMode}
-            onChange={(e) => setFilterMode(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">All Modes</option>
-            <option value="Cash">Cash</option>
-            <option value="UPI_BANK">UPI / Bank</option>
-          </select>
-
-          {/* Filter Status */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">All Statuses</option>
-            <option value="PENDING">Pending</option>
-            <option value="APPROVED">Approved</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
+            <SlidersHorizontal size={14} className={activeFilterCount > 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500'} />
+            <span>Sort & Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-indigo-600 text-white rounded-full text-[10px] font-extrabold ml-0.5">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
           <button
             onClick={loadData}
@@ -358,6 +477,16 @@ const AddExpenseTab = () => {
             title="Refresh List"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+
+          {/* Set Expense Opening Balance Button */}
+          <button
+            type="button"
+            onClick={handleOpenExpenseObModal}
+            className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer active:scale-98 shrink-0"
+          >
+            <Coins size={14} />
+            <span>Set Opening Balance</span>
           </button>
 
           {/* + Record Expense Modal Button */}
@@ -396,14 +525,14 @@ const AddExpenseTab = () => {
                     Loading expenses...
                   </td>
                 </tr>
-              ) : expenses.length === 0 ? (
+              ) : sortedAndFilteredExpenses.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-slate-400">
-                    No expense records found. Click "+ Record Expense" to log an entry.
+                    No expense records found matching current filters.
                   </td>
                 </tr>
               ) : (
-                expenses.map((exp) => {
+                sortedAndFilteredExpenses.map((exp) => {
                   const status = exp.status || 'PENDING';
                   return (
                     <tr key={exp._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition">
@@ -779,6 +908,268 @@ const AddExpenseTab = () => {
               ) : (
                 <img src={previewFile} alt="Attachment" className="max-w-full max-h-[60vh] object-contain rounded-xl" />
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {/* Set Expense Opening Balance Modal (Portal to document.body) */}
+      {showExpenseObModal && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600">
+                  <Coins size={18} />
+                </div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Set Expense Opening Balance</h3>
+              </div>
+              <button 
+                onClick={() => setShowExpenseObModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExpenseOpeningBalance} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Expense Opening Balance (₹) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="e.g. 20000"
+                  value={expenseObForm.expenseAmount}
+                  onChange={(e) => setExpenseObForm({ ...expenseObForm, expenseAmount: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  As of Date (Effective Date)
+                </label>
+                <input
+                  type="date"
+                  value={expenseObForm.asOfDate}
+                  onChange={(e) => setExpenseObForm({ ...expenseObForm, asOfDate: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Account / Payment Mode
+                </label>
+                <select
+                  value={expenseObForm.paymentMode}
+                  onChange={(e) => setExpenseObForm({ ...expenseObForm, paymentMode: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 outline-none"
+                >
+                  <option value="ALL">All Combined Accounts</option>
+                  <option value="CASH">Cash in Hand</option>
+                  <option value="BANK">Bank Account</option>
+                  <option value="ONLINE">Online / UPI</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Notes / Reference
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Starting expense balance note..."
+                  value={expenseObForm.note}
+                  onChange={(e) => setExpenseObForm({ ...expenseObForm, note: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowExpenseObModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={expenseObSaving}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  {expenseObSaving ? <Loader2 size={14} className="animate-spin" /> : <Coins size={14} />}
+                  <span>Save Expense Opening</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Sleek Sort & Filter Modal (Portal to document.body) */}
+      {isFilterModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 my-auto max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                  <SlidersHorizontal size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Sort & Filter Expenses</h3>
+                  <p className="text-[11px] text-slate-400">Filter expense ledger by category, mode, status, date & sorting</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Filter Controls Grid */}
+            <div className="space-y-4">
+              {/* Category Filter */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Tag size={13} className="text-indigo-500" /> Expense Category
+                </label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                >
+                  <option value="">All Expense Categories</option>
+                  {categories.map((c) => (
+                    <option key={c._id} value={c._id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Payment Mode & Status Filter Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <CreditCard size={13} className="text-indigo-500" /> Payment Mode
+                  </label>
+                  <select
+                    value={filterMode}
+                    onChange={(e) => setFilterMode(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  >
+                    <option value="">All Payment Modes</option>
+                    <option value="Cash">Cash in Hand</option>
+                    <option value="UPI_BANK">UPI / Bank Account</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <UserCheck size={13} className="text-indigo-500" /> Approval Status
+                  </label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">Pending Approval</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Date Range Filter Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <Calendar size={13} className="text-indigo-500" /> Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <Calendar size={13} className="text-indigo-500" /> End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  />
+                </div>
+              </div>
+
+              {/* Sort Field & Order Grid */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <ArrowUpDown size={13} className="text-indigo-500" /> Sort By
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  >
+                    <option value="date">Entry Date</option>
+                    <option value="amount">Expense Amount</option>
+                    <option value="paidTo">Paid To / Recipient</option>
+                    <option value="category">Category Name</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Sort Order</label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  >
+                    <option value="desc">Descending (Newest / Highest First)</option>
+                    <option value="asc">Ascending (Oldest / Lowest First)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterCategory('');
+                  setFilterMode('');
+                  setFilterStatus('');
+                  setStartDate('');
+                  setEndDate('');
+                  setSortBy('date');
+                  setSortOrder('desc');
+                }}
+                className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer flex items-center gap-1 transition"
+              >
+                <RotateCcw size={13} /> Reset All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer active:scale-98"
+              >
+                Apply & Close
+              </button>
             </div>
           </div>
         </div>,

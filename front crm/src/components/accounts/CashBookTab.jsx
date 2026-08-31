@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getCashBook, getExpenseCategories } from '../../services/accountsService';
+import { getCashBook, getExpenseCategories, getOpeningBalance, setOpeningBalance as saveOpeningBalanceApi } from '../../services/accountsService';
 import { 
   BookOpen, 
   ArrowDownLeft,
@@ -15,7 +15,10 @@ import {
   TrendingUp,
   TrendingDown,
   Coins,
-  ShoppingCart
+  ShoppingCart,
+  DollarSign,
+  PlusCircle,
+  X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -24,7 +27,19 @@ import autoTable from 'jspdf-autotable';
 const CashBookTab = () => {
   const [cashBookData, setCashBookData] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [summary, setSummary] = useState({ totalIncome: 0, totalGeneralExpense: 0, totalPurchase: 0, totalExpense: 0, netBalance: 0, totalEntries: 0 });
+  const [summary, setSummary] = useState({ 
+    incomeOpeningBalance: 0, 
+    expenseOpeningBalance: 0, 
+    totalIncome: 0, 
+    effectiveTotalIncome: 0, 
+    totalGeneralExpense: 0, 
+    totalPurchase: 0, 
+    totalExpense: 0, 
+    effectiveTotalOutflow: 0, 
+    netBalance: 0, 
+    closingBalance: 0, 
+    totalEntries: 0 
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -84,19 +99,35 @@ const CashBookTab = () => {
       setCashBookData(backendEntries);
 
       // Compute summary metrics
+      const incOb = (cashRes.success && cashRes.summary && typeof cashRes.summary.incomeOpeningBalance === 'number')
+        ? cashRes.summary.incomeOpeningBalance
+        : (cashRes.success && cashRes.summary && typeof cashRes.summary.openingBalance === 'number' ? cashRes.summary.openingBalance : 0);
+
+      const expOb = (cashRes.success && cashRes.summary && typeof cashRes.summary.expenseOpeningBalance === 'number')
+        ? cashRes.summary.expenseOpeningBalance
+        : 0;
+
       const totInc = backendEntries.filter(e => e.entryType === 'INCOME').reduce((s, i) => s + (i.amount || 0), 0);
       const totPur = backendEntries.filter(e => e.entryType === 'EXPENSE' && (e.isPurchase || (e.categoryName || '').toLowerCase().includes('purchase') || e.type === 'Purchase')).reduce((s, i) => s + (i.amount || 0), 0);
       const totGenExp = backendEntries.filter(e => e.entryType === 'EXPENSE' && !e.isPurchase && !(e.categoryName || '').toLowerCase().includes('purchase') && e.type !== 'Purchase').reduce((s, i) => s + (i.amount || 0), 0);
       const totOutflow = totGenExp + totPur;
+      
+      const effInc = incOb + totInc;
+      const effExp = expOb + totOutflow;
       const netBal = totInc - totOutflow;
+      const closeBal = effInc - effExp;
 
       setSummary({
+        incomeOpeningBalance: incOb,
+        expenseOpeningBalance: expOb,
         totalIncome: totInc,
+        effectiveTotalIncome: effInc,
         totalGeneralExpense: totGenExp,
         totalPurchase: totPur,
         totalExpense: totOutflow,
-        totalOutflow: totOutflow,
+        effectiveTotalOutflow: effExp,
         netBalance: netBal,
+        closingBalance: closeBal,
         totalEntries: backendEntries.length
       });
 
@@ -255,58 +286,76 @@ const CashBookTab = () => {
 
   return (
     <div className="space-y-4">
-      {/* Sleek 1-Row Compact Stats Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Total Income Stat Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+      {/* Sleek 5-Column Stats Strip with Income & Expense Opening Balances */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* Income Opening Balance Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Income (Inflow)</p>
-            <h3 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
-              +₹{(summary.totalIncome || 0).toLocaleString('en-IN')}
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Income Opening</p>
+            <h3 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
+              ₹{(summary.incomeOpeningBalance || 0).toLocaleString('en-IN')}
             </h3>
+            <p className="text-[9px] text-slate-400">Brought Forward</p>
+          </div>
+          <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 rounded-xl shrink-0">
+            <Coins size={16} />
+          </div>
+        </div>
+
+        {/* Total Income Received (Including Opening Balance) Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Income Received</p>
+            <h3 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
+              +₹{(summary.effectiveTotalIncome || ((summary.incomeOpeningBalance || 0) + (summary.totalIncome || 0))).toLocaleString('en-IN')}
+            </h3>
+            <p className="text-[9px] text-slate-400">Inc. OB ₹{(summary.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
           </div>
           <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 rounded-xl shrink-0">
             <ArrowDownLeft size={16} />
           </div>
         </div>
 
-        {/* Total Expenses Stat Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+        {/* Expense Opening Balance Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Expense (Outflow)</p>
-            <h3 className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5">
-              -₹{(summary.totalGeneralExpense || 0).toLocaleString('en-IN')}
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Expense Opening</p>
+            <h3 className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5 font-mono">
+              ₹{(summary.expenseOpeningBalance || 0).toLocaleString('en-IN')}
             </h3>
+            <p className="text-[9px] text-slate-400">Brought Forward</p>
+          </div>
+          <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 rounded-xl shrink-0">
+            <TrendingDown size={16} />
+          </div>
+        </div>
+
+        {/* Total Expenses & Purchases (Including Opening Balance) Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Expenses & Purchases</p>
+            <h3 className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5 font-mono">
+              -₹{(summary.effectiveTotalOutflow || ((summary.expenseOpeningBalance || 0) + (summary.totalExpense || 0))).toLocaleString('en-IN')}
+            </h3>
+            <p className="text-[9px] text-slate-400">Inc. OB ₹{(summary.expenseOpeningBalance || 0).toLocaleString('en-IN')}</p>
           </div>
           <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 rounded-xl shrink-0">
             <ArrowUpRight size={16} />
           </div>
         </div>
 
-        {/* Total Purchases Stat Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+        {/* Closing Net Balance Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Purchases</p>
-            <h3 className="text-base font-black text-amber-600 dark:text-amber-400 mt-0.5">
-              -₹{(summary.totalPurchase || 0).toLocaleString('en-IN')}
-            </h3>
-          </div>
-          <div className="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 rounded-xl shrink-0">
-            <ShoppingCart size={16} />
-          </div>
-        </div>
-
-        {/* Net Profit & Loss Balance Stat Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Net Profit / Loss</p>
-            <h3 className={`text-base font-black mt-0.5 ${
-              (summary.netBalance || 0) >= 0 
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Closing Net Balance</p>
+            <h3 className={`text-base font-black mt-0.5 font-mono ${
+              (summary.closingBalance || 0) >= 0 
                 ? 'text-indigo-600 dark:text-indigo-400' 
-                : 'text-rose-600 dark:text-rose-400'
+                : 'text-amber-600 dark:text-amber-400'
             }`}>
-              ₹{(summary.netBalance || 0).toLocaleString('en-IN')}
+              ₹{(summary.closingBalance || 0).toLocaleString('en-IN')}
             </h3>
+            <p className="text-[9px] text-slate-400">Net Total Balance</p>
           </div>
           <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 rounded-xl shrink-0">
             <Wallet size={16} />

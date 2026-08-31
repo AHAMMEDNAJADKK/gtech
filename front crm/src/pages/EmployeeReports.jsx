@@ -9,7 +9,8 @@ import { createPortal } from 'react-dom';
 import { useToast } from '../components/ToastProvider';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const rawApiBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase.slice(0, -3) : rawApiBase;
 
 // Map designation IDs to API endpoint prefixes
 const DESIGNATION_API_MAP = {
@@ -110,11 +111,19 @@ const EmployeeReports = () => {
         }
         if (res.ok) {
           const data = await res.json();
-          const emps = Array.isArray(data) ? data : (data.data || []);
+          const emps = Array.isArray(data) 
+            ? data 
+            : (Array.isArray(data.data) 
+              ? data.data 
+              : (Array.isArray(data.data?.users) 
+                ? data.data.users 
+                : (Array.isArray(data.users) ? data.users : [])));
           setEmployees(emps);
           emps.forEach(emp => {
             const empId = emp._id || emp.id;
-            fetchUploadedReports(empId, 'newest');
+            if (empId) {
+              fetchUploadedReports(empId, 'newest');
+            }
           });
         }
       } catch (err) {

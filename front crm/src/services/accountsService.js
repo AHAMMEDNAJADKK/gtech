@@ -200,3 +200,14 @@ export const getSalaryReport = async (params = {}) => {
   const response = await safeGet('/reports/salary', params);
   return response.data;
 };
+
+// ── Opening Balance Service ──
+export const getOpeningBalance = async () => {
+  const response = await safeGet('/opening-balance');
+  return response.data;
+};
+
+export const setOpeningBalance = async (data) => {
+  const response = await safePost('/opening-balance', data);
+  return response.data;
+};

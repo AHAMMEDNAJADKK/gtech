@@ -391,21 +391,26 @@ export const employeeReportPDFController = {
       if (userId && userId !== 'all') {
         if (mongoose.Types.ObjectId.isValid(userId)) {
           const objId = new mongoose.Types.ObjectId(userId);
-          pdfQuery = { $or: [{ employee_id: objId }, { employee_id: String(userId) }] };
+          pdfQuery = { $or: [{ employee_id: objId }, { employee_id: String(userId) }, { userId: objId }, { userId: String(userId) }] };
           userQuery = {
             $or: [
               { userId: objId },
               { userId: String(userId) },
               { employee_id: objId },
-              { employee_id: String(userId) }
+              { employee_id: String(userId) },
+              { user: objId },
+              { user: String(userId) },
+              { 'basicDetails.employeeId': String(userId) }
             ]
           };
         } else {
-          pdfQuery = { employee_id: String(userId) };
+          pdfQuery = { $or: [{ employee_id: String(userId) }, { userId: String(userId) }] };
           userQuery = {
             $or: [
               { userId: String(userId) },
-              { employee_id: String(userId) }
+              { employee_id: String(userId) },
+              { user: String(userId) },
+              { 'basicDetails.employeeId': String(userId) }
             ]
           };
         }
@@ -476,19 +481,20 @@ export const employeeReportPDFController = {
         reportMap.set(key, report);
       });
 
-      // 2. Merge pdfUploads (Cloudinary compiled PDF uploads take priority for pdf_url)
+      // 2. Merge pdfUploads (Cloudinary compiled PDF uploads take priority for pdf_url IF valid)
       pdfUploads.forEach(upload => {
         const dateKey = String(upload.report_date || '').trim();
         const periodKey = String(upload.report_period || 'daily').toLowerCase().trim();
         const key = `${dateKey}_${periodKey}`;
         if (reportMap.has(key)) {
           const existing = reportMap.get(key);
+          const hasValidPdf = Boolean(upload.pdf_public_id || upload.pdf_url);
           reportMap.set(key, {
             ...existing,
             ...upload,
-            _id: upload._id || existing._id,
+            _id: hasValidPdf ? (upload._id || existing._id) : existing._id,
             shiftReportId: existing._id,
-            pdf_url: upload.pdf_url || existing.pdf_url,
+            pdf_url: (hasValidPdf && upload.pdf_url) ? upload.pdf_url : existing.pdf_url,
             created_at: upload.created_at || existing.created_at
           });
         } else {
@@ -586,18 +592,85 @@ export const employeeReportPDFController = {
         });
       }
 
-      if (!record.pdf_public_id && !record.pdf_url) {
+      const shiftReportModels = [
+        { model: DeveloperReport, type: 'developer' },
+        { model: GraphicDesignerReport, type: 'graphicdesigner' },
+        { model: HodRdReport, type: 'hodrd' },
+        { model: HrReport, type: 'hr' },
+        { model: MarketingReport, type: 'marketing' },
+        { model: OpsReport, type: 'ops' },
+        { model: VideographerReport, type: 'videographer' },
+        { model: AcademicCounselorReport, type: 'academiccounselor' },
+        { model: AccountantReport, type: 'accountant' }
+      ];
+
+      const generateAndStreamShiftReport = async (empId, dateStr, shiftReportId) => {
+        let foundShiftDoc = null;
+        let foundTypeSlug = null;
+
+        if (shiftReportId) {
+          for (const item of shiftReportModels) {
+            const doc = await item.model.findById(shiftReportId);
+            if (doc) {
+              foundShiftDoc = doc;
+              foundTypeSlug = item.type;
+              break;
+            }
+          }
+        }
+
+        if (!foundShiftDoc && empId) {
+          for (const item of shiftReportModels) {
+            const query = {
+              $or: [
+                { userId: empId },
+                { userId: String(empId) },
+                { employee_id: empId },
+                { employee_id: String(empId) },
+                { 'basicDetails.employeeId': String(empId) }
+              ]
+            };
+            if (dateStr) {
+              query.dateString = dateStr;
+            }
+            const doc = await item.model.findOne(query);
+            if (doc) {
+              foundShiftDoc = doc;
+              foundTypeSlug = item.type;
+              break;
+            }
+          }
+        }
+
+        if (foundShiftDoc) {
+          const targetEmpId = foundShiftDoc.userId || foundShiftDoc.employee_id || empId;
+          const employee = await User.findById(targetEmpId).populate('designationId');
+          const designationName = employee?.designation || employee?.designationId?.name || foundTypeSlug;
+          const pdfBuffer = await generateReportPDFBuffer(foundShiftDoc, employee?.name || 'Employee', designationName);
+
+          const dateFileName = foundShiftDoc.dateString || dateStr || 'saved';
+          const filenameStr = `${foundTypeSlug}_Report_${dateFileName}.pdf`;
+
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filenameStr}"`);
+          res.setHeader('Content-Length', pdfBuffer.length);
+          return res.end(pdfBuffer);
+        }
+
         return res.status(404).json({ success: false, message: 'No PDF file stored for this report' });
+      };
+
+      if (!record.pdf_public_id && !record.pdf_url) {
+        return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId);
       }
 
       // Build an authenticated signed download URL using the Cloudinary SDK.
-      // This avoids the 401 that plain URLs get for resource_type:'raw' files.
       let fetchUrl;
       if (record.pdf_public_id) {
         fetchUrl = cloudinary.utils.private_download_url(
           record.pdf_public_id,
           'pdf',
-          { resource_type: 'raw', type: 'upload' }   // must match how it was uploaded
+          { resource_type: 'raw', type: 'upload' }
         );
       } else {
         fetchUrl = record.pdf_url;
@@ -607,7 +680,7 @@ export const employeeReportPDFController = {
 
       // Helper: fetch URL with redirect-following (Cloudinary signed URLs can redirect)
       const fetchAndPipe = (url, redirectsLeft) => {
-        const mod   = url.startsWith('https') ? https : http;
+        const mod = url.startsWith('https') ? https : http;
 
         mod.get(url, (cloudRes) => {
           const { statusCode, headers } = cloudRes;
@@ -619,11 +692,8 @@ export const employeeReportPDFController = {
           }
 
           if (statusCode !== 200) {
-            console.error(`[stream] Cloudinary returned ${statusCode} for ${url}`);
-            if (!res.headersSent) {
-              res.status(502).json({ success: false, message: `Storage returned status ${statusCode}` });
-            }
-            return;
+            console.error(`[stream] Cloudinary returned ${statusCode} for ${url}, falling back to dynamic PDF generation`);
+            return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId);
           }
 
           res.setHeader('Content-Type', 'application/pdf');
@@ -631,10 +701,8 @@ export const employeeReportPDFController = {
           if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
           cloudRes.pipe(res);
         }).on('error', (err) => {
-          console.error('[stream] Error fetching from Cloudinary:', err.message);
-          if (!res.headersSent) {
-            res.status(502).json({ success: false, message: 'Failed to stream PDF from storage' });
-          }
+          console.error('[stream] Error fetching from Cloudinary:', err.message, 'falling back to dynamic PDF generation');
+          generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId);
         });
       };
 

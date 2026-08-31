@@ -39,6 +39,7 @@ import HrReportPage from './pages/HrReportPage';
 import HrDashboard from './pages/HrDashboard';
 import OpsReportPage from './pages/OpsReportPage';
 import AccountantReportPage from './pages/AccountantReportPage';
+import AccountantDashboard from './pages/AccountantDashboard';
 import MarketingReportPage from './pages/MarketingReportPage';
 import VideographerReportPage from './pages/VideographerReportPage';
 import EmployeeReports from './pages/EmployeeReports';
@@ -77,7 +78,35 @@ import ProjectReportsPage from './pages/ProjectReportsPage';
 const getStoredToken = () => {
   const rawToken = localStorage.getItem('token');
   const token = rawToken ? rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').replace(/^Bearer\s+/i, '').trim() : '';
-  return ['undefined', 'null'].includes(token.toLowerCase()) ? '' : token;
+  if (!token || ['undefined', 'null'].includes(token.toLowerCase())) {
+    return '';
+  }
+
+  // Check if JWT token is expired
+  try {
+    const payloadBase64 = token.split('.')[1];
+    if (payloadBase64) {
+      const base64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const payload = JSON.parse(jsonPayload);
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        console.warn('🔑 JWT token expired overnight. Clearing session.');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('user_id');
+        return '';
+      }
+    }
+  } catch (err) {
+    // If decoding fails, retain token and let server validate
+  }
+
+  return token;
 };
 
 const ProtectedRoute = ({ children }) => {
@@ -185,6 +214,7 @@ function App() {
         <Route path="/hr-dashboard" element={<ProtectedRoute><MainLayout><HrDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/ops-report" element={<ProtectedRoute><MainLayout><OpsReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/accountant-report" element={<ProtectedRoute><MainLayout><AccountantReportPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/accountant-dashboard" element={<ProtectedRoute><MainLayout><AccountantDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/marketing-report" element={<ProtectedRoute><MainLayout><MarketingReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/videographer-report" element={<ProtectedRoute><MainLayout><VideographerReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/employee-reports" element={<ProtectedRoute><MainLayout><EmployeeReports /></MainLayout></ProtectedRoute>} />
