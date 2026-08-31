@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 import { getClients } from '../../services/clientService';
+import { getOpeningBalance, setOpeningBalance as saveOpeningBalanceApi } from '../../services/accountsService';
 import ConfirmModal from '../ConfirmModal';
 import IncomeInvoiceModal from './IncomeInvoiceModal';
 import CreateInvoiceModal from './CreateInvoiceModal';
@@ -79,6 +80,71 @@ const IncomeTab = ({ mode = 'sales' }) => {
   const [incomes, setIncomes] = useState([]);
   const [summary, setSummary] = useState({ totalIncome: 0, totalEntries: 0, departmentBreakdown: {} });
   const [loading, setLoading] = useState(true);
+
+  // Income Opening Balance State
+  const [showIncomeObModal, setShowIncomeObModal] = useState(false);
+  const [incomeObSaving, setIncomeObSaving] = useState(false);
+  const [incomeObAmount, setIncomeObAmount] = useState(0);
+  const [incomeObForm, setIncomeObForm] = useState({
+    incomeAmount: '',
+    asOfDate: new Date().toISOString().split('T')[0],
+    paymentMode: 'ALL',
+    note: ''
+  });
+
+  const fetchIncomeOb = useCallback(async () => {
+    try {
+      const res = await getOpeningBalance();
+      if (res && res.success && res.data) {
+        setIncomeObAmount(res.data.incomeAmount !== undefined ? res.data.incomeAmount : (res.data.amount || 0));
+      }
+    } catch (e) {
+      console.warn('Error fetching income opening balance:', e);
+    }
+  }, []);
+
+  const handleOpenIncomeObModal = async () => {
+    try {
+      const res = await getOpeningBalance();
+      if (res && res.success && res.data) {
+        setIncomeObForm({
+          incomeAmount: res.data.incomeAmount !== undefined ? res.data.incomeAmount : (res.data.amount || ''),
+          asOfDate: res.data.asOfDate ? new Date(res.data.asOfDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          paymentMode: res.data.paymentMode || 'ALL',
+          note: res.data.note || ''
+        });
+      }
+    } catch (e) {
+      console.warn('Error opening income OB modal:', e);
+    }
+    setShowIncomeObModal(true);
+  };
+
+  const handleSaveIncomeOpeningBalance = async (e) => {
+    e.preventDefault();
+    setIncomeObSaving(true);
+    try {
+      const res = await saveOpeningBalanceApi({
+        incomeAmount: incomeObForm.incomeAmount,
+        asOfDate: incomeObForm.asOfDate,
+        paymentMode: incomeObForm.paymentMode,
+        note: incomeObForm.note
+      });
+      if (res && res.success) {
+        setShowIncomeObModal(false);
+        showToast('Income Opening Balance updated successfully!', 'success');
+        fetchIncomeOb();
+        fetchIncomes();
+      } else {
+        showToast(res?.message || 'Failed to update opening balance.', 'error');
+      }
+    } catch (err) {
+      console.error('Error saving income opening balance:', err);
+      showToast('Error updating income opening balance.', 'error');
+    } finally {
+      setIncomeObSaving(false);
+    }
+  };
 
   // Departments & Clients list
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
@@ -396,7 +462,8 @@ const IncomeTab = ({ mode = 'sales' }) => {
 
   useEffect(() => {
     fetchIncomes();
-  }, [fetchIncomes]);
+    fetchIncomeOb();
+  }, [fetchIncomes, fetchIncomeOb]);
 
   const handleMarkAsPaid = async (inc) => {
     try {
@@ -776,6 +843,12 @@ const IncomeTab = ({ mode = 'sales' }) => {
             </h3>
           </div>
 
+          {/* Income Opening Balance Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+            <Coins size={13} />
+            <span>OB: ₹{incomeObAmount.toLocaleString('en-IN')}</span>
+          </div>
+
           {/* Active vs Inactive Sub-Tabs Switcher */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 ml-1">
             <button
@@ -816,6 +889,16 @@ const IncomeTab = ({ mode = 'sales' }) => {
             />
             <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
           </div>
+
+          {/* Set Income Opening Balance Button */}
+          <button
+            type="button"
+            onClick={handleOpenIncomeObModal}
+            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+          >
+            <Coins size={14} />
+            <span>Set Opening Balance</span>
+          </button>
 
           {/* Single Sort & Filter Button */}
           <button
@@ -1933,6 +2016,105 @@ const IncomeTab = ({ mode = 'sales' }) => {
         confirmText={confirmModalConfig.confirmText}
         type={confirmModalConfig.type}
       />
+
+      {/* Set Income Opening Balance Modal (Portal to document.body) */}
+      {showIncomeObModal && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600">
+                  <Coins size={18} />
+                </div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Set Income Opening Balance</h3>
+              </div>
+              <button 
+                onClick={() => setShowIncomeObModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveIncomeOpeningBalance} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Income Opening Balance (₹) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  placeholder="e.g. 50000"
+                  value={incomeObForm.incomeAmount}
+                  onChange={(e) => setIncomeObForm({ ...incomeObForm, incomeAmount: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/40 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  As of Date (Effective Date)
+                </label>
+                <input
+                  type="date"
+                  value={incomeObForm.asOfDate}
+                  onChange={(e) => setIncomeObForm({ ...incomeObForm, asOfDate: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/40 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Account / Payment Mode
+                </label>
+                <select
+                  value={incomeObForm.paymentMode}
+                  onChange={(e) => setIncomeObForm({ ...incomeObForm, paymentMode: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/40 outline-none"
+                >
+                  <option value="ALL">All Combined Accounts</option>
+                  <option value="CASH">Cash in Hand</option>
+                  <option value="BANK">Bank Account</option>
+                  <option value="ONLINE">Online / UPI</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Notes / Reference
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Starting income balance note..."
+                  value={incomeObForm.note}
+                  onChange={(e) => setIncomeObForm({ ...incomeObForm, note: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500/40 outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowIncomeObModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={incomeObSaving}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  {incomeObSaving ? <Loader2 size={14} className="animate-spin" /> : <Coins size={14} />}
+                  <span>Save Income Opening</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

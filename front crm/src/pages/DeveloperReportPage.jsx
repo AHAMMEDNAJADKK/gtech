@@ -298,6 +298,113 @@ const DeveloperReportPage = () => {
   const [dailyTaskSummary, setDailyTaskSummary] = useState(DEFAULT_TASK_SUMMARY);
   const [selectedActivityText, setSelectedActivityText] = useState(null);
   const [developmentTaskReport, setDevelopmentTaskReport] = useState(DEFAULT_DEV_REPORT);
+
+  // Helper for auto-bulleting & numbering lists on Enter key press in activity textareas
+  const handleAutoListKeyDown = (e, currentValue, updateCallback) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+      const target = e.target;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const text = currentValue || '';
+
+      const textBefore = text.substring(0, start);
+      const textAfter = text.substring(end);
+
+      const lastNewLine = textBefore.lastIndexOf('\n');
+      const currentLine = lastNewLine === -1 ? textBefore : textBefore.substring(lastNewLine + 1);
+
+      const bulletMatch = currentLine.match(/^(\s*)(•|-|\*)\s*(.*)/);
+      const numberMatch = currentLine.match(/^(\s*)(\d+)\.\s*(.*)/);
+
+      if (numberMatch) {
+        const indent = numberMatch[1];
+        const num = parseInt(numberMatch[2], 10);
+        const lineText = numberMatch[3];
+
+        if (lineText.trim() === '') {
+          e.preventDefault();
+          const lineStart = lastNewLine === -1 ? 0 : lastNewLine + 1;
+          const newText = text.substring(0, lineStart) + textAfter;
+          updateCallback(newText);
+          setTimeout(() => {
+            target.setSelectionRange(lineStart, lineStart);
+          }, 0);
+          return;
+        }
+
+        e.preventDefault();
+        const nextNum = num + 1;
+        const insertion = `\n${indent}${nextNum}. `;
+        const newText = textBefore + insertion + textAfter;
+        updateCallback(newText);
+        const nextPos = start + insertion.length;
+        setTimeout(() => {
+          target.setSelectionRange(nextPos, nextPos);
+        }, 0);
+        return;
+      }
+
+      if (bulletMatch) {
+        const indent = bulletMatch[1];
+        const bulletChar = bulletMatch[2];
+        const lineText = bulletMatch[3];
+
+        if (lineText.trim() === '') {
+          e.preventDefault();
+          const lineStart = lastNewLine === -1 ? 0 : lastNewLine + 1;
+          const newText = text.substring(0, lineStart) + textAfter;
+          updateCallback(newText);
+          setTimeout(() => {
+            target.setSelectionRange(lineStart, lineStart);
+          }, 0);
+          return;
+        }
+
+        e.preventDefault();
+        const nextBullet = bulletChar === '*' ? '•' : bulletChar;
+        const insertion = `\n${indent}${nextBullet} `;
+        const newText = textBefore + insertion + textAfter;
+        updateCallback(newText);
+        const nextPos = start + insertion.length;
+        setTimeout(() => {
+          target.setSelectionRange(nextPos, nextPos);
+        }, 0);
+        return;
+      }
+
+      if (text.trim() === '') {
+        e.preventDefault();
+        const newText = '• ';
+        updateCallback(newText);
+        setTimeout(() => {
+          target.setSelectionRange(2, 2);
+        }, 0);
+        return;
+      }
+
+      if (!textBefore.includes('• ') && !textBefore.includes('- ') && !/^\s*\d+\.\s/.test(currentLine)) {
+        e.preventDefault();
+        const lineStart = lastNewLine === -1 ? 0 : lastNewLine + 1;
+        const lineContentBefore = textBefore.substring(lineStart);
+        const newText = text.substring(0, lineStart) + '• ' + lineContentBefore + '\n• ' + textAfter;
+        updateCallback(newText);
+        const nextPos = start + 5;
+        setTimeout(() => {
+          target.setSelectionRange(nextPos, nextPos);
+        }, 0);
+        return;
+      }
+
+      e.preventDefault();
+      const insertion = '\n• ';
+      const newText = textBefore + insertion + textAfter;
+      updateCallback(newText);
+      const nextPos = start + insertion.length;
+      setTimeout(() => {
+        target.setSelectionRange(nextPos, nextPos);
+      }, 0);
+    }
+  };
   const [researchLearning, setResearchLearning] = useState([{ activity: '', details: '' }]);
   const [performanceTracker, setPerformanceTracker] = useState({
     taskCompleted: 'Good',
@@ -1949,6 +2056,11 @@ const DeveloperReportPage = () => {
                                 newArr[i].activity = e.target.value;
                                 setDevelopmentTaskReport(newArr);
                               }}
+                              onKeyDown={(e) => handleAutoListKeyDown(e, row.activity || '', (newVal) => {
+                                const newArr = [...developmentTaskReport];
+                                newArr[i].activity = newVal;
+                                setDevelopmentTaskReport(newArr);
+                              })}
                               className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                               placeholder="- Description of work done"
                             />

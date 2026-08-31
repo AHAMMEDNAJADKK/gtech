@@ -64,8 +64,14 @@ export const UserProvider = ({ children }) => {
           window.dispatchEvent(new Event('storage'));
         }
       } else if (res.status === 401 || res.status === 403) {
-        // Keep navigation stable; the backend remains authoritative for access control.
+        console.warn('🔑 Session expired or unauthorized (401/403). Clearing stale session.');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('user_id');
         setUser(null);
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login?timeout=true';
+        }
       }
     } finally {
       setLoading(false);

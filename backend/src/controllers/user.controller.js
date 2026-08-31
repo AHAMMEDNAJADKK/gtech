@@ -232,7 +232,10 @@ export const userController = {
         }
       } else {
         // Exclude students by default when listing staff members
-        conditions.push({ role_id: { $ne: '10' } });
+        conditions.push({
+          role: { $not: /^student$/i },
+          role_id: { $nin: ['10', 10, '4', 4] }
+        });
       }
 
       if (department) {

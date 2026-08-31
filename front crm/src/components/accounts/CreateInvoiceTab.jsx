@@ -572,16 +572,6 @@ const CreateInvoiceTab = () => {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {status !== 'Paid' && (
-            <button
-              type="button"
-              onClick={handleMarkAsPaid}
-              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
-              title="Mark Invoice as Paid & Generate Receipt"
-            >
-              <CheckCircle2 size={13} /> Mark as Paid
-            </button>
-          )}
           <button
             type="button"
             onClick={() => navigate('/accounts/income')}
@@ -646,30 +636,13 @@ const CreateInvoiceTab = () => {
             <span className="text-[9px] font-extrabold uppercase text-slate-400">Status:</span>
             <select
               value={status}
-              onChange={(e) => {
-                const newStatus = e.target.value;
-                if (newStatus === 'Paid') {
-                  handleMarkAsPaid(e);
-                } else {
-                  setStatus(newStatus);
-                }
-              }}
+              onChange={(e) => setStatus(e.target.value)}
               className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 text-[11px] font-bold cursor-pointer"
             >
               <option value="Paid">Paid (Generates Receipt)</option>
               <option value="Pending">Pending</option>
               <option value="Draft">Draft</option>
             </select>
-            {status !== 'Paid' && (
-              <button
-                type="button"
-                onClick={handleMarkAsPaid}
-                className="px-2.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                title="Mark Invoice as Paid & Generate Receipt"
-              >
-                <CheckCircle2 size={11} /> Mark Paid
-              </button>
-            )}
           </div>
         </div>
 

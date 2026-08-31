@@ -542,7 +542,7 @@ const BatchDetails = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={handleExecuteRemoveStudent}
+                  onClick={confirmRemoveStudent}
                   disabled={isRemoving}
                   className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer shadow-md shadow-rose-600/20"
                 >

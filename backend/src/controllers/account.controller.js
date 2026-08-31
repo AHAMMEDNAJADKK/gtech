@@ -4,6 +4,7 @@ import Expense from '../models/expense.model.js';
 import SalaryPayment from '../models/salaryPayment.model.js';
 import User from '../models/user.model.js';
 import Income from '../models/income.model.js';
+import OpeningBalance from '../models/openingBalance.model.js';
 import { sendEmail } from '../services/emailService.js';
 
 const DEFAULT_CATEGORIES = [
@@ -705,28 +706,108 @@ export const getCashBook = async (req, res) => {
     // Combine and sort by date descending
     const combinedLedger = [...incomes, ...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    // Fetch active Opening Balance
+    const obRecord = await OpeningBalance.findOne().sort({ updatedAt: -1 });
+    const incomeOpeningBalance = obRecord ? (obRecord.incomeAmount ?? obRecord.amount ?? 0) : 0;
+    const expenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+
     // Calculate Summary Stats (Income, General Expense, Purchase Outflow, Net Profit/Loss)
     const totalIncome = incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
     const totalPurchase = expenses.filter(e => e.isPurchase).reduce((sum, item) => sum + (item.amount || 0), 0);
     const totalGeneralExpense = expenses.filter(e => !e.isPurchase).reduce((sum, item) => sum + (item.amount || 0), 0);
     const totalExpense = totalGeneralExpense + totalPurchase; // Total Outflow
+
+    const effectiveTotalIncome = incomeOpeningBalance + totalIncome;
+    const effectiveTotalOutflow = expenseOpeningBalance + totalExpense;
     const netBalance = totalIncome - totalExpense;
+    const closingBalance = effectiveTotalIncome - effectiveTotalOutflow;
 
     return res.status(200).json({
       success: true,
       summary: {
+        incomeOpeningBalance,
+        expenseOpeningBalance,
+        openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
+        effectiveTotalIncome,
         totalGeneralExpense,
         totalPurchase,
         totalExpense,
         totalOutflow: totalExpense,
+        effectiveTotalOutflow,
         netBalance,
+        closingBalance,
         totalEntries: combinedLedger.length
       },
       data: combinedLedger
     });
   } catch (error) {
     console.error('getCashBook Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// OPENING BALANCE CONTROLLERS
+// ==========================================
+
+export const getOpeningBalance = async (req, res) => {
+  try {
+    const activeBalance = await OpeningBalance.findOne().sort({ updatedAt: -1 }).populate('updatedBy', 'name email');
+    return res.status(200).json({
+      success: true,
+      data: activeBalance || { incomeAmount: 0, expenseAmount: 0, amount: 0, asOfDate: new Date(), paymentMode: 'ALL', note: '' }
+    });
+  } catch (error) {
+    console.error('getOpeningBalance Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const setOpeningBalance = async (req, res) => {
+  try {
+    const { incomeAmount, expenseAmount, amount, asOfDate, paymentMode, note } = req.body;
+
+    let obRecord = await OpeningBalance.findOne();
+    if (!obRecord) {
+      obRecord = new OpeningBalance();
+    }
+
+    if (incomeAmount !== undefined && incomeAmount !== null && incomeAmount !== '') {
+      const parsedIncome = parseFloat(incomeAmount);
+      if (!isNaN(parsedIncome)) {
+        obRecord.incomeAmount = parsedIncome;
+        obRecord.amount = parsedIncome;
+      }
+    } else if (amount !== undefined && amount !== null && amount !== '' && expenseAmount === undefined) {
+      const parsedAmount = parseFloat(amount);
+      if (!isNaN(parsedAmount)) {
+        obRecord.incomeAmount = parsedAmount;
+        obRecord.amount = parsedAmount;
+      }
+    }
+
+    if (expenseAmount !== undefined && expenseAmount !== null && expenseAmount !== '') {
+      const parsedExpense = parseFloat(expenseAmount);
+      if (!isNaN(parsedExpense)) {
+        obRecord.expenseAmount = parsedExpense;
+      }
+    }
+
+    if (asOfDate) obRecord.asOfDate = new Date(asOfDate);
+    if (paymentMode) obRecord.paymentMode = paymentMode;
+    if (note !== undefined) obRecord.note = note;
+    if (req.user?.id || req.user?._id) obRecord.updatedBy = req.user?.id || req.user?._id;
+
+    await obRecord.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Income and Expense opening balances configured successfully.',
+      data: obRecord
+    });
+  } catch (error) {
+    console.error('setOpeningBalance Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -746,10 +827,14 @@ export const getDailyReport = async (req, res) => {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const [expenses, incomes] = await Promise.all([
+    const [expenses, incomes, obRecord] = await Promise.all([
       Expense.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 }),
-      Income.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 })
+      Income.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 }),
+      OpeningBalance.findOne().sort({ updatedAt: -1 })
     ]);
+
+    const incomeOpeningBalance = obRecord ? (obRecord.incomeAmount ?? obRecord.amount ?? 0) : 0;
+    const expenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
 
     const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
     const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -757,19 +842,28 @@ export const getDailyReport = async (req, res) => {
     const generalExpenseTotal = expenses.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory') && e.type !== 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
     
     const totalOutflow = generalExpenseTotal + salaryTotal + purchaseTotal;
+    const effectiveTotalIncome = incomeOpeningBalance + totalIncome;
+    const effectiveTotalOutflow = expenseOpeningBalance + totalOutflow;
     const netBalance = totalIncome - totalOutflow;
+    const closingBalance = effectiveTotalIncome - effectiveTotalOutflow;
 
     return res.status(200).json({
       success: true,
       date: startOfDay.toISOString().split('T')[0],
       summary: {
+        incomeOpeningBalance,
+        expenseOpeningBalance,
+        openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
+        effectiveTotalIncome,
         totalAmount: totalOutflow,
         totalOutflow,
+        effectiveTotalOutflow,
         salaryTotal,
         purchaseTotal,
         generalExpenseTotal,
         netBalance,
+        closingBalance,
         count: expenses.length + incomes.length
       },
       data: expenses,
@@ -791,10 +885,14 @@ export const getMonthlyReport = async (req, res) => {
     const startOfMonth = new Date(targetYear, targetMonth - 1, 1);
     const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
 
-    const [expenses, incomes] = await Promise.all([
+    const [expenses, incomes, obRecord] = await Promise.all([
       Expense.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 }),
-      Income.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 })
+      Income.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 }),
+      OpeningBalance.findOne().sort({ updatedAt: -1 })
     ]);
+
+    const incomeOpeningBalance = obRecord ? (obRecord.incomeAmount ?? obRecord.amount ?? 0) : 0;
+    const expenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
 
     const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
     const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -802,19 +900,28 @@ export const getMonthlyReport = async (req, res) => {
     const generalExpenseTotal = expenses.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory') && e.type !== 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
     
     const totalOutflow = generalExpenseTotal + salaryTotal + purchaseTotal;
+    const effectiveTotalIncome = incomeOpeningBalance + totalIncome;
+    const effectiveTotalOutflow = expenseOpeningBalance + totalOutflow;
     const netBalance = totalIncome - totalOutflow;
+    const closingBalance = effectiveTotalIncome - effectiveTotalOutflow;
 
     return res.status(200).json({
       success: true,
       period: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
       summary: {
+        incomeOpeningBalance,
+        expenseOpeningBalance,
+        openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
+        effectiveTotalIncome,
         totalAmount: totalOutflow,
         totalOutflow,
+        effectiveTotalOutflow,
         salaryTotal,
         purchaseTotal,
         generalExpenseTotal,
         netBalance,
+        closingBalance,
         count: expenses.length + incomes.length
       },
       data: expenses,

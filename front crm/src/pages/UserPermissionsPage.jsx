@@ -30,6 +30,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', desc: 'Lead generation & conversion metrics' },
   { label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', desc: 'Marketing campaigns & lead channels' },
   { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', desc: 'Academic counselor dashboard & student conversions' },
+  { label: 'Accountant Dashboard', path: '/accountant-dashboard', category: 'Dashboards', desc: 'Accountant financial dashboard, cashbook & revenue metrics' },
   { label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', desc: 'Developer task tracking & commit status' },
   { label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', desc: 'Graphic design project & asset tracker' },
   { label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', desc: 'Videography project & editing status' },

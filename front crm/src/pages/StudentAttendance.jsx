@@ -89,9 +89,6 @@ const StudentAttendance = () => {
         const cData = await cRes.json();
         const cList = cData?.data || cData?.courses || (Array.isArray(cData) ? cData : []);
         setCourses(cList);
-        if (cList.length > 0 && !selectedCourseId) {
-          setSelectedCourseId(cList[0]._id || cList[0].id);
-        }
       }
 
       const bRes = await fetch(`${cleanBase}/v1/academy/batches`, { headers: getHeaders() });
@@ -99,14 +96,11 @@ const StudentAttendance = () => {
         const bData = await bRes.json();
         const bList = bData?.data || bData?.batches || (Array.isArray(bData) ? bData : []);
         setBatches(bList);
-        if (bList.length > 0 && !selectedBatchId) {
-          setSelectedBatchId(bList[0]._id || bList[0].id);
-        }
       }
     } catch (err) {
       console.error("Fetch Courses/Batches Error:", err);
     }
-  }, [getHeaders, selectedCourseId, selectedBatchId]);
+  }, [getHeaders]);
 
   const syncAttendance = useCallback(async () => {
     try {
@@ -193,15 +187,15 @@ const StudentAttendance = () => {
 
   const getFilteredStudents = () => {
     let filtered = students.filter(s => {
-      const nameMatch = s.name?.toLowerCase().includes(searchQuery.toLowerCase());
-      const emailMatch = s.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const nameMatch = (s.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const emailMatch = (s.email || '').toLowerCase().includes(searchQuery.toLowerCase());
       const idMatch = (s.studentId || s.employeeId || '').toLowerCase().includes(searchQuery.toLowerCase());
       return nameMatch || emailMatch || idMatch;
     });
 
-    if (selectedBatchId && selectedBatchId !== 'ALL') {
+    if (selectedBatchId && selectedBatchId !== 'ALL' && selectedBatchId !== '') {
       const activeBatch = batches.find(b => String(b._id || b.id) === String(selectedBatchId));
-      if (activeBatch && Array.isArray(activeBatch.students) && activeBatch.students.length > 0) {
+      if (activeBatch && Array.isArray(activeBatch.students)) {
         const bStudentIds = activeBatch.students.map(st => String(st._id || st.id || st));
         filtered = filtered.filter(s => bStudentIds.includes(String(s._id || s.id)));
       }
@@ -548,7 +542,7 @@ const StudentAttendance = () => {
               onChange={(e) => setSelectedCourseId(e.target.value)}
               className="bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 outline-none cursor-pointer"
             >
-              <option value="">-- Select Course --</option>
+              <option value="">All Courses</option>
               {courses.map(c => (
                 <option key={c._id || c.id} value={c._id || c.id}>
                   {c.courseCode} - {c.courseName}
@@ -562,7 +556,7 @@ const StudentAttendance = () => {
               onChange={(e) => setSelectedBatchId(e.target.value)}
               className="bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 outline-none cursor-pointer"
             >
-              <option value="">-- Select Batch --</option>
+              <option value="">All Batches</option>
               {batches
                 .filter(b => !selectedCourseId || String(b.courseId?._id || b.courseId) === String(selectedCourseId))
                 .map(b => (

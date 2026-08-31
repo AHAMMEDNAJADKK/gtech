@@ -1,0 +1,159 @@
+{
+  "summary": {
+    "totalUsers": 45,
+    "studentUsersInUserCollection": 6,
+    "dedicatedStudentsInStudentCollection": 0,
+    "enrollmentCount": 6
+  },
+  "userRolesBreakdown": [
+    {
+      "_id": {
+        "role": "admin",
+        "role_id": "1",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 2
+    },
+    {
+      "_id": {
+        "role": "student",
+        "role_id": "10",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 6
+    },
+    {
+      "_id": {
+        "role": "superadmin",
+        "role_id": "0",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 1
+    },
+    {
+      "_id": {
+        "role": "admin",
+        "role_id": "2",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 6
+    },
+    {
+      "_id": {
+        "role": "employee",
+        "role_id": "3",
+        "status": "inactive",
+        "isActive": false
+      },
+      "count": 1
+    },
+    {
+      "_id": {
+        "role": "hr",
+        "role_id": "3",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 2
+    },
+    {
+      "_id": {
+        "role": "hr",
+        "role_id": "1",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 2
+    },
+    {
+      "_id": {
+        "role": "employee",
+        "role_id": "3",
+        "status": "active",
+        "isActive": true
+      },
+      "count": 25
+    }
+  ],
+  "sampleStudentUsers": [
+    {
+      "_id": "6a55fb7a47aa971ddfc65e92",
+      "name": "abc",
+      "email": "abc@gmail.com",
+      "phone": "2134567876",
+      "role": "student",
+      "role_id": "10",
+      "identityNumber": "234567897654",
+      "employeeId": "abc@gmail.com",
+      "isActive": true,
+      "status": "active"
+    },
+    {
+      "_id": "6a55fba247aa971ddfc65e93",
+      "name": "stdnt2",
+      "email": "stdnt2@gmail.com",
+      "phone": "1234567898",
+      "role": "student",
+      "role_id": "10",
+      "identityNumber": "123456789012",
+      "employeeId": "stdnt2@gmail.com",
+      "isActive": true,
+      "status": "active"
+    },
+    {
+      "_id": "6a55fbbd47aa971ddfc65e94",
+      "name": "stdnt6567",
+      "email": "stdnt3@gmail.com",
+      "phone": "1234567892",
+      "role": "student",
+      "role_id": "10",
+      "identityNumber": "123456789013",
+      "employeeId": "stdnt3@gmail.com",
+      "isActive": true,
+      "status": "active"
+    },
+    {
+      "_id": "6a55fbd747aa971ddfc65e95",
+      "name": "stdnt4",
+      "email": "stdnt4@gmail.com",
+      "phone": "1234567893",
+      "role": "student",
+      "role_id": "10",
+      "identityNumber": "123456789213",
+      "employeeId": "stdnt4@gmail.com",
+      "isActive": true,
+      "status": "active"
+    },
+    {
+      "_id": "6a7bf5b0b30a05157e74ce0e",
+      "name": "rishad",
+      "email": "rishad@gmail.com",
+      "phone": "9876656666",
+      "role": "student",
+      "role_id": "10",
+      "identityNumber": "567898988888",
+      "employeeId": "STD-2026-000001",
+      "isActive": true,
+      "status": "active",
+      "studentId": "STD-2026-000001"
+    },
+    {
+      "_id": "6a7bfc0a7520dc5459aa0b20",
+      "name": "najad",
+      "email": "najad@gmail.com",
+      "phone": "8765432345",
+      "role": "student",
+      "role_id": "10",
+      "identityNumber": "931697573456",
+      "employeeId": "STD-2026-000002",
+      "isActive": true,
+      "status": "active",
+      "studentId": "STD-2026-000002"
+    }
+  ],
+  "sampleDedicatedStudents": []
+}

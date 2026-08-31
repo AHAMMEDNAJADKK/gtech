@@ -1,0 +1,829 @@
+{
+  "users_role_student": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "status": 200,
+      "message": "Staff directory list retrieved successfully.",
+      "data": [
+        {
+          "id": "6a7bfc0a7520dc5459aa0b20",
+          "name": "najad",
+          "email": "najad@gmail.com",
+          "phone": "8765432345",
+          "role": "student",
+          "employeeId": "STD-2026-000002",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-08-12T04:52:26.613Z",
+          "joining_date": "2026-08-12T00:00:00.000Z",
+          "salary": 1,
+          "address": "kerala malappuram kerala",
+          "identityType": "aadhaar",
+          "identityNumber": "931697573456",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a7bf5b0b30a05157e74ce0e",
+          "name": "rishad",
+          "email": "rishad@gmail.com",
+          "phone": "9876656666",
+          "role": "student",
+          "employeeId": "STD-2026-000001",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-08-12T04:25:20.698Z",
+          "joining_date": "2026-08-12T00:00:00.000Z",
+          "salary": 1,
+          "address": "kerala malappuram kerala",
+          "identityType": "aadhaar",
+          "identityNumber": "567898988888",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fbd747aa971ddfc65e95",
+          "name": "stdnt4",
+          "email": "stdnt4@gmail.com",
+          "phone": "1234567893",
+          "role": "student",
+          "employeeId": "stdnt4@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:05:27.629Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "123456789213",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fbbd47aa971ddfc65e94",
+          "name": "stdnt6567",
+          "email": "stdnt3@gmail.com",
+          "phone": "1234567892",
+          "role": "student",
+          "employeeId": "stdnt3@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:05:01.225Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "123456789013",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fba247aa971ddfc65e93",
+          "name": "stdnt2",
+          "email": "stdnt2@gmail.com",
+          "phone": "1234567898",
+          "role": "student",
+          "employeeId": "stdnt2@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:04:34.927Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "123456789012",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fb7a47aa971ddfc65e92",
+          "name": "abc",
+          "email": "abc@gmail.com",
+          "phone": "2134567876",
+          "role": "student",
+          "employeeId": "abc@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:03:54.029Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "234567897654",
+          "permissions": [],
+          "isSuperAdmin": false
+        }
+      ],
+      "meta": {
+        "requestId": "N/A",
+        "timestamp": "2026-08-27T09:28:42.471Z"
+      },
+      "pagination": {
+        "page": 1,
+        "limit": 500,
+        "total": 6,
+        "totalPages": 1
+      }
+    }
+  },
+  "users_role_10": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "status": 200,
+      "message": "Staff directory list retrieved successfully.",
+      "data": [
+        {
+          "id": "6a7bfc0a7520dc5459aa0b20",
+          "name": "najad",
+          "email": "najad@gmail.com",
+          "phone": "8765432345",
+          "role": "student",
+          "employeeId": "STD-2026-000002",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-08-12T04:52:26.613Z",
+          "joining_date": "2026-08-12T00:00:00.000Z",
+          "salary": 1,
+          "address": "kerala malappuram kerala",
+          "identityType": "aadhaar",
+          "identityNumber": "931697573456",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a7bf5b0b30a05157e74ce0e",
+          "name": "rishad",
+          "email": "rishad@gmail.com",
+          "phone": "9876656666",
+          "role": "student",
+          "employeeId": "STD-2026-000001",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-08-12T04:25:20.698Z",
+          "joining_date": "2026-08-12T00:00:00.000Z",
+          "salary": 1,
+          "address": "kerala malappuram kerala",
+          "identityType": "aadhaar",
+          "identityNumber": "567898988888",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fbd747aa971ddfc65e95",
+          "name": "stdnt4",
+          "email": "stdnt4@gmail.com",
+          "phone": "1234567893",
+          "role": "student",
+          "employeeId": "stdnt4@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:05:27.629Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "123456789213",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fbbd47aa971ddfc65e94",
+          "name": "stdnt6567",
+          "email": "stdnt3@gmail.com",
+          "phone": "1234567892",
+          "role": "student",
+          "employeeId": "stdnt3@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:05:01.225Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "123456789013",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fba247aa971ddfc65e93",
+          "name": "stdnt2",
+          "email": "stdnt2@gmail.com",
+          "phone": "1234567898",
+          "role": "student",
+          "employeeId": "stdnt2@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:04:34.927Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "123456789012",
+          "permissions": [],
+          "isSuperAdmin": false
+        },
+        {
+          "id": "6a55fb7a47aa971ddfc65e92",
+          "name": "abc",
+          "email": "abc@gmail.com",
+          "phone": "2134567876",
+          "role": "student",
+          "employeeId": "abc@gmail.com",
+          "department": "",
+          "departmentId": null,
+          "designation": "",
+          "designationId": "",
+          "designationName": "",
+          "avatar": null,
+          "profile_image": null,
+          "profileImage": null,
+          "isActive": true,
+          "status": "active",
+          "createdAt": "2026-07-14T09:03:54.029Z",
+          "joining_date": "2026-07-14T00:00:00.000Z",
+          "salary": 1,
+          "address": "",
+          "identityType": "aadhaar",
+          "identityNumber": "234567897654",
+          "permissions": [],
+          "isSuperAdmin": false
+        }
+      ],
+      "meta": {
+        "requestId": "N/A",
+        "timestamp": "2026-08-27T09:28:42.935Z"
+      },
+      "pagination": {
+        "page": 1,
+        "limit": 500,
+        "total": 6,
+        "totalPages": 1
+      }
+    }
+  },
+  "academy_enrollments": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "data": [
+        {
+          "_id": "6a7ea907ddca1649b484ef86",
+          "studentId": {
+            "_id": "6a55fb7a47aa971ddfc65e92",
+            "name": "abc",
+            "email": "abc@gmail.com",
+            "phone": "2134567876",
+            "profile_image": null,
+            "status": "active"
+          },
+          "courseId": {
+            "_id": "6a7ea8d4ddca1649b484ef84",
+            "courseCode": "marketing",
+            "courseName": "digital marketing",
+            "category": "Web Development",
+            "syllabus": [
+              {
+                "moduleId": "mod_1",
+                "title": "Module 1: Fundamentals & Environment Setup",
+                "description": "Introduction to core concepts and toolchain setup",
+                "order": 1,
+                "topics": [
+                  {
+                    "topicId": "top_1",
+                    "title": "Course Orientation & Architecture Overview",
+                    "description": "",
+                    "order": 1
+                  },
+                  {
+                    "topicId": "top_2",
+                    "title": "Environment Configuration & Developer Tools",
+                    "description": "",
+                    "order": 2
+                  }
+                ]
+              }
+            ]
+          },
+          "batchId": {
+            "_id": "6a7ea8f7ddca1649b484ef85",
+            "batchCode": "marketing",
+            "batchName": "digitalmarketing aug",
+            "status": "UPCOMING"
+          },
+          "status": "active",
+          "totalModules": 1,
+          "completedModules": 0,
+          "progressPercentage": 0,
+          "enrolledAt": "2026-08-14T05:35:03.316Z",
+          "createdBy": "6a421654f58d6806aaf98504",
+          "lastActivityAt": "2026-08-14T05:35:03.317Z",
+          "createdAt": "2026-08-14T05:35:03.318Z",
+          "updatedAt": "2026-08-14T05:35:03.318Z",
+          "__v": 0,
+          "attendanceSummary": {
+            "totalSessions": 3,
+            "presentCount": 2,
+            "absentCount": 1,
+            "lateCount": 0,
+            "attendancePercentage": 67
+          }
+        },
+        {
+          "_id": "6a7c04a4f89b0995105bf53a",
+          "studentId": {
+            "_id": "6a55fb7a47aa971ddfc65e92",
+            "name": "abc",
+            "email": "abc@gmail.com",
+            "phone": "2134567876",
+            "profile_image": null,
+            "status": "active"
+          },
+          "courseId": null,
+          "batchId": null,
+          "status": "active",
+          "totalModules": 10,
+          "completedModules": 0,
+          "progressPercentage": 100,
+          "enrolledAt": "2026-08-12T05:29:08.653Z",
+          "lastActivityAt": "2026-08-12T05:29:08.653Z",
+          "createdAt": "2026-08-12T05:29:08.656Z",
+          "updatedAt": "2026-08-12T05:29:08.981Z",
+          "__v": 0,
+          "attendanceSummary": {
+            "totalSessions": 3,
+            "presentCount": 2,
+            "absentCount": 1,
+            "lateCount": 0,
+            "attendancePercentage": 67
+          }
+        },
+        {
+          "_id": "6a7c04539d226280cc550a92",
+          "studentId": {
+            "_id": "6a55fb7a47aa971ddfc65e92",
+            "name": "abc",
+            "email": "abc@gmail.com",
+            "phone": "2134567876",
+            "profile_image": null,
+            "status": "active"
+          },
+          "courseId": null,
+          "batchId": null,
+          "status": "active",
+          "totalModules": 10,
+          "completedModules": 0,
+          "progressPercentage": 0,
+          "enrolledAt": "2026-08-12T05:27:47.241Z",
+          "lastActivityAt": "2026-08-12T05:27:47.241Z",
+          "createdAt": "2026-08-12T05:27:47.242Z",
+          "updatedAt": "2026-08-12T05:27:47.242Z",
+          "__v": 0,
+          "attendanceSummary": {
+            "totalSessions": 3,
+            "presentCount": 2,
+            "absentCount": 1,
+            "lateCount": 0,
+            "attendancePercentage": 67
+          }
+        },
+        {
+          "_id": "6a7c042715ddc2d7da2e59cf",
+          "studentId": {
+            "_id": "6a55fb7a47aa971ddfc65e92",
+            "name": "abc",
+            "email": "abc@gmail.com",
+            "phone": "2134567876",
+            "profile_image": null,
+            "status": "active"
+          },
+          "courseId": {
+            "_id": "6a7c042615ddc2d7da2e59cb",
+            "courseCode": "CRS-TEST-002",
+            "courseName": "Node.js Backend Masterclass",
+            "category": "Web Development",
+            "syllabus": [
+              {
+                "moduleId": "mod_1",
+                "title": "Module 1: Core Node.js",
+                "description": "",
+                "order": 1,
+                "topics": [
+                  {
+                    "topicId": "top_1",
+                    "title": "Express & Routing",
+                    "description": "",
+                    "order": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "batchId": {
+            "_id": "6a7c042615ddc2d7da2e59cc",
+            "batchCode": "BTC-TEST-002",
+            "batchName": "Backend Alpha Batch",
+            "status": "ONGOING"
+          },
+          "status": "active",
+          "totalModules": 10,
+          "completedModules": 0,
+          "progressPercentage": 100,
+          "enrolledAt": "2026-08-12T05:27:03.362Z",
+          "lastActivityAt": "2026-08-12T05:27:03.362Z",
+          "createdAt": "2026-08-12T05:27:03.365Z",
+          "updatedAt": "2026-08-12T05:27:03.759Z",
+          "__v": 0,
+          "attendanceSummary": {
+            "totalSessions": 3,
+            "presentCount": 2,
+            "absentCount": 1,
+            "lateCount": 0,
+            "attendancePercentage": 67
+          }
+        },
+        {
+          "_id": "6a7bfcba7520dc5459aa0b25",
+          "studentId": {
+            "_id": "6a55fb7a47aa971ddfc65e92",
+            "name": "abc",
+            "email": "abc@gmail.com",
+            "phone": "2134567876",
+            "profile_image": null,
+            "status": "active"
+          },
+          "courseId": {
+            "_id": "6a7bfc297520dc5459aa0b21",
+            "courseCode": "CRS-2026-000001",
+            "courseName": "mern",
+            "category": "Web Development",
+            "syllabus": [
+              {
+                "moduleId": "mod_1",
+                "title": "Module 1: Fundamentals & Environment Setup",
+                "description": "Introduction to core concepts and toolchain setup",
+                "order": 1,
+                "topics": [
+                  {
+                    "topicId": "top_1",
+                    "title": "Course Orientation & Architecture Overview",
+                    "description": "",
+                    "order": 1
+                  },
+                  {
+                    "topicId": "top_2",
+                    "title": "Environment Configuration & Developer Tools",
+                    "description": "",
+                    "order": 2
+                  }
+                ]
+              }
+            ]
+          },
+          "batchId": {
+            "_id": "6a7bfc547520dc5459aa0b22",
+            "batchCode": "BTC-2026-000001",
+            "batchName": "mern sep",
+            "status": "UPCOMING"
+          },
+          "status": "active",
+          "totalModules": 1,
+          "completedModules": 0,
+          "progressPercentage": 0,
+          "enrolledAt": "2026-08-12T04:55:22.482Z",
+          "createdBy": "6a7bf557b30a05157e74ce0d",
+          "lastActivityAt": "2026-08-12T04:55:22.483Z",
+          "createdAt": "2026-08-12T04:55:22.483Z",
+          "updatedAt": "2026-08-12T04:55:22.483Z",
+          "__v": 0,
+          "attendanceSummary": {
+            "totalSessions": 3,
+            "presentCount": 2,
+            "absentCount": 1,
+            "lateCount": 0,
+            "attendancePercentage": 67
+          }
+        },
+        {
+          "_id": "6a7bfc627520dc5459aa0b23",
+          "studentId": {
+            "_id": "6a7bfc0a7520dc5459aa0b20",
+            "name": "najad",
+            "email": "najad@gmail.com",
+            "phone": "8765432345",
+            "profile_image": null,
+            "status": "active",
+            "studentId": "STD-2026-000002",
+            "coursePreference": ""
+          },
+          "courseId": {
+            "_id": "6a7bfc297520dc5459aa0b21",
+            "courseCode": "CRS-2026-000001",
+            "courseName": "mern",
+            "category": "Web Development",
+            "syllabus": [
+              {
+                "moduleId": "mod_1",
+                "title": "Module 1: Fundamentals & Environment Setup",
+                "description": "Introduction to core concepts and toolchain setup",
+                "order": 1,
+                "topics": [
+                  {
+                    "topicId": "top_1",
+                    "title": "Course Orientation & Architecture Overview",
+                    "description": "",
+                    "order": 1
+                  },
+                  {
+                    "topicId": "top_2",
+                    "title": "Environment Configuration & Developer Tools",
+                    "description": "",
+                    "order": 2
+                  }
+                ]
+              }
+            ]
+          },
+          "batchId": {
+            "_id": "6a7bfc547520dc5459aa0b22",
+            "batchCode": "BTC-2026-000001",
+            "batchName": "mern sep",
+            "status": "UPCOMING"
+          },
+          "status": "active",
+          "totalModules": 1,
+          "completedModules": 0,
+          "progressPercentage": 0,
+          "enrolledAt": "2026-08-12T04:53:54.720Z",
+          "createdBy": "6a7bf557b30a05157e74ce0d",
+          "lastActivityAt": "2026-08-12T04:53:54.721Z",
+          "createdAt": "2026-08-12T04:53:54.722Z",
+          "updatedAt": "2026-08-12T04:53:54.722Z",
+          "__v": 0,
+          "attendanceSummary": {
+            "totalSessions": 0,
+            "presentCount": 0,
+            "absentCount": 0,
+            "lateCount": 0,
+            "attendancePercentage": 0
+          }
+        }
+      ],
+      "stats": {
+        "totalEnrollments": 6,
+        "activeCount": 6,
+        "completedCount": 0,
+        "avgProgress": 33
+      },
+      "pagination": {
+        "total": 6,
+        "page": 1,
+        "limit": 50,
+        "pages": 1
+      }
+    }
+  },
+  "academy_batches": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "data": [
+        {
+          "_id": "6a7ea8f7ddca1649b484ef85",
+          "batchCode": "marketing",
+          "batchName": "digitalmarketing aug",
+          "courseId": {
+            "_id": "6a7ea8d4ddca1649b484ef84",
+            "courseCode": "marketing",
+            "courseName": "digital marketing",
+            "category": "Web Development",
+            "durationValue": 6,
+            "durationUnit": "Months"
+          },
+          "instructorId": null,
+          "daysOfWeek": [],
+          "timezone": "IST (UTC+5:30)",
+          "capacity": 30,
+          "students": [
+            {
+              "_id": "6a55fbbd47aa971ddfc65e94",
+              "name": "stdnt6567",
+              "email": "stdnt3@gmail.com",
+              "phone": "1234567892",
+              "profile_image": null,
+              "status": "active"
+            },
+            {
+              "_id": "6a55fba247aa971ddfc65e93",
+              "name": "stdnt2",
+              "email": "stdnt2@gmail.com",
+              "phone": "1234567898",
+              "profile_image": null,
+              "status": "active"
+            },
+            {
+              "_id": "6a55fb7a47aa971ddfc65e92",
+              "name": "abc",
+              "email": "abc@gmail.com",
+              "phone": "2134567876",
+              "profile_image": null,
+              "status": "active"
+            }
+          ],
+          "status": "UPCOMING",
+          "createdBy": "6a421654f58d6806aaf98504",
+          "createdAt": "2026-08-14T05:34:47.636Z",
+          "updatedAt": "2026-08-14T05:35:03.143Z",
+          "__v": 1,
+          "studentCount": 3
+        },
+        {
+          "_id": "6a7c042615ddc2d7da2e59cc",
+          "batchCode": "BTC-TEST-002",
+          "batchName": "Backend Alpha Batch",
+          "courseId": {
+            "_id": "6a7c042615ddc2d7da2e59cb",
+            "courseCode": "CRS-TEST-002",
+            "courseName": "Node.js Backend Masterclass",
+            "category": "Web Development",
+            "durationValue": 6,
+            "durationUnit": "Months"
+          },
+          "students": [
+            {
+              "_id": "6a55fb7a47aa971ddfc65e92",
+              "name": "abc",
+              "email": "abc@gmail.com",
+              "phone": "2134567876",
+              "profile_image": null,
+              "status": "active"
+            }
+          ],
+          "status": "ONGOING",
+          "createdAt": "2026-08-12T05:27:02.897Z",
+          "updatedAt": "2026-08-12T05:27:02.897Z",
+          "__v": 0,
+          "studentCount": 1
+        },
+        {
+          "_id": "6a7bfc547520dc5459aa0b22",
+          "batchCode": "BTC-2026-000001",
+          "batchName": "mern sep",
+          "courseId": {
+            "_id": "6a7bfc297520dc5459aa0b21",
+            "courseCode": "CRS-2026-000001",
+            "courseName": "mern",
+            "category": "Web Development",
+            "durationValue": 6,
+            "durationUnit": "Months"
+          },
+          "students": [
+            {
+              "_id": "6a7bfc0a7520dc5459aa0b20",
+              "name": "najad",
+              "email": "najad@gmail.com",
+              "phone": "8765432345",
+              "profile_image": null,
+              "status": "active",
+              "studentId": "STD-2026-000002",
+              "coursePreference": ""
+            },
+            {
+              "_id": "6a55fbbd47aa971ddfc65e94",
+              "name": "stdnt6567",
+              "email": "stdnt3@gmail.com",
+              "phone": "1234567892",
+              "profile_image": null,
+              "status": "active"
+            },
+            {
+              "_id": "6a55fba247aa971ddfc65e93",
+              "name": "stdnt2",
+              "email": "stdnt2@gmail.com",
+              "phone": "1234567898",
+              "profile_image": null,
+              "status": "active"
+            },
+            {
+              "_id": "6a55fbd747aa971ddfc65e95",
+              "name": "stdnt4",
+              "email": "stdnt4@gmail.com",
+              "phone": "1234567893",
+              "profile_image": null,
+              "status": "active"
+            },
+            {
+              "_id": "6a55fb7a47aa971ddfc65e92",
+              "name": "abc",
+              "email": "abc@gmail.com",
+              "phone": "2134567876",
+              "profile_image": null,
+              "status": "active"
+            }
+          ],
+          "status": "UPCOMING",
+          "createdBy": "6a7bf557b30a05157e74ce0d",
+          "createdAt": "2026-08-12T04:53:40.432Z",
+          "updatedAt": "2026-08-12T04:55:22.316Z",
+          "__v": 1,
+          "studentCount": 5
+        }
+      ],
+      "pagination": {
+        "total": 3,
+        "page": 1,
+        "limit": 50,
+        "pages": 1
+      }
+    }
+  }
+}
