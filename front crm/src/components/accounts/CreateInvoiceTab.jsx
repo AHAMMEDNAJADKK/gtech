@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2, Loader2, FileText, GraduationCap, Coins, Users
 import { getClients } from '../../services/clientService';
 import { useToast } from '../ToastProvider';
 import IncomeInvoiceModal from './IncomeInvoiceModal';
+import AddItemOptionModal from './AddItemOptionModal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -64,6 +65,8 @@ const CreateInvoiceTab = () => {
     'Domain',
     'Server'
   ]);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+  const [activeLineItemIdx, setActiveLineItemIdx] = useState(0);
 
   const [lineItems, setLineItems] = useState([
     { description: 'Poster', quantity: 1.00, unitPrice: 0.00, amount: 0.00 }
@@ -810,10 +813,10 @@ const CreateInvoiceTab = () => {
             <table className="w-full text-[11px] text-left border-collapse">
               <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 font-bold uppercase text-[9px]">
                 <tr>
-                  <th className="p-1.5">Item Details</th>
-                  <th className="p-1.5 w-20 text-center">Quantity</th>
-                  <th className="p-1.5 w-24 text-right">Rate</th>
-                  <th className="p-1.5 w-28 text-right">Amount</th>
+                  <th className="p-1.5">{sourceType === 'Academy' ? 'Course / Fee Details' : 'Item Details'}</th>
+                  {sourceType !== 'Academy' && <th className="p-1.5 w-20 text-center">Quantity</th>}
+                  <th className="p-1.5 w-28 text-right">{sourceType === 'Academy' ? 'Course Fee (₹)' : 'Rate'}</th>
+                  <th className="p-1.5 w-28 text-right">Amount (₹)</th>
                   <th className="p-1.5 w-7 text-center"></th>
                 </tr>
               </thead>
@@ -827,37 +830,8 @@ const CreateInvoiceTab = () => {
                           onChange={(e) => {
                             const val = e.target.value;
                             if (val === '__MANAGE_DELETE__') {
-                              if (itemOptions.length === 0) {
-                                showToast('No dropdown items to delete.', 'warning');
-                                return;
-                              }
-                              const itemToDelete = window.prompt(
-                                `Select an item to remove from dropdown:\n\n${itemOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}\n\nEnter the item number (1-${itemOptions.length}) or name to delete:`
-                              );
-                              if (itemToDelete && itemToDelete.trim()) {
-                                const inputStr = itemToDelete.trim();
-                                const idxNum = parseInt(inputStr, 10);
-                                let targetOpt = '';
-                                if (!isNaN(idxNum) && idxNum >= 1 && idxNum <= itemOptions.length) {
-                                  targetOpt = itemOptions[idxNum - 1];
-                                } else {
-                                  targetOpt = itemOptions.find(o => o.toLowerCase() === inputStr.toLowerCase()) || inputStr;
-                                }
-
-                                if (targetOpt && itemOptions.includes(targetOpt)) {
-                                  if (window.confirm(`Delete '${targetOpt}' from dropdown choices?`)) {
-                                    setItemOptions(prev => {
-                                      const updated = prev.filter(o => o !== targetOpt);
-                                      localStorage.setItem('crm_item_options', JSON.stringify(updated));
-                                      return updated;
-                                    });
-                                    handleItemChange(idx, 'description', '');
-                                    showToast(`Deleted '${targetOpt}' from dropdown!`, 'info');
-                                  }
-                                } else {
-                                  showToast('Item not found in dropdown options.', 'warning');
-                                }
-                              }
+                              setActiveLineItemIdx(idx);
+                              setIsAddItemModalOpen(true);
                               return;
                             }
                             handleItemChange(idx, 'description', val);
@@ -868,23 +842,14 @@ const CreateInvoiceTab = () => {
                           {itemOptions.map((opt, i) => (
                             <option key={i} value={opt}>{opt}</option>
                           ))}
-                          <option value="__MANAGE_DELETE__">🗑️ Delete an Option from Dropdown...</option>
+                          <option value="__MANAGE_DELETE__">⚙️ Manage / Delete Dropdown Options...</option>
                         </select>
 
                         <button
                           type="button"
                           onClick={() => {
-                            const customItem = window.prompt("Enter new item / service name to add to dropdown:");
-                            if (customItem && customItem.trim()) {
-                              const trimmed = customItem.trim();
-                              setItemOptions(prev => {
-                                const updated = prev.includes(trimmed) ? prev : [...prev, trimmed];
-                                localStorage.setItem('crm_item_options', JSON.stringify(updated));
-                                return updated;
-                              });
-                              handleItemChange(idx, 'description', trimmed);
-                              showToast(`Added '${trimmed}' to items dropdown!`, 'success');
-                            }
+                            setActiveLineItemIdx(idx);
+                            setIsAddItemModalOpen(true);
                           }}
                           className="p-1 px-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 rounded-md border border-indigo-200 dark:border-indigo-800 transition cursor-pointer shrink-0 flex items-center gap-1 font-bold text-[10px]"
                           title="Add new item option to dropdown"
@@ -893,16 +858,18 @@ const CreateInvoiceTab = () => {
                         </button>
                       </div>
                     </td>
-                    <td className="p-1 text-center">
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={item.quantity !== undefined && item.quantity !== null ? Math.round(item.quantity) : 1}
-                        onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md px-1 py-1 text-[11px] font-bold text-center focus:outline-none"
-                      />
-                    </td>
+                    {sourceType !== 'Academy' && (
+                      <td className="p-1 text-center">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          value={item.quantity !== undefined && item.quantity !== null ? Math.round(item.quantity) : 1}
+                          onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md px-1 py-1 text-[11px] font-bold text-center focus:outline-none"
+                        />
+                      </td>
+                    )}
                     <td className="p-1 text-right">
                       <input
                         type="number"
@@ -1216,6 +1183,17 @@ const CreateInvoiceTab = () => {
           }}
         />
       )}
+
+      <AddItemOptionModal
+        isOpen={isAddItemModalOpen}
+        onClose={() => setIsAddItemModalOpen(false)}
+        itemOptions={itemOptions}
+        onUpdateOptions={(opts) => {
+          setItemOptions(opts);
+          localStorage.setItem('crm_item_options', JSON.stringify(opts));
+        }}
+        onSelectItem={(itemName) => handleItemChange(activeLineItemIdx, 'description', itemName)}
+      />
     </div>
   );
 };

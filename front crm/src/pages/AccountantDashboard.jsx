@@ -13,6 +13,7 @@ import {
   getOpeningBalance, getExpenses, getSalaryPayments,
   getCashBook, getExpenseCategories, getMonthlyReport
 } from '../services/accountsService';
+import CreatePayslipModal from '../components/accounts/CreatePayslipModal';
 
 const rawApiBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase.slice(0, -3) : rawApiBase;
@@ -40,6 +41,7 @@ const AccountantDashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeLedgerTab, setActiveLedgerTab] = useState('income'); // 'income' | 'expenses' | 'salaries' | 'cashbook'
   const [timeFilter, setTimeFilter] = useState('all'); // 'all' | 'month' | 'today'
+  const [isCreatePayslipOpen, setIsCreatePayslipOpen] = useState(false);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -257,6 +259,11 @@ const AccountantDashboard = () => {
               className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-all disabled:opacity-50 cursor-pointer">
               <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
               Refresh
+            </button>
+            <button onClick={() => setIsCreatePayslipOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 transition-all cursor-pointer">
+              <Receipt size={14} />
+              Create Payslip
             </button>
             <button onClick={() => navigate('/accounts/create-invoice')}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all cursor-pointer">
@@ -753,6 +760,12 @@ const AccountantDashboard = () => {
           <ShortcutCard icon={<Calculator size={20} />} title="Accountant Report" path="/accountant-report" color="sky" navigate={navigate} />
         </div>
 
+        {/* CREATE PAYSLIP MODAL */}
+        <CreatePayslipModal
+          isOpen={isCreatePayslipOpen}
+          onClose={() => setIsCreatePayslipOpen(false)}
+          onSuccess={() => fetchDashboardData(true)}
+        />
       </div>
     </div>
   );

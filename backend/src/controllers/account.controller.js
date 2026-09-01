@@ -1402,11 +1402,15 @@ export const createIncome = async (req, res) => {
     const creatorId = req.user?.id || req.user?._id;
     const creatorName = req.user?.name || 'Accountant';
 
-    let finalSourceType = sourceType || 'General';
-    if (client || (clientName && clientName.trim())) {
-      finalSourceType = 'Client';
-    } else if (department && department.trim() === 'Academy & LMS') {
-      finalSourceType = 'Academy';
+    let finalSourceType = sourceType;
+    if (!finalSourceType || !['Academy', 'Client', 'General'].includes(finalSourceType)) {
+      if (client || (clientName && clientName.trim())) {
+        finalSourceType = 'Client';
+      } else if (department && department.trim() === 'Academy & LMS') {
+        finalSourceType = 'Academy';
+      } else {
+        finalSourceType = 'General';
+      }
     }
 
     let finalReferenceNo = referenceNo ? referenceNo.trim() : '';
