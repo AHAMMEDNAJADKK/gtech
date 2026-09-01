@@ -6,7 +6,7 @@ import {
 import { useToast } from '../components/ToastProvider';
 import { getKpiColorCode } from '../components/PerformanceTab';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '').replace(/\/v1$/, '');
 
 const STATUS_OPTIONS = [
   'Outstanding',
@@ -188,12 +188,20 @@ const PerformanceDashboard = () => {
     showToast('CSV report exported successfully!', 'success');
   };
 
-  const filteredReports = reportsData.filter(r => 
-    r.employeeName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.department?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.grade?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.employeeId?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredReports = reportsData.filter(r => {
+    const d = String(r.department || '').toLowerCase();
+    const des = String(r.designation || '').toLowerCase();
+    const role = String(r.role || '').toLowerCase();
+    if (d === 'student' || d === 'students' || d === 'academy students' || des.includes('student') || role.includes('student')) {
+      return false;
+    }
+    return (
+      r.employeeName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.department?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.grade?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.employeeId?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <div className="min-h-screen text-slate-800 dark:text-slate-100 transition-colors duration-500 pb-12">

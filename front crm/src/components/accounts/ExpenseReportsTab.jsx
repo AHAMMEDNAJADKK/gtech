@@ -156,7 +156,21 @@ const ExpenseReportsTab = () => {
   dayBackendPurchases.forEach(p => allDayPurchasesMap.set(String(p._id || p.id), p));
   const dayPurchaseTotal = Array.from(allDayPurchasesMap.values()).reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
 
-  const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
+  const getPaidIncomeAmt = (item) => {
+    let paid = 0;
+    if (Array.isArray(item.payments) && item.payments.length > 0) {
+      paid = item.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+    }
+    if (paid <= 0 && typeof item.receiptAmount === 'number' && item.receiptAmount > 0) {
+      paid = item.receiptAmount;
+    }
+    if (paid <= 0 && (item.status || item.paymentStatus || '').toLowerCase() === 'paid') {
+      paid = parseFloat(item.totalAmount || item.amount || 0);
+    }
+    return paid;
+  };
+
+  const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + getPaidIncomeAmt(item), 0);
   const dayExpenseTotal = dayBackendGenExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const dayTotalOutflow = dayExpenseTotal + dayPurchaseTotal;
   const dayNetSurplus = dayIncomeTotal - dayTotalOutflow;
@@ -1056,7 +1070,14 @@ const ExpenseReportsTab = () => {
               reportData.data.map((cat, i) => (
                 <div key={i} className="space-y-1.5">
                   <div className="flex justify-between text-xs font-medium">
-                    <span className="text-slate-800 dark:text-slate-200 font-bold">{cat.category}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-800 dark:text-slate-200 font-bold">{cat.category}</span>
+                      {Number(cat.openingBalance || 0) > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 font-medium">
+                          OB: ₹{Number(cat.openingBalance).toLocaleString('en-IN')}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-slate-600 dark:text-slate-400 font-semibold font-mono">
                       ₹{(cat.totalAmount || 0).toLocaleString('en-IN')} ({cat.percentage}%)
                     </span>

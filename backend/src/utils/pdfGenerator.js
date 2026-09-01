@@ -52,9 +52,14 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
         }
 
         // Document title
-        doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(14).text('DAILY SHIFT REPORT', 300, 40, { align: 'right' });
+        const periodStr = String(report?.report_period || report?.reportPeriod || (report?.isMonthly ? 'monthly' : '') || '').toLowerCase();
+        const headerTitle = periodStr === 'monthly'
+          ? 'MONTHLY CONSOLIDATED REPORT'
+          : (periodStr === 'weekly' ? 'WEEKLY CONSOLIDATED REPORT' : 'DAILY SHIFT REPORT');
+
+        doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(13).text(headerTitle, 240, 40, { align: 'right' });
         
-        doc.fillColor(labelColor).font('Helvetica-Bold').fontSize(8.5).text((designation || 'Employee').toUpperCase(), 300, 58, { align: 'right' });
+        doc.fillColor(labelColor).font('Helvetica-Bold').fontSize(8.5).text((designation || 'Employee').toUpperCase(), 240, 58, { align: 'right' });
 
         // Horizontal line
         doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(40, 75).lineTo(555, 75).stroke();

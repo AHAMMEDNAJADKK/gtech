@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tag, PlusCircle, DollarSign, BookOpen, BarChart3, Wallet, TrendingUp, FileText, ShoppingBag, ShoppingCart } from 'lucide-react';
 
-import ExpenseCategoriesTab from '../components/accounts/ExpenseCategoriesTab';
 import AddExpenseTab from '../components/accounts/AddExpenseTab';
 import SalaryPaymentTab from '../components/accounts/SalaryPaymentTab';
 import CashBookTab from '../components/accounts/CashBookTab';
@@ -147,7 +146,6 @@ const AccountsPage = () => {
         {activeTab === 'sales' && <IncomeTab mode="sales" />}
         {activeTab === 'income' && <IncomeTab mode="income" />}
         {activeTab === 'purchase' && <PurchaseTab />}
-        {activeTab === 'categories' && <ExpenseCategoriesTab />}
         {activeTab === 'expenses' && <AddExpenseTab />}
         {activeTab === 'salary' && <SalaryPaymentTab />}
         {activeTab === 'cash-book' && <CashBookTab />}

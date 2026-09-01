@@ -28,6 +28,7 @@ const seedDefaultCategoriesIfNeeded = async () => {
       const docs = DEFAULT_CATEGORIES.map(name => ({
         name,
         description: `Default category for ${name}`,
+        openingBalance: 0,
         isActive: true,
         isSystemDefault: true
       }));
@@ -59,19 +60,42 @@ export const getCategories = async (req, res) => {
 
 export const createCategory = async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, openingBalance } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Category name is required.' });
     }
 
-    const existing = await ExpenseCategory.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'Category already exists.' });
+    const cleanName = name.trim();
+    const escapedName = cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let category = await ExpenseCategory.findOne({ name: { $regex: new RegExp(`^${escapedName}$`, 'i') } });
+    
+    if (category) {
+      // Category already exists: update its opening balance and description directly!
+      const updateData = {};
+      if (typeof openingBalance !== 'undefined') {
+        updateData.openingBalance = Math.max(0, Number(openingBalance) || 0);
+      }
+      if (description !== undefined) updateData.description = description.trim();
+
+      const updatedCategory = await ExpenseCategory.findByIdAndUpdate(
+        category._id,
+        { $set: updateData },
+        { new: true, returnDocument: 'after', runValidators: true }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: 'Category opening balance updated successfully.',
+        data: updatedCategory
+      });
     }
 
-    const category = await ExpenseCategory.create({
-      name: name.trim(),
-      description: description ? description.trim() : ''
+    category = await ExpenseCategory.create({
+      name: cleanName,
+      description: description ? description.trim() : '',
+      openingBalance: typeof openingBalance !== 'undefined' ? Math.max(0, Number(openingBalance) || 0) : 0,
+      isActive: true,
+      isSystemDefault: false
     });
 
     return res.status(201).json({
@@ -88,36 +112,86 @@ export const createCategory = async (req, res) => {
 export const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, isActive } = req.body;
+    const { name, description, isActive, openingBalance } = req.body;
 
-    const category = await ExpenseCategory.findById(id);
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid category ID.' });
+    }
+
+    const objectId = new mongoose.Types.ObjectId(id);
+    const category = await ExpenseCategory.findById(objectId);
     if (!category) {
       return res.status(404).json({ success: false, message: 'Category not found.' });
     }
 
-    if (name && name.trim() !== category.name) {
+    if (name && name.trim().toLowerCase() !== (category.name || '').toLowerCase()) {
+      const cleanName = name.trim();
+      const escapedName = cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const existing = await ExpenseCategory.findOne({ 
-        _id: { $ne: id }, 
-        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } 
+        _id: { $ne: objectId }, 
+        name: { $regex: new RegExp(`^${escapedName}$`, 'i') } 
       });
       if (existing) {
         return res.status(400).json({ success: false, message: 'Another category with this name already exists.' });
       }
-      category.name = name.trim();
     }
 
-    if (description !== undefined) category.description = description;
-    if (isActive !== undefined) category.isActive = isActive;
+    const updateFields = {};
+    if (name) updateFields.name = name.trim();
+    if (description !== undefined) updateFields.description = description ? description.trim() : '';
+    if (isActive !== undefined) updateFields.isActive = Boolean(isActive);
+    if (openingBalance !== undefined) updateFields.openingBalance = Math.max(0, Number(openingBalance) || 0);
 
-    await category.save();
+    const updated = await ExpenseCategory.findByIdAndUpdate(
+      objectId,
+      { $set: updateFields },
+      { new: true, returnDocument: 'after', runValidators: true }
+    );
+
+    if (name && name.trim() !== category.name) {
+      await Expense.updateMany({ category: objectId }, { $set: { categoryName: name.trim() } });
+    }
 
     return res.status(200).json({
       success: true,
       message: 'Category updated successfully.',
-      data: category
+      data: updated
     });
   } catch (error) {
     console.error('updateCategory Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateBatchCategoryOpeningBalances = async (req, res) => {
+  try {
+    const { balances } = req.body; // array of { id, openingBalance }
+    if (!Array.isArray(balances)) {
+      return res.status(400).json({ success: false, message: 'balances array is required.' });
+    }
+
+    const bulkOps = balances
+      .filter(item => item && item.id && mongoose.Types.ObjectId.isValid(item.id))
+      .map(item => ({
+        updateOne: {
+          filter: { _id: new mongoose.Types.ObjectId(item.id) },
+          update: { $set: { openingBalance: Math.max(0, Number(item.openingBalance) || 0) } }
+        }
+      }));
+
+    if (bulkOps.length > 0) {
+      await ExpenseCategory.bulkWrite(bulkOps);
+    }
+
+    const updatedCategories = await ExpenseCategory.find().sort({ name: 1 });
+
+    return res.status(200).json({
+      success: true,
+      message: 'All category opening balances updated successfully.',
+      data: updatedCategories
+    });
+  } catch (error) {
+    console.error('updateBatchCategoryOpeningBalances Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -187,7 +261,7 @@ export const getExpenses = async (req, res) => {
     }
 
     const expenses = await Expense.find(query)
-      .populate('category', 'name')
+      .populate('category', 'name openingBalance')
       .populate('addedBy', 'name email')
       .sort({ date: -1, createdAt: -1 });
 
@@ -688,19 +762,36 @@ export const getCashBook = async (req, res) => {
       const incList = await Income.find(incomeQuery)
         .sort({ date: -1, createdAt: -1 });
 
-      incomes = incList.map(i => ({
-        _id: i._id,
-        entryType: 'INCOME', // Inflow
-        isPurchase: false,
-        type: i.sourceType || 'Income',
-        categoryName: i.department || 'Income',
-        paidTo: i.clientName ? `${i.title} (${i.clientName})` : i.title,
-        paymentMode: i.paymentMethod || 'Bank Transfer',
-        amount: i.amount || 0,
-        date: i.date || i.createdAt,
-        referenceNo: i.referenceNo || i.receiptNo || '',
-        description: i.description || ''
-      }));
+      incomes = incList.map(i => {
+        let paid = 0;
+        if (Array.isArray(i.payments) && i.payments.length > 0) {
+          paid = i.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+        }
+        if (paid <= 0 && typeof i.receiptAmount === 'number' && i.receiptAmount > 0) {
+          paid = i.receiptAmount;
+        }
+        if (paid <= 0 && (i.status || '').toLowerCase() === 'paid') {
+          paid = parseFloat(i.totalAmount || i.amount || 0);
+        }
+
+        const billed = parseFloat(i.totalAmount || i.amount || 0);
+
+        return {
+          _id: i._id,
+          entryType: 'INCOME', // Inflow
+          isPurchase: false,
+          type: i.sourceType || 'Income',
+          categoryName: i.department || 'Income',
+          paidTo: i.clientName ? `${i.title} (${i.clientName})` : i.title,
+          paymentMode: i.paymentMethod || 'Bank Transfer',
+          amount: paid, // Actual Cash Received (Paid Amount)
+          billedAmount: billed,
+          status: i.status || 'Pending',
+          date: i.date || i.createdAt,
+          referenceNo: i.referenceNo || i.receiptNo || '',
+          description: i.description || ''
+        };
+      });
     }
 
     // Combine and sort by date descending
@@ -709,7 +800,14 @@ export const getCashBook = async (req, res) => {
     // Fetch active Opening Balance
     const obRecord = await OpeningBalance.findOne().sort({ updatedAt: -1 });
     const incomeOpeningBalance = obRecord ? (obRecord.incomeAmount ?? obRecord.amount ?? 0) : 0;
-    const expenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+    const baseExpenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+
+    // Calculate total Category Opening Balances
+    const allCategories = await ExpenseCategory.find();
+    const categoryOpeningBalanceTotal = allCategories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
+
+    // The categories OB is added to the expense OB in cashbook
+    const expenseOpeningBalance = baseExpenseOpeningBalance + categoryOpeningBalanceTotal;
 
     // Calculate Summary Stats (Income, General Expense, Purchase Outflow, Net Profit/Loss)
     const totalIncome = incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -726,7 +824,9 @@ export const getCashBook = async (req, res) => {
       success: true,
       summary: {
         incomeOpeningBalance,
+        baseExpenseOpeningBalance,
         expenseOpeningBalance,
+        categoryOpeningBalance: categoryOpeningBalanceTotal,
         openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
         effectiveTotalIncome,
@@ -827,14 +927,17 @@ export const getDailyReport = async (req, res) => {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const [expenses, incomes, obRecord] = await Promise.all([
+    const [expenses, incomes, obRecord, allCategories] = await Promise.all([
       Expense.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 }),
       Income.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 }),
-      OpeningBalance.findOne().sort({ updatedAt: -1 })
+      OpeningBalance.findOne().sort({ updatedAt: -1 }),
+      ExpenseCategory.find()
     ]);
 
     const incomeOpeningBalance = obRecord ? (obRecord.incomeAmount ?? obRecord.amount ?? 0) : 0;
-    const expenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+    const baseExpenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+    const categoryOpeningBalanceTotal = allCategories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
+    const expenseOpeningBalance = baseExpenseOpeningBalance + categoryOpeningBalanceTotal;
 
     const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
     const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -852,7 +955,9 @@ export const getDailyReport = async (req, res) => {
       date: startOfDay.toISOString().split('T')[0],
       summary: {
         incomeOpeningBalance,
+        baseExpenseOpeningBalance,
         expenseOpeningBalance,
+        categoryOpeningBalance: categoryOpeningBalanceTotal,
         openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
         effectiveTotalIncome,
@@ -885,14 +990,17 @@ export const getMonthlyReport = async (req, res) => {
     const startOfMonth = new Date(targetYear, targetMonth - 1, 1);
     const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
 
-    const [expenses, incomes, obRecord] = await Promise.all([
+    const [expenses, incomes, obRecord, allCategories] = await Promise.all([
       Expense.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 }),
       Income.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 }),
-      OpeningBalance.findOne().sort({ updatedAt: -1 })
+      OpeningBalance.findOne().sort({ updatedAt: -1 }),
+      ExpenseCategory.find()
     ]);
 
     const incomeOpeningBalance = obRecord ? (obRecord.incomeAmount ?? obRecord.amount ?? 0) : 0;
-    const expenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+    const baseExpenseOpeningBalance = obRecord ? (obRecord.expenseAmount ?? 0) : 0;
+    const categoryOpeningBalanceTotal = allCategories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
+    const expenseOpeningBalance = baseExpenseOpeningBalance + categoryOpeningBalanceTotal;
 
     const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
     const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -910,7 +1018,9 @@ export const getMonthlyReport = async (req, res) => {
       period: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
       summary: {
         incomeOpeningBalance,
+        baseExpenseOpeningBalance,
         expenseOpeningBalance,
+        categoryOpeningBalance: categoryOpeningBalanceTotal,
         openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
         effectiveTotalIncome,
@@ -958,12 +1068,39 @@ export const getCategoryWiseReport = async (req, res) => {
 
     const grandTotal = aggregation.reduce((sum, item) => sum + item.totalAmount, 0);
 
-    const formattedData = aggregation.map(item => ({
-      category: item._id || 'Uncategorized',
-      totalAmount: item.totalAmount,
-      count: item.count,
-      percentage: grandTotal > 0 ? ((item.totalAmount / grandTotal) * 100).toFixed(2) : 0
-    }));
+    const categories = await ExpenseCategory.find();
+    const catMap = new Map();
+    categories.forEach(c => {
+      catMap.set((c.name || '').toLowerCase().trim(), c);
+    });
+
+    const formattedData = aggregation.map(item => {
+      const catObj = catMap.get((item._id || '').toLowerCase().trim());
+      return {
+        category: item._id || 'Uncategorized',
+        categoryId: catObj?._id || null,
+        openingBalance: catObj?.openingBalance || 0,
+        totalAmount: item.totalAmount,
+        count: item.count,
+        percentage: grandTotal > 0 ? ((item.totalAmount / grandTotal) * 100).toFixed(2) : 0
+      };
+    });
+
+    // Also include any registered categories that have opening balances or are active even if 0 expenses in date range
+    categories.forEach(c => {
+      const catKey = (c.name || '').toLowerCase().trim();
+      const alreadyInList = formattedData.some(f => (f.category || '').toLowerCase().trim() === catKey);
+      if (!alreadyInList && (Number(c.openingBalance) > 0 || c.isActive)) {
+        formattedData.push({
+          category: c.name,
+          categoryId: c._id,
+          openingBalance: Number(c.openingBalance) || 0,
+          totalAmount: 0,
+          count: 0,
+          percentage: '0.00'
+        });
+      }
+    });
 
     return res.status(200).json({
       success: true,

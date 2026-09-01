@@ -158,6 +158,15 @@ const CalendarWorkCard = ({
             </span>
           </div>
         )}
+
+        <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+          <span className="truncate">
+            Updated by <strong className="text-slate-700 dark:text-slate-300 font-semibold">{record.updatedBy?.name || record.createdBy?.name || assignee.name}</strong>
+          </span>
+          <span className="shrink-0 text-[9px] text-slate-400 dark:text-slate-500 ml-1">
+            {new Date(record.updatedAt || record.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
       </div>
     </motion.div>
   );

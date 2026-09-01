@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getExpenseCategories, getExpenses, createExpense, deleteExpense, approveOrRejectExpense } from '../../services/accountsService';
 import ExpenseCategoriesTab from './ExpenseCategoriesTab';
@@ -294,6 +294,10 @@ const AddExpenseTab = () => {
     loadData();
   }, [filterCategory, filterMode, filterStatus]);
 
+  const totalCategoryOb = useMemo(() => {
+    return categories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
+  }, [categories]);
+
   const handleExpenseAction = async (id, action) => {
     let rejectionReason = '';
     if (action === 'REJECTED') {
@@ -386,31 +390,55 @@ const AddExpenseTab = () => {
 
   return (
     <div className="space-y-4">
-      {/* Sub-tab Navigation Header inside Add Expense */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-2 shadow-xs flex items-center gap-1.5 w-fit">
-        <button
-          onClick={() => setExpenseSubTab('expenses')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-            expenseSubTab === 'expenses'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-          }`}
-        >
-          <PlusCircle size={14} />
-          <span>Expenses List</span>
-        </button>
+      {/* Sub-tab Navigation Header inside Expense */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-1.5 shadow-xs flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setExpenseSubTab('expenses')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              expenseSubTab === 'expenses'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <PlusCircle size={15} />
+            <span>Expenses List</span>
+          </button>
 
-        <button
-          onClick={() => setExpenseSubTab('categories')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-            expenseSubTab === 'categories'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
-          }`}
-        >
-          <Tag size={14} />
-          <span>Expense Categories</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setExpenseSubTab('categories')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              expenseSubTab === 'categories'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Tag size={15} />
+            <span>Expense Categories</span>
+            {categories.length > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${
+                expenseSubTab === 'categories'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+              }`}>
+                {categories.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {totalCategoryOb > 0 && (
+          <div 
+            onClick={() => setExpenseSubTab('categories')}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-xs font-bold text-amber-700 dark:text-amber-300 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
+            title="Total Category Opening Balances. Click to view categories."
+          >
+            <Coins size={14} className="text-amber-600 dark:text-amber-400" />
+            <span>Categories OB: ₹{totalCategoryOb.toLocaleString('en-IN')}</span>
+          </div>
+        )}
       </div>
 
       {expenseSubTab === 'categories' ? (
@@ -435,6 +463,18 @@ const AddExpenseTab = () => {
             <Coins size={13} />
             <span>OB: ₹{expenseObAmount.toLocaleString('en-IN')}</span>
           </div>
+
+          {/* Categories Opening Balance Badge */}
+          {totalCategoryOb > 0 && (
+            <div 
+              onClick={() => setExpenseSubTab('categories')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800 text-[11px] font-bold text-amber-700 dark:text-amber-300 shrink-0 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 transition"
+              title="Total Category Opening Balances. Click to view & manage categories."
+            >
+              <Tag size={13} />
+              <span>Categories OB: ₹{totalCategoryOb.toLocaleString('en-IN')}</span>
+            </div>
+          )}
         </div>
 
         {/* Right Search, Filters & Action Button */}
@@ -540,9 +580,16 @@ const AddExpenseTab = () => {
                         {new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
                       <td className="py-3.5 px-4">
-                        <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-[10px]">
-                          {exp.categoryName || exp.category?.name || 'Expense'}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] w-fit">
+                            {exp.categoryName || exp.category?.name || 'Expense'}
+                          </span>
+                          {exp.category?.openingBalance > 0 && (
+                            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium pl-0.5">
+                              OB: ₹{Number(exp.category.openingBalance).toLocaleString('en-IN')}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
                         {exp.paidTo}
@@ -674,9 +721,23 @@ const AddExpenseTab = () => {
                   >
                     <option value="">-- Select Category --</option>
                     {categories.map((cat) => (
-                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                      <option key={cat._id} value={cat._id}>
+                        {cat.name} {Number(cat.openingBalance || 0) > 0 ? `(OB: ₹${Number(cat.openingBalance).toLocaleString('en-IN')})` : ''}
+                      </option>
                     ))}
                   </select>
+                  {categoryId && (() => {
+                    const selectedCat = categories.find(c => String(c._id) === String(categoryId));
+                    if (selectedCat && Number(selectedCat.openingBalance || 0) > 0) {
+                      return (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-medium flex items-center gap-1">
+                          <span>Opening Balance:</span>
+                          <span className="font-bold font-mono">₹{Number(selectedCat.openingBalance).toLocaleString('en-IN')}</span>
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 <div>
@@ -932,6 +993,25 @@ const AddExpenseTab = () => {
               </button>
             </div>
 
+            {/* Quick Switcher between Global Opening Balance and Category Opening Balances */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <span className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs text-center">
+                Global Expense OB
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExpenseObModal(false);
+                  setExpenseSubTab('categories');
+                }}
+                className="flex-1 py-1.5 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition text-center flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Go to Expense Categories to set opening balance to every category"
+              >
+                <Tag size={13} />
+                <span>Every Category OB</span>
+              </button>
+            </div>
+
             <form onSubmit={handleSaveExpenseOpeningBalance} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
@@ -987,6 +1067,24 @@ const AddExpenseTab = () => {
                   onChange={(e) => setExpenseObForm({ ...expenseObForm, note: e.target.value })}
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/40 outline-none"
                 />
+              </div>
+
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                  <Tag size={14} className="shrink-0 text-amber-600" />
+                  <span className="font-semibold text-[11px]">Sum of All Category Opening Balances:</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExpenseObModal(false);
+                    setExpenseSubTab('categories');
+                  }}
+                  className="font-bold text-amber-700 dark:text-amber-300 hover:underline font-mono text-xs cursor-pointer"
+                  title="Click to manage opening balance for every category"
+                >
+                  ₹{totalCategoryOb.toLocaleString('en-IN')} (Manage →)
+                </button>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">

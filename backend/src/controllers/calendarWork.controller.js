@@ -54,10 +54,7 @@ const isSuperAdmin = (req) => {
 };
 
 const canEditCalendarWork = (calendarWork, userId, userRole, userDesignation) => {
-  const isCreator = String(calendarWork.createdBy) === String(userId);
-  const isAssignee = String(calendarWork.assignedTo) === String(userId);
-  const isSuperAdminUser = userRole === '0' || String(userRole).toLowerCase().includes('super');
-  return isCreator || isAssignee || isSuperAdminUser;
+  return true; // Everyone has access to update calendar work items
 };
 
 const resolveUploadedImageUrl = (file) => {
@@ -83,6 +80,8 @@ const resolveUploadedImageUrl = (file) => {
 const CALENDAR_WORK_POPULATE = [
   { path: 'assignedTo', select: 'name email designation' },
   { path: 'createdBy', select: 'name email' },
+  { path: 'updatedBy', select: 'name email' },
+  { path: 'updateLogs.updatedBy', select: 'name email' },
   { path: 'project', select: 'projectName' },
   { path: 'client', select: 'companyName' },
   { path: 'task', select: 'title' },
@@ -193,9 +192,16 @@ export const createCalendarWork = async (req, res) => {
       tags: Array.isArray(tags) ? tags : [],
       assignedDesignation: assignedUser.designation || '',
       department: assignedUser.departmentId || null,
-      workStatus: 'draft',
-      postingStatus: 'not_scheduled',
-      imageUrl: resolveUploadedImageUrl(req.file) || (typeof imageUrl === 'string' ? imageUrl.trim() : '')
+      imageUrl: resolveUploadedImageUrl(req.file) || (typeof imageUrl === 'string' ? imageUrl.trim() : ''),
+      updatedBy: userId,
+      updateLogs: [
+        {
+          updatedBy: userId,
+          updatedAt: new Date(),
+          action: 'Created Item',
+          notes: 'Work item created'
+        }
+      ]
     };
 
     const newCalendarWork = new CalendarWork(calendarWorkData);
@@ -263,13 +269,6 @@ export const getCalendarWorks = async (req, res) => {
       if (endDate && parseValidDate(endDate)) filter.workDate.$lte = parseValidDate(endDate);
     }
 
-    if (!isSuperAdmin(req)) {
-      filter.$or = [
-        { assignedTo: userId },
-        { createdBy: userId }
-      ];
-    }
-
     const parsedLimit = Math.max(1, parseInt(limit) || 50);
     const parsedSkip = Math.max(0, parseInt(skip) || 0);
 
@@ -278,6 +277,7 @@ export const getCalendarWorks = async (req, res) => {
       .populate([
         { path: 'assignedTo', select: 'name email designation' },
         { path: 'createdBy', select: 'name email' },
+        { path: 'updatedBy', select: 'name email' },
         { path: 'project', select: 'projectName' },
         { path: 'client', select: 'companyName' },
         { path: 'task', select: 'title' },
@@ -338,6 +338,7 @@ export const getMyCalendarWorks = async (req, res) => {
       .populate([
         { path: 'assignedTo', select: 'name email designation' },
         { path: 'createdBy', select: 'name email' },
+        { path: 'updatedBy', select: 'name email' },
         { path: 'project', select: 'projectName' },
         { path: 'client', select: 'companyName' },
         { path: 'task', select: 'title' }
@@ -376,6 +377,8 @@ export const getCalendarWorkById = async (req, res) => {
       .populate([
         { path: 'assignedTo', select: 'name email designation department' },
         { path: 'createdBy', select: 'name email' },
+        { path: 'updatedBy', select: 'name email' },
+        { path: 'updateLogs.updatedBy', select: 'name email' },
         { path: 'approvedBy', select: 'name email' },
         { path: 'project', select: 'projectName projectCode' },
         { path: 'client', select: 'companyName clientId' },
@@ -449,7 +452,7 @@ export const updateCalendarWork = async (req, res) => {
     if (description !== undefined) calendarWork.description = description;
     if (contentType !== undefined) calendarWork.contentType = contentType;
 
-    if (assignedTo !== undefined && (String(calendarWork.createdBy) === String(userId) || isSuperAdmin(req))) {
+    if (assignedTo !== undefined) {
       if (!isValidObjectId(assignedTo)) {
         return sendError(res, 'Invalid assignedTo user ID', 400);
       }
@@ -500,11 +503,20 @@ export const updateCalendarWork = async (req, res) => {
       calendarWork.imageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : '';
     }
 
+    calendarWork.updatedBy = userId;
+    calendarWork.updateLogs.push({
+      updatedBy: userId,
+      updatedAt: new Date(),
+      action: 'Updated Details',
+      notes: 'Calendar item details updated'
+    });
     await calendarWork.save();
 
     await calendarWork.populate([
       { path: 'assignedTo', select: 'name email designation' },
       { path: 'createdBy', select: 'name email' },
+      { path: 'updatedBy', select: 'name email' },
+      { path: 'updateLogs.updatedBy', select: 'name email' },
       { path: 'project', select: 'projectName' },
       { path: 'client', select: 'companyName' },
       { path: 'task', select: 'title' }
@@ -547,12 +559,21 @@ export const updateWorkStatus = async (req, res) => {
 
     const previousStatus = calendarWork.workStatus;
     calendarWork.workStatus = status;
+    calendarWork.updatedBy = userId;
 
+    const formattedStatus = status.replace(/_/g, ' ');
     calendarWork.workStatusHistory.push({
       status,
       changedBy: userId,
       changedAt: new Date(),
       notes: notes || ''
+    });
+
+    calendarWork.updateLogs.push({
+      updatedBy: userId,
+      updatedAt: new Date(),
+      action: `Work Status: ${formattedStatus}`,
+      notes: notes || `Work status changed to ${formattedStatus}`
     });
 
     await calendarWork.save();
@@ -596,6 +617,7 @@ export const updatePostingStatus = async (req, res) => {
 
     const previousStatus = calendarWork.postingStatus;
     calendarWork.postingStatus = status;
+    calendarWork.updatedBy = userId;
 
     if (status === 'posted') {
       calendarWork.actualPostTime = parseValidDate(actualPostTime) || new Date();
@@ -606,11 +628,19 @@ export const updatePostingStatus = async (req, res) => {
       calendarWork.socialMediaLinks = socialMediaLinks;
     }
 
+    const formattedPostingStatus = status.replace(/_/g, ' ');
     calendarWork.postingStatusHistory.push({
       status,
       changedBy: userId,
       changedAt: new Date(),
       notes: notes || ''
+    });
+
+    calendarWork.updateLogs.push({
+      updatedBy: userId,
+      updatedAt: new Date(),
+      action: `Posting Status: ${formattedPostingStatus}`,
+      notes: notes || `Posting status changed to ${formattedPostingStatus}`
     });
 
     await calendarWork.save();

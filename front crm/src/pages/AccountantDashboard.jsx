@@ -153,15 +153,33 @@ const AccountantDashboard = () => {
     const filteredExpenses = expenses.filter(e => filterByTime(e.createdAt || e.date));
     const filteredSalaries = salaries.filter(s => filterByTime(s.createdAt || s.paymentDate || s.date));
 
-    // Income sums
+    // Income sums (actual paid/received amount)
     const totalIncomeReceived = filteredIncomes.reduce((sum, item) => {
-      const amt = Number(item.amount || item.incomeAmount || item.receivedAmount || 0);
-      return sum + (isNaN(amt) ? 0 : amt);
+      let paid = 0;
+      if (Array.isArray(item.payments) && item.payments.length > 0) {
+        paid = item.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      }
+      if (paid <= 0 && typeof item.receiptAmount === 'number' && item.receiptAmount > 0) {
+        paid = item.receiptAmount;
+      }
+      if (paid <= 0 && (item.paymentStatus || item.status || '').toLowerCase() === 'paid') {
+        paid = parseFloat(item.totalAmount || item.amount || item.incomeAmount || 0);
+      }
+      return sum + (isNaN(paid) ? 0 : paid);
     }, 0);
 
     const paidInvoicesCount = filteredIncomes.filter(i => (i.paymentStatus || i.status || '').toLowerCase() === 'paid').length;
     const unpaidIncomes = filteredIncomes.filter(i => (i.paymentStatus || i.status || '').toLowerCase() !== 'paid');
-    const unpaidAmount = unpaidIncomes.reduce((sum, item) => sum + (Number(item.amount || 0) - Number(item.receivedAmount || 0)), 0);
+    const unpaidAmount = unpaidIncomes.reduce((sum, item) => {
+      const total = Number(item.totalAmount || item.amount || 0);
+      let paid = 0;
+      if (Array.isArray(item.payments) && item.payments.length > 0) {
+        paid = item.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      } else if (typeof item.receiptAmount === 'number' && item.receiptAmount > 0) {
+        paid = item.receiptAmount;
+      }
+      return sum + Math.max(0, total - paid);
+    }, 0);
 
     // Expense sums
     const approvedExpenses = filteredExpenses.filter(e => (e.status || 'approved').toLowerCase() === 'approved');
