@@ -1,5 +1,7 @@
 import https from 'https';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import mongoose from 'mongoose';
 import EmployeeReports from '../models/employeeReports.model.js';
 import User from '../models/user.model.js';
@@ -331,24 +333,48 @@ export const employeeReportPDFController = {
         });
       }
 
-      // Generate filename based on details
-      const cleanFilename = `${reportType}_${reportPeriod}_${reportDate}.pdf`;
+      // Get file buffer (handles both memoryStorage and diskStorage)
+      const fileBuffer = req.file.buffer || (req.file.path && fs.existsSync(req.file.path) ? fs.readFileSync(req.file.path) : null);
 
-      // Upload to Cloudinary under the employee folder
-      let uploadResult = null;
+      // Generate filename based on details
+      const cleanFilename = req.file.originalname || `${reportType}_${reportPeriod}_${reportDate}.pdf`;
+
+      // Save a local copy on disk
+      let localUrl = '';
       try {
-        uploadResult = await uploadToCloudinary(req.file.buffer, userId, `${reportDate.replace(/[^a-zA-Z0-9_-]/g, '_')}_${reportPeriod}`);
-      } catch (cloudErr) {
-        console.warn('Cloudinary upload failed (saving DB record anyway):', cloudErr.message);
+        const uploadDir = path.join(process.cwd(), 'uploads', 'employee-reports');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const safeName = `${userId}_${reportPeriod}_${cleanFilename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        if (fileBuffer) {
+          fs.writeFileSync(path.join(uploadDir, safeName), fileBuffer);
+        } else if (req.file.path && fs.existsSync(req.file.path)) {
+          fs.copyFileSync(req.file.path, path.join(uploadDir, safeName));
+        }
+        localUrl = `/uploads/employee-reports/${safeName}`;
+      } catch (fsErr) {
+        console.warn('Local PDF file write warning:', fsErr.message);
       }
 
-      // Save to database
+      // Upload to Cloudinary under the employee folder if configured
+      let uploadResult = null;
+      if (fileBuffer && process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+        try {
+          uploadResult = await uploadToCloudinary(fileBuffer, userId, `${reportDate.replace(/[^a-zA-Z0-9_-]/g, '_')}_${reportPeriod}`);
+        } catch (cloudErr) {
+          console.warn('Cloudinary upload failed (using local storage & DB buffer):', cloudErr.message);
+        }
+      }
+
+      // Save to database with binary buffer
       const reportRecord = await EmployeeReports.findOneAndUpdate(
         { employee_id: userId, report_date: reportDate, report_period: reportPeriod },
         {
-          pdf_url: uploadResult?.secure_url || '',
+          pdf_url: uploadResult?.secure_url || localUrl || '',
           pdf_public_id: uploadResult?.public_id || '',
-          filename: req.file.originalname || cleanFilename,
+          ...(fileBuffer ? { pdf_data: fileBuffer } : {}),
+          filename: cleanFilename,
           employee_id: userId,
           report_date: reportDate,
           report_type: reportType,
@@ -531,7 +557,7 @@ export const employeeReportPDFController = {
         return res.status(400).json({ success: false, message: 'reportId is required' });
       }
 
-      let record = await EmployeeReports.findById(reportId);
+      let record = await EmployeeReports.findById(reportId).select('+pdf_data');
       if (!record) {
         // If not found in EmployeeReports (manual file uploads), search across all 9 department shift report collections!
         const shiftReportModels = [
@@ -604,7 +630,7 @@ export const employeeReportPDFController = {
         { model: AccountantReport, type: 'accountant' }
       ];
 
-      const generateAndStreamShiftReport = async (empId, dateStr, shiftReportId) => {
+      const generateAndStreamShiftReport = async (empId, dateStr, shiftReportId, recordDbId) => {
         let foundShiftDoc = null;
         let foundTypeSlug = null;
 
@@ -631,9 +657,14 @@ export const employeeReportPDFController = {
               ]
             };
             if (dateStr) {
-              query.dateString = dateStr;
+              if (dateStr.includes('_to_')) {
+                const [startDate, endDate] = dateStr.split('_to_');
+                query.dateString = { $gte: startDate, $lte: endDate };
+              } else {
+                query.dateString = dateStr;
+              }
             }
-            const doc = await item.model.findOne(query);
+            const doc = await item.model.findOne(query).sort({ dateString: -1, createdAt: -1 });
             if (doc) {
               foundShiftDoc = doc;
               foundTypeSlug = item.type;
@@ -642,71 +673,164 @@ export const employeeReportPDFController = {
           }
         }
 
-        if (foundShiftDoc) {
-          const targetEmpId = foundShiftDoc.userId || foundShiftDoc.employee_id || empId;
-          const employee = await User.findById(targetEmpId).populate('designationId');
-          const designationName = employee?.designation || employee?.designationId?.name || foundTypeSlug;
-          const pdfBuffer = await generateReportPDFBuffer(foundShiftDoc, employee?.name || 'Employee', designationName);
-
-          const dateFileName = foundShiftDoc.dateString || dateStr || 'saved';
-          const filenameStr = `${foundTypeSlug}_Report_${dateFileName}.pdf`;
-
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `attachment; filename="${filenameStr}"`);
-          res.setHeader('Content-Length', pdfBuffer.length);
-          return res.end(pdfBuffer);
+        // Fallback: If not found in date range, search by employee alone
+        if (!foundShiftDoc && empId) {
+          for (const item of shiftReportModels) {
+            const query = {
+              $or: [
+                { userId: empId },
+                { userId: String(empId) },
+                { employee_id: empId },
+                { employee_id: String(empId) },
+                { 'basicDetails.employeeId': String(empId) }
+              ]
+            };
+            const doc = await item.model.findOne(query).sort({ dateString: -1, createdAt: -1 });
+            if (doc) {
+              foundShiftDoc = doc;
+              foundTypeSlug = item.type;
+              break;
+            }
+          }
         }
 
-        return res.status(404).json({ success: false, message: 'No PDF file stored for this report' });
+        const targetEmpId = foundShiftDoc?.userId || foundShiftDoc?.employee_id || empId;
+        const employee = await User.findById(targetEmpId).populate('designationId');
+
+        if (!foundShiftDoc) {
+          foundTypeSlug = record?.report_type || 'report';
+          foundShiftDoc = {
+            basicDetails: {
+              employeeId: String(empId),
+              date: dateStr || new Date().toISOString().split('T')[0],
+              department: employee?.department || 'Department'
+            },
+            summary: `Consolidated report for period ${dateStr || ''}`
+          };
+        }
+
+        const designationName = employee?.designation || employee?.designationId?.name || foundTypeSlug;
+        const pdfBuffer = await generateReportPDFBuffer(foundShiftDoc, employee?.name || 'Employee', designationName);
+
+        // Cache the buffer in EmployeeReports so future stream clicks are instantaneous
+        if (recordDbId) {
+          try {
+            await EmployeeReports.findByIdAndUpdate(recordDbId, { $set: { pdf_data: pdfBuffer } });
+          } catch (cacheErr) {}
+        }
+
+        const dateFileName = foundShiftDoc.dateString || dateStr || 'saved';
+        const filenameStr = `${foundTypeSlug}_Report_${dateFileName}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filenameStr}"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        return res.end(pdfBuffer);
       };
 
-      if (!record.pdf_public_id && !record.pdf_url) {
-        return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId);
+      // 1. If PDF binary buffer exists directly in the database record, stream it immediately
+      if (record.pdf_data) {
+        const rawBuf = Buffer.isBuffer(record.pdf_data)
+          ? record.pdf_data
+          : (record.pdf_data.buffer ? Buffer.from(record.pdf_data.buffer) : Buffer.from(record.pdf_data));
+        if (rawBuf && rawBuf.length > 0) {
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${record.filename || 'report.pdf'}"`);
+          res.setHeader('Content-Length', rawBuf.length);
+          return res.end(rawBuf);
+        }
       }
 
-      // Build an authenticated signed download URL using the Cloudinary SDK.
-      let fetchUrl;
-      if (record.pdf_public_id) {
-        fetchUrl = cloudinary.utils.private_download_url(
-          record.pdf_public_id,
-          'pdf',
-          { resource_type: 'raw', type: 'upload' }
-        );
-      } else {
+      // 2. Check local disk for the stored PDF file
+      const cleanName = (record.filename || '').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const baseClean = cleanName.replace(/\.pdf$/i, '');
+      const localCandidates = [
+        path.join(process.cwd(), 'uploads', 'employee-reports', `${record.employee_id}_${record.report_period}_${cleanName}`),
+        path.join(process.cwd(), 'uploads', 'employee-reports', cleanName),
+        path.join(process.cwd(), (record.pdf_url || '').replace(/^\//, ''))
+      ];
+
+      // Also search uploads/tasks/general where multer.diskStorage saves uploaded files
+      try {
+        const tasksDir = path.join(process.cwd(), 'uploads', 'tasks', 'general');
+        if (fs.existsSync(tasksDir)) {
+          const files = fs.readdirSync(tasksDir);
+          const matched = files
+            .filter(f => f.includes(baseClean) && f.endsWith('.pdf'))
+            .sort()
+            .reverse();
+          if (matched.length > 0) {
+            localCandidates.unshift(path.join(tasksDir, matched[0]));
+          }
+        }
+      } catch (err) {}
+
+      for (const candidate of localCandidates) {
+        if (candidate && fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${record.filename || 'report.pdf'}"`);
+          return fs.createReadStream(candidate).pipe(res);
+        }
+      }
+
+      // 3. Check Cloudinary or external URL
+      let fetchUrl = null;
+      if (record.pdf_public_id && process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+        try {
+          fetchUrl = cloudinary.utils.private_download_url(
+            record.pdf_public_id,
+            'pdf',
+            { resource_type: 'raw', type: 'upload' }
+          );
+        } catch (err) {
+          console.warn('Cloudinary download url failed:', err.message);
+        }
+      } else if (record.pdf_url && /^https?:\/\//i.test(record.pdf_url)) {
         fetchUrl = record.pdf_url;
       }
 
       const filename = record.filename || 'report.pdf';
 
-      // Helper: fetch URL with redirect-following (Cloudinary signed URLs can redirect)
-      const fetchAndPipe = (url, redirectsLeft) => {
-        const mod = url.startsWith('https') ? https : http;
+      if (fetchUrl && /^https?:\/\//i.test(fetchUrl)) {
+        // Helper: fetch URL with redirect-following
+        const fetchAndPipe = (url, redirectsLeft) => {
+          try {
+            const mod = url.startsWith('https') ? https : http;
+            const reqPipe = mod.get(url, (cloudRes) => {
+              const { statusCode, headers } = cloudRes;
 
-        mod.get(url, (cloudRes) => {
-          const { statusCode, headers } = cloudRes;
+              // Follow redirects
+              if ([301, 302, 303, 307, 308].includes(statusCode) && headers.location && redirectsLeft > 0) {
+                cloudRes.resume();
+                return fetchAndPipe(headers.location, redirectsLeft - 1);
+              }
 
-          // Follow redirects
-          if ([301, 302, 303, 307, 308].includes(statusCode) && headers.location && redirectsLeft > 0) {
-            cloudRes.resume(); // drain body so socket is freed
-            return fetchAndPipe(headers.location, redirectsLeft - 1);
+              if (statusCode !== 200) {
+                console.error(`[stream] Remote server returned ${statusCode} for ${url}, falling back to dynamic PDF generation`);
+                return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId, record._id);
+              }
+
+              res.setHeader('Content-Type', 'application/pdf');
+              res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+              if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
+              cloudRes.pipe(res);
+            });
+
+            reqPipe.on('error', (err) => {
+              console.error('[stream] Error fetching from remote URL:', err.message, 'falling back to dynamic PDF generation');
+              generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId, record._id);
+            });
+          } catch (err) {
+            console.error('[stream] Synchronous URL error:', err.message, 'falling back to dynamic PDF generation');
+            return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId, record._id);
           }
+        };
 
-          if (statusCode !== 200) {
-            console.error(`[stream] Cloudinary returned ${statusCode} for ${url}, falling back to dynamic PDF generation`);
-            return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId);
-          }
+        return fetchAndPipe(fetchUrl, 5);
+      }
 
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          if (headers['content-length']) res.setHeader('Content-Length', headers['content-length']);
-          cloudRes.pipe(res);
-        }).on('error', (err) => {
-          console.error('[stream] Error fetching from Cloudinary:', err.message, 'falling back to dynamic PDF generation');
-          generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId);
-        });
-      };
-
-      fetchAndPipe(fetchUrl, 5);
+      // 4. If neither binary buffer, local file, nor external URL is available, generate dynamically
+      return generateAndStreamShiftReport(record.employee_id || record.userId, record.report_date || record.dateString, record.shiftReportId, record._id);
 
     } catch (error) {
       console.error('Error in streamSavedPDFReport:', error.message);

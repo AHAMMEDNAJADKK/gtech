@@ -52,9 +52,14 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
         }
 
         // Document title
-        doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(14).text('DAILY SHIFT REPORT', 300, 40, { align: 'right' });
+        const periodStr = String(report?.report_period || report?.reportPeriod || (report?.isMonthly ? 'monthly' : '') || '').toLowerCase();
+        const headerTitle = periodStr === 'monthly'
+          ? 'MONTHLY CONSOLIDATED REPORT'
+          : (periodStr === 'weekly' ? 'WEEKLY CONSOLIDATED REPORT' : 'DAILY SHIFT REPORT');
+
+        doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(13).text(headerTitle, 240, 40, { align: 'right' });
         
-        doc.fillColor(labelColor).font('Helvetica-Bold').fontSize(8.5).text((designation || 'Employee').toUpperCase(), 300, 58, { align: 'right' });
+        doc.fillColor(labelColor).font('Helvetica-Bold').fontSize(8.5).text((designation || 'Employee').toUpperCase(), 240, 58, { align: 'right' });
 
         // Horizontal line
         doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(40, 75).lineTo(555, 75).stroke();
@@ -202,10 +207,40 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
         doc.y += 10;
       };
 
+      // Excluded / Hidden Sections set from frontend user selection
+      const excludedSectionsSet = new Set();
+      const addExcludedKey = (rawKey) => {
+        if (!rawKey) return;
+        const k = String(rawKey).toLowerCase().trim();
+        excludedSectionsSet.add(k);
+        excludedSectionsSet.add(k.replace(/[^a-z0-9]/g, ''));
+      };
+
+      if (Array.isArray(report.excludedSections)) {
+        report.excludedSections.forEach(s => addExcludedKey(s));
+      }
+      if (report.hiddenSections && typeof report.hiddenSections === 'object') {
+        const hiddenObj = report.hiddenSections.toObject ? report.hiddenSections.toObject() : report.hiddenSections;
+        Object.entries(hiddenObj).forEach(([k, v]) => {
+          if (v === true) addExcludedKey(k);
+        });
+      }
+
+      const isKeyExcluded = (keyName) => {
+        if (!keyName) return false;
+        const k = String(keyName).toLowerCase().trim();
+        const kClean = k.replace(/[^a-z0-9]/g, '');
+        if (excludedSectionsSet.has(k) || excludedSectionsSet.has(kClean)) return true;
+        for (const ex of excludedSectionsSet) {
+          if (ex && (k.includes(ex) || ex.includes(k) || kClean.includes(ex) || ex.includes(kClean))) {
+            return true;
+          }
+        }
+        return false;
+      };
+
       // 1. BASIC DETAILS
-      if (report.basicDetails) {
-        drawSectionHeader('1. Basic Details');
-        
+      if (report.basicDetails && !isKeyExcluded('basicDetails') && !isKeyExcluded('basicdetails')) {
         const bd = report.basicDetails;
         const details = [
           ['Date', bd.date],
@@ -217,9 +252,12 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
           ['Shift Timing', bd.shiftTiming],
           ['Reporting To', bd.reportingTo],
           ['Prepared Time', bd.preparedTime || bd.preparedAt]
-        ].filter(([_, v]) => v);
+        ].filter(([_, v]) => v && String(v).trim() !== '');
 
-        drawKeyValueTable(details);
+        if (details.length > 0) {
+          drawSectionHeader('1. Basic Details');
+          drawKeyValueTable(details);
+        }
       }
 
       // 2. DAILY TASK SUMMARY / OPERATIONS
@@ -230,33 +268,36 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
         k === 'dailyOperations'
       );
 
-      if (summaryKey && Array.isArray(report[summaryKey]) && report[summaryKey].length > 0) {
+      if (summaryKey && !isKeyExcluded(summaryKey) && Array.isArray(report[summaryKey])) {
+        // Filter out empty rows where nothing was written
+        const filledSummaryRows = report[summaryKey].filter(t => !isRowEmpty(t));
 
-        drawSectionHeader('2. Daily Task Summary');
-        
-        const hasTaskDates = report[summaryKey].some(t => t.startDate || t.endDate);
-        const headers = hasTaskDates
-          ? ['Activity', 'Due Date', 'Start Date', 'End Date', 'Status', 'Remarks']
-          : ['Activity', 'Due Date', 'Status', 'Remarks'];
-        const columnWidths = hasTaskDates
-          ? [145, 60, 75, 75, 60, 100]
-          : [195, 70, 90, 160]; // total 515
-        const rows = report[summaryKey].map(t => [
-          t.activity || t.task || '',
-          t.dueDate || '',
-          ...(hasTaskDates ? [t.startDate || '', t.endDate || ''] : []),
-          t.status || '',
-          t.remarks || t.remark || ''
-        ]);
+        if (filledSummaryRows.length > 0) {
+          drawSectionHeader('2. Daily Task Summary');
+          
+          const hasTaskDates = filledSummaryRows.some(t => t.startDate || t.endDate);
+          const headers = hasTaskDates
+            ? ['Activity', 'Due Date', 'Start Date', 'End Date', 'Status', 'Remarks']
+            : ['Activity', 'Due Date', 'Status', 'Remarks'];
+          const columnWidths = hasTaskDates
+            ? [145, 60, 75, 75, 60, 100]
+            : [195, 70, 90, 160]; // total 515
+          const rows = filledSummaryRows.map(t => [
+            t.activity || t.task || '',
+            t.dueDate || '',
+            ...(hasTaskDates ? [t.startDate || '', t.endDate || ''] : []),
+            t.status || '',
+            t.remarks || t.remark || ''
+          ]);
 
-        drawTable(headers, rows, columnWidths);
-
+          drawTable(headers, rows, columnWidths);
+        }
       }
 
       // 3. OTHER DYNAMIC SECTIONS
       // Exclude metadata, nested approvals, and already printed sections
       const skipKeys = new Set([
-        'basicDetails', summaryKey, '_id', '__v', 'userId', 'dateString', 'createdAt', 'updatedAt', 'approval', 'id'
+        'basicDetails', summaryKey, '_id', '__v', 'userId', 'dateString', 'createdAt', 'updatedAt', 'approval', 'id', 'excludedSections', 'hiddenSections'
       ]);
 
       const reportObject = report.toObject ? report.toObject() : report;
@@ -264,6 +305,7 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
 
       for (const [key, val] of Object.entries(reportObject)) {
         if (skipKeys.has(key)) continue;
+        if (isKeyExcluded(key)) continue;
 
         if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
           // Filter out empty rows

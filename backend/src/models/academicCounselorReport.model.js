@@ -72,6 +72,8 @@ const academicCounselorReportSchema = new mongoose.Schema({
     crmUpdated: { type: String, default: 'No' },
     reportsSubmitted: { type: String, default: 'No' }
   },
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     counselorName: { type: String },
     counselorSignature: { type: String },

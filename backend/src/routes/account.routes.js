@@ -3,6 +3,7 @@ import {
   getCategories,
   createCategory,
   updateCategory,
+  updateBatchCategoryOpeningBalances,
   deleteCategory,
   getExpenses,
   createExpense,
@@ -59,6 +60,7 @@ router.delete('/income/:id', deleteIncome);
 // ── Categories Routes ──
 router.get('/categories', getCategories);
 router.post('/categories', createCategory);
+router.put('/categories/batch/opening-balances', updateBatchCategoryOpeningBalances);
 router.put('/categories/:id', updateCategory);
 router.delete('/categories/:id', deleteCategory);
 

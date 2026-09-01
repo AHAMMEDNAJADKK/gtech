@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus } from 'lucide-react';
+import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus, User } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -55,10 +55,11 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
   const clientNameStr = incomeRecord.clientName || incomeRecord.client?.name || incomeRecord.client?.companyName || '';
   const titleStr = incomeRecord.title || 'Income Record';
 
-  // Infer category if not explicitly saved on legacy records
-  const resolvedSourceType = (rawSourceType === 'Client' || clientNameStr || incomeRecord.client || titleStr.toLowerCase().includes('client'))
+  const resolvedSourceType = (rawSourceType === 'Academy' || incomeRecord.department === 'Academy & LMS')
+    ? 'Academy'
+    : (rawSourceType === 'Client' || incomeRecord.client || titleStr.toLowerCase().includes('client'))
     ? 'Client'
-    : (rawSourceType === 'Academy' || incomeRecord.department === 'Academy & LMS' || titleStr.toLowerCase().includes('academy') || titleStr.toLowerCase().includes('lms'))
+    : (titleStr.toLowerCase().includes('academy') || titleStr.toLowerCase().includes('lms'))
     ? 'Academy'
     : 'General';
 
@@ -714,7 +715,15 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-3.5 rounded-xl border space-y-1" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
                     <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
-                      <Building2 size={12} style={{ color: '#64748b' }} /> Payment Received From
+                      {resolvedSourceType === 'Academy' ? (
+                        <>
+                          <GraduationCap size={12} style={{ color: '#64748b' }} /> Payment Received From (Student)
+                        </>
+                      ) : (
+                        <>
+                          <Building2 size={12} style={{ color: '#64748b' }} /> Payment Received From
+                        </>
+                      )}
                     </h4>
                     <p className="font-bold text-sm" style={{ color: '#0f172a' }}>{finalClientName}</p>
                     <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{editPaymentMethod || paymentMethod}</strong></p>
@@ -815,7 +824,19 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <div className="p-3.5 rounded-xl border space-y-1.5 max-w-lg" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
                     <div className="border-b pb-1" style={{ borderColor: '#e2e8f0' }}>
                       <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
-                        <Building2 size={12} style={{ color: '#64748b' }} /> Billed To (Client / Customer)
+                        {resolvedSourceType === 'Academy' ? (
+                          <>
+                            <GraduationCap size={12} style={{ color: '#64748b' }} /> Billed To (Student)
+                          </>
+                        ) : resolvedSourceType === 'General' ? (
+                          <>
+                            <User size={12} style={{ color: '#64748b' }} /> Billed To (Payer / Customer)
+                          </>
+                        ) : (
+                          <>
+                            <Building2 size={12} style={{ color: '#64748b' }} /> Billed To (Client / Customer)
+                          </>
+                        )}
                       </h4>
                     </div>
                     
@@ -860,9 +881,11 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                     <thead className="font-bold uppercase text-[10px] tracking-wider border-b" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', borderColor: '#cbd5e1' }}>
                       <tr>
                         <th className="py-2.5 px-3 text-center w-10" style={{ color: '#0f172a' }}>#</th>
-                        <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Item / Service Description</th>
-                        <th className="py-2.5 px-3 text-center w-16" style={{ color: '#0f172a' }}>Qty</th>
-                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a' }}>Unit Price (₹)</th>
+                        <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>{resolvedSourceType === 'Academy' ? 'Course / Fee Description' : 'Item / Service Description'}</th>
+                        {resolvedSourceType !== 'Academy' && (
+                          <th className="py-2.5 px-3 text-center w-16" style={{ color: '#0f172a' }}>Qty</th>
+                        )}
+                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a' }}>{resolvedSourceType === 'Academy' ? 'Course Fee (₹)' : 'Unit Price (₹)'}</th>
                         <th className="py-2.5 px-3 text-right w-32" style={{ color: '#0f172a' }}>Amount (₹)</th>
                       </tr>
                     </thead>
@@ -873,7 +896,9 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                           <td className="py-3 px-3">
                             <strong className="block font-semibold text-xs" style={{ color: '#0f172a' }}>{item.description}</strong>
                           </td>
-                          <td className="py-3 px-3 text-center font-mono" style={{ color: '#334155' }}>{Math.round(item.quantity || 1)}</td>
+                          {resolvedSourceType !== 'Academy' && (
+                            <td className="py-3 px-3 text-center font-mono" style={{ color: '#334155' }}>{Math.round(item.quantity || 1)}</td>
+                          )}
                           <td className="py-3 px-3 text-right font-mono" style={{ color: '#334155' }}>₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
                           <td className="py-3 px-3 text-right font-mono font-bold text-xs" style={{ color: '#0f172a' }}>₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
                         </tr>

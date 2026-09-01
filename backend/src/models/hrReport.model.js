@@ -89,6 +89,8 @@ const hrReportSchema = new mongoose.Schema({
     }
   ],
   hrAdminComments: { type: String },
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     hrName: { type: String },
     hrSignature: { type: String },

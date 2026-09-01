@@ -86,6 +86,8 @@ const opsReportSchema = new mongoose.Schema({
     reportsSubmitted: { type: String },
     teamUpdated: { type: String }
   },
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     opsName: { type: String },
     opsSignature: { type: String },

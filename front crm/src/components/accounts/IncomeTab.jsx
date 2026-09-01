@@ -1084,10 +1084,10 @@ const IncomeTab = ({ mode = 'sales' }) => {
                     </td>
                     <td className="py-3.5 px-4">
                       {(() => {
-                        const resolvedSType = (inc.sourceType === 'Client' || inc.clientName || inc.client)
-                          ? 'Client'
-                          : (inc.sourceType === 'Academy' || inc.department === 'Academy & LMS')
+                        const resolvedSType = (inc.sourceType === 'Academy' || inc.department === 'Academy & LMS')
                           ? 'Academy'
+                          : (inc.sourceType === 'Client' || inc.client)
+                          ? 'Client'
                           : 'General';
                         return (
                           <span className={`px-2 py-0.5 rounded-lg font-bold text-[10px] ${

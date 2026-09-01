@@ -329,25 +329,170 @@ const CalendarWorkDetails = ({
                 </div>
               )}
 
-              {/* Created Info */}
+              {/* Created & Last Updated Summary */}
               {work.createdAt && (
-                <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Created</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Created By</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    {work.createdBy?.name || 'System / Admin'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                     {new Date(work.createdAt).toLocaleString()}
                   </p>
                 </div>
               )}
 
-              {/* Updated Info */}
               {work.updatedAt && (
-                <div>
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Updated</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Last Updated By</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    {work.updatedBy?.name || work.createdBy?.name || 'System / Admin'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                     {new Date(work.updatedAt).toLocaleString()}
                   </p>
                 </div>
               )}
+
+              {/* UPDATE AUDIT LOGS TIMELINE */}
+              <div className="col-span-2 mt-2 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-1.5">
+                    <Clock size={13} className="text-indigo-500" />
+                    Update History & Audit Logs ({(() => {
+                      const logs = [];
+                      if (Array.isArray(work.updateLogs)) {
+                        work.updateLogs.forEach((ul, idx) => {
+                          logs.push({
+                            id: `ul-${idx}`,
+                            user: ul.updatedBy?.name || work.updatedBy?.name || work.createdBy?.name || 'System User',
+                            timestamp: new Date(ul.updatedAt || ul.createdAt || work.updatedAt),
+                            action: ul.action || 'Updated Details',
+                            notes: ul.notes || '',
+                            type: 'update'
+                          });
+                        });
+                      }
+                      if (Array.isArray(work.workStatusHistory)) {
+                        work.workStatusHistory.forEach((sh, idx) => {
+                          const userName = typeof sh.changedBy === 'object' ? sh.changedBy?.name : (work.updatedBy?.name || work.createdBy?.name || 'System User');
+                          logs.push({
+                            id: `wsh-${idx}`,
+                            user: userName,
+                            timestamp: new Date(sh.changedAt),
+                            action: `Work Status: ${String(sh.status).replace(/_/g, ' ')}`,
+                            notes: sh.notes || '',
+                            type: 'status'
+                          });
+                        });
+                      }
+                      if (Array.isArray(work.postingStatusHistory)) {
+                        work.postingStatusHistory.forEach((ph, idx) => {
+                          const userName = typeof ph.changedBy === 'object' ? ph.changedBy?.name : (work.updatedBy?.name || work.createdBy?.name || 'System User');
+                          logs.push({
+                            id: `psh-${idx}`,
+                            user: userName,
+                            timestamp: new Date(ph.changedAt),
+                            action: `Posting Status: ${String(ph.status).replace(/_/g, ' ')}`,
+                            notes: ph.notes || '',
+                            type: 'posting'
+                          });
+                        });
+                      }
+                      if (logs.length === 0 && work.createdAt) {
+                        logs.push({
+                          id: 'created-0',
+                          user: work.createdBy?.name || 'System User',
+                          timestamp: new Date(work.createdAt),
+                          action: 'Created Work Item',
+                          notes: 'Initial creation',
+                          type: 'creation'
+                        });
+                      }
+                      return logs.length;
+                    })()})
+                  </p>
+                </div>
+                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                  {(() => {
+                    const logs = [];
+                    if (Array.isArray(work.updateLogs)) {
+                      work.updateLogs.forEach((ul, idx) => {
+                        logs.push({
+                          id: `ul-${idx}`,
+                          user: ul.updatedBy?.name || work.updatedBy?.name || work.createdBy?.name || 'System User',
+                          timestamp: new Date(ul.updatedAt || ul.createdAt || work.updatedAt),
+                          action: ul.action || 'Updated Details',
+                          notes: ul.notes || '',
+                          type: 'update'
+                        });
+                      });
+                    }
+                    if (Array.isArray(work.workStatusHistory)) {
+                      work.workStatusHistory.forEach((sh, idx) => {
+                        const userName = typeof sh.changedBy === 'object' ? sh.changedBy?.name : (work.updatedBy?.name || work.createdBy?.name || 'System User');
+                        logs.push({
+                          id: `wsh-${idx}`,
+                          user: userName,
+                          timestamp: new Date(sh.changedAt),
+                          action: `Work Status: ${String(sh.status).replace(/_/g, ' ')}`,
+                          notes: sh.notes || '',
+                          type: 'status'
+                        });
+                      });
+                    }
+                    if (Array.isArray(work.postingStatusHistory)) {
+                      work.postingStatusHistory.forEach((ph, idx) => {
+                        const userName = typeof ph.changedBy === 'object' ? ph.changedBy?.name : (work.updatedBy?.name || work.createdBy?.name || 'System User');
+                        logs.push({
+                          id: `psh-${idx}`,
+                          user: userName,
+                          timestamp: new Date(ph.changedAt),
+                          action: `Posting Status: ${String(ph.status).replace(/_/g, ' ')}`,
+                          notes: ph.notes || '',
+                          type: 'posting'
+                        });
+                      });
+                    }
+                    if (logs.length === 0 && work.createdAt) {
+                      logs.push({
+                        id: 'created-0',
+                        user: work.createdBy?.name || 'System User',
+                        timestamp: new Date(work.createdAt),
+                        action: 'Created Work Item',
+                        notes: 'Initial creation',
+                        type: 'creation'
+                      });
+                    }
+                    logs.sort((a, b) => b.timestamp - a.timestamp);
+                    return logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs flex items-start justify-between gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                              {log.user}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50 capitalize">
+                              {log.action}
+                            </span>
+                          </div>
+                          {log.notes && (
+                            <p className="text-slate-600 dark:text-slate-400 mt-1 text-[11px] leading-relaxed">
+                              {log.notes}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 font-medium">
+                          {log.timestamp.toLocaleDateString()} {log.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
             </div>
 
             {/* Close Button */}

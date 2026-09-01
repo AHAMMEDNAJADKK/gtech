@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Trash2, Loader2, FileText, Building2, GraduationCap, Coins, Users, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { useToast } from '../ToastProvider';
+import AddItemOptionModal from './AddItemOptionModal';
 import { getClients } from '../../services/clientService';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
@@ -34,6 +36,8 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
     'Domain',
     'Server'
   ]);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+  const [activeLineItemIdx, setActiveLineItemIdx] = useState(0);
 
   const [lineItems, setLineItems] = useState([
     { description: 'Poster', quantity: 1, unitPrice: 0, amount: 0 }
@@ -438,9 +442,9 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                   <tr>
-                    <th className="p-2.5">Item / Service Details</th>
-                    <th className="p-2.5 w-20 text-center">Qty</th>
-                    <th className="p-2.5 w-32 text-right">Unit Price (₹)</th>
+                    <th className="p-2.5">{sourceType === 'Academy' ? 'Course / Fee Details' : 'Item / Service Details'}</th>
+                    {sourceType !== 'Academy' && <th className="p-2.5 w-20 text-center">Qty</th>}
+                    <th className="p-2.5 w-32 text-right">{sourceType === 'Academy' ? 'Course Fee (₹)' : 'Unit Price (₹)'}</th>
                     <th className="p-2.5 w-36 text-right">Amount (₹)</th>
                     <th className="p-2.5 w-10 text-center"></th>
                   </tr>
@@ -455,33 +459,8 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                             onChange={(e) => {
                               const val = e.target.value;
                               if (val === '__MANAGE_DELETE__') {
-                                if (itemOptions.length === 0) {
-                                  if (typeof showToast === 'function') showToast('No dropdown items to delete.', 'warning');
-                                  return;
-                                }
-                                const itemToDelete = window.prompt(
-                                  `Select an item to remove from dropdown:\n\n${itemOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}\n\nEnter the item number (1-${itemOptions.length}) or name to delete:`
-                                );
-                                if (itemToDelete && itemToDelete.trim()) {
-                                  const inputStr = itemToDelete.trim();
-                                  const idxNum = parseInt(inputStr, 10);
-                                  let targetOpt = '';
-                                  if (!isNaN(idxNum) && idxNum >= 1 && idxNum <= itemOptions.length) {
-                                    targetOpt = itemOptions[idxNum - 1];
-                                  } else {
-                                    targetOpt = itemOptions.find(o => o.toLowerCase() === inputStr.toLowerCase()) || inputStr;
-                                  }
-
-                                  if (targetOpt && itemOptions.includes(targetOpt)) {
-                                    if (window.confirm(`Delete '${targetOpt}' from dropdown choices?`)) {
-                                      setItemOptions(prev => prev.filter(o => o !== targetOpt));
-                                      handleItemChange(idx, 'description', '');
-                                      if (typeof showToast === 'function') showToast(`Deleted '${targetOpt}' from dropdown!`, 'info');
-                                    }
-                                  } else {
-                                    if (typeof showToast === 'function') showToast('Item not found in dropdown options.', 'warning');
-                                  }
-                                }
+                                setActiveLineItemIdx(idx);
+                                setIsAddItemModalOpen(true);
                                 return;
                               }
                               handleItemChange(idx, 'description', val);
@@ -492,21 +471,14 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                             {itemOptions.map((opt, i) => (
                               <option key={i} value={opt}>{opt}</option>
                             ))}
-                            <option value="__MANAGE_DELETE__">🗑️ Delete an Option from Dropdown...</option>
+                            <option value="__MANAGE_DELETE__">⚙️ Manage / Delete Dropdown Options...</option>
                           </select>
 
                           <button
                             type="button"
                             onClick={() => {
-                              const customItem = window.prompt("Enter new item / service name to add to dropdown:");
-                              if (customItem && customItem.trim()) {
-                                const trimmed = customItem.trim();
-                                if (!itemOptions.includes(trimmed)) {
-                                  setItemOptions(prev => [...prev, trimmed]);
-                                }
-                                handleItemChange(idx, 'description', trimmed);
-                                if (typeof showToast === 'function') showToast(`Added '${trimmed}' to items dropdown!`, 'success');
-                              }
+                              setActiveLineItemIdx(idx);
+                              setIsAddItemModalOpen(true);
                             }}
                             className="p-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 rounded-lg border border-indigo-200 dark:border-indigo-800 transition cursor-pointer shrink-0 flex items-center gap-1 font-bold text-[10px]"
                             title="Add new item option to dropdown"
@@ -515,15 +487,17 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                           </button>
                         </div>
                       </td>
-                      <td className="p-2 text-center">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs font-bold text-center focus:outline-none"
-                        />
-                      </td>
+                      {sourceType !== 'Academy' && (
+                        <td className="p-2 text-center">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs font-bold text-center focus:outline-none"
+                          />
+                        </td>
+                      )}
                       <td className="p-2 text-right">
                         <input
                           type="number"
@@ -730,6 +704,17 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
           </div>
         </form>
       </div>
+
+      <AddItemOptionModal
+        isOpen={isAddItemModalOpen}
+        onClose={() => setIsAddItemModalOpen(false)}
+        itemOptions={itemOptions}
+        onUpdateOptions={(opts) => {
+          setItemOptions(opts);
+          localStorage.setItem('crm_item_options', JSON.stringify(opts));
+        }}
+        onSelectItem={(itemName) => handleItemChange(activeLineItemIdx, 'description', itemName)}
+      />
     </div>,
     document.body
   );

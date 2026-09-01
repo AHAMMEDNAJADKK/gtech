@@ -96,7 +96,9 @@ export const saveReport = async (req, res, next) => {
       taskSummary: req.body.taskSummary || [],
       keyNumbers: req.body.keyNumbers || [],
       blockersTomorrowPlan: req.body.blockersTomorrowPlan || [],
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await MarketingReport.findOneAndUpdate(

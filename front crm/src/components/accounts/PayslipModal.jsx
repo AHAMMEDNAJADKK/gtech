@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Printer, Download, FileText, Pencil, Check, XCircle, Loader2, Mail, Send } from 'lucide-react';
+import { X, Printer, Download, FileText, Pencil, Check, XCircle, Loader2, Mail, Send, Trash2 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
-import { updateSalaryPayment, sendSalaryPayslipEmail } from '../../services/accountsService';
+import { updateSalaryPayment, sendSalaryPayslipEmail, deleteSalaryPayment } from '../../services/accountsService';
 import { useToast } from '../ToastProvider';
 import { useUser } from '../../contexts/UserContext';
+import DeletePayslipModal from './DeletePayslipModal';
 
 const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false }) => {
   const payslipRef = useRef(null);
@@ -15,6 +16,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
   const [saving, setSaving] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [targetEmail, setTargetEmail] = useState('');
   const [editMode, setEditMode] = useState(false);
 
@@ -146,6 +148,21 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
   const handleCancel = () => {
     setEdited({ ...original });
     setEditMode(false);
+  };
+
+  const handleDelete = async () => {
+    if (!salaryRecord?._id) return;
+    if (!window.confirm(`Are you sure you want to delete the payslip for ${edited.empName || 'this employee'}? This cannot be undone.`)) return;
+    try {
+      const res = await deleteSalaryPayment(salaryRecord._id);
+      if (res.success) {
+        showToast('Payslip deleted successfully!', 'success');
+        onClose();
+        if (onSaved) onSaved();
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to delete payslip.', 'error');
+    }
   };
 
   const handlePrint = () => window.print();
@@ -386,6 +403,16 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 {sendingEmail ? <Loader2 size={11} className="animate-spin" /> : <Mail size={12} />}
                 <span>{sendingEmail ? 'Sending...' : 'Email Payslip'}</span>
               </button>
+              {isPrivileged && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={editMode}
+                  className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-40"
+                  title="Delete Payslip"
+                >
+                  <Trash2 size={11} /> Delete
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
@@ -661,6 +688,17 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           </motion.div>
         </div>
       )}
+
+      <DeletePayslipModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onSuccess={() => {
+          setShowDeleteConfirm(false);
+          onClose();
+          if (onSaved) onSaved();
+        }}
+        payslipRecord={salaryRecord}
+      />
     </AnimatePresence>,
     document.body
   );

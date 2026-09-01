@@ -100,7 +100,9 @@ export const saveReport = async (req, res, next) => {
       issuesSupportRequired: req.body.issuesSupportRequired || [],
       nextDayPlanning: req.body.nextDayPlanning,
       hodComments: req.body.hodComments,
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await HodRdReport.findOneAndUpdate(

@@ -104,7 +104,9 @@ export const saveReport = async (req, res, next) => {
       kpiTracking: req.body.kpiTracking || [],
       issuesEscalations: req.body.issuesEscalations || [],
       handover: req.body.handover,
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await OpsReport.findOneAndUpdate(

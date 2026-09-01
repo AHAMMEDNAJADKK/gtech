@@ -123,7 +123,7 @@ const menuItems = [
   { icon: Building2, label: 'Clients', path: '/clients', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
 
   // --- MARKETING & WORK ---
-  { icon: Calendar, label: 'Content Calendar', path: '/calendar-work', category: 'Marketing & Work', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'], allowedDesignationNames: ['designer', 'graphic', 'marketer', 'marketing', 'digital', 'social'] },
+  { icon: Calendar, label: 'Content Calendar', path: '/calendar-work', category: 'Marketing & Work' },
   { icon: FolderKanban, label: 'Projects', path: '/projects', category: 'Marketing & Work', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
 
   // --- FINANCE & PAYROLL ---

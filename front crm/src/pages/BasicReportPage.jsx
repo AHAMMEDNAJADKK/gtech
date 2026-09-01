@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
   CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, ArrowLeft,
-  X, Maximize2, Trash, ClipboardList, PenTool, BookOpen
+  X, Maximize2, Trash, ClipboardList, PenTool, BookOpen,
+  MinusCircle, PlusCircle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -17,6 +19,15 @@ import { isUserAssigned } from '../utils/taskUtils';
 
 const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
 const API_BASE = RAW_API_BASE.replace(/\/v1\/?$/, '').replace(/\/+$/, '');
+
+const isRowEmpty = (item) => {
+  if (!item || typeof item !== 'object') return true;
+  const skipKeys = new Set(['_id', 'id', '__v']);
+  return !Object.entries(item).some(([k, v]) => {
+    if (skipKeys.has(k)) return false;
+    return v !== null && v !== undefined && String(v).trim() !== '';
+  });
+};
 
 const DEFAULT_BLOCKERS_PLAN = {
   blockersToday: '',
@@ -49,6 +60,16 @@ const BasicReportPage = () => {
   const [taskSummary, setTaskSummary] = useState([]);
   const [blockersTomorrowPlan, setBlockersTomorrowPlan] = useState(DEFAULT_BLOCKERS_PLAN);
   const [staffSignature, setStaffSignature] = useState('');
+
+  const [hiddenSections, setHiddenSections] = useState({});
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
+
+  const toggleSectionHidden = (sectionKey) => {
+    setHiddenSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
 
   // AI Analysis Modal State
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -596,21 +617,67 @@ const BasicReportPage = () => {
             </div>
           </div>
 
+          {/* Excluded Sections Banner */}
+          {Object.values(hiddenSections).some(Boolean) && (
+            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-center justify-between flex-wrap gap-2">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                <MinusCircle size={15} /> Excluded Sections (Will not appear in Report or PDF):
+              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {Object.entries(hiddenSections).map(([secKey, isHidden]) => isHidden && (
+                  <button
+                    key={secKey}
+                    type="button"
+                    onClick={() => toggleSectionHidden(secKey)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                  >
+                    <PlusCircle size={13} /> Restore {secKey.replace(/([A-Z])/g, ' $1')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ══ TASKS SUMMARY TABLE ══ */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-2xl p-4 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
                 <ClipboardList size={13} /> Work Activity & Progress Summary
               </h2>
-              <button
-                onClick={handleAddRow}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
-              >
-                <Plus size={12} /> Add Row
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('taskSummary')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
+                <button
+                  onClick={handleAddRow}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
+                >
+                  <Plus size={12} /> Add Row
+                </button>
+              </div>
             </div>
 
-            <div className="overflow-x-auto max-h-48 overflow-y-auto">
+            {hiddenSections.taskSummary ? (
+              <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                  <MinusCircle size={14} className="text-rose-400" />
+                  Work Activity & Progress Summary (Excluded from Report & PDF)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('taskSummary')}
+                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <PlusCircle size={14} /> Restore Section
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-48 overflow-y-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 bg-white dark:bg-slate-900 z-10">
@@ -630,13 +697,25 @@ const BasicReportPage = () => {
                     <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                       <td className="py-1.5 px-1.5 font-bold text-slate-400 text-[10px]">{idx + 1}</td>
                       <td className="py-1.5 px-1.5">
-                        <input
-                          type="text"
-                          value={row.task}
-                          onChange={(e) => handleUpdateCell(idx, 'task', e.target.value)}
-                          placeholder="Task description..."
-                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs font-semibold"
-                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={row.task}
+                            onChange={(e) => handleUpdateCell(idx, 'task', e.target.value)}
+                            placeholder="Task description..."
+                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs font-semibold"
+                          />
+                          {row.task && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedActivityText(row.task)}
+                              className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-0.5 shrink-0"
+                              title="Expand / View Full Text"
+                            >
+                              <Maximize2 size={12} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-1.5 px-1.5">
                         <input
@@ -665,13 +744,25 @@ const BasicReportPage = () => {
                         />
                       </td>
                       <td className="py-1.5 px-1.5">
-                        <input
-                          type="text"
-                          value={row.detailsNotes}
-                          onChange={(e) => handleUpdateCell(idx, 'detailsNotes', e.target.value)}
-                          placeholder="Progress details / notes..."
-                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs"
-                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={row.detailsNotes}
+                            onChange={(e) => handleUpdateCell(idx, 'detailsNotes', e.target.value)}
+                            placeholder="Progress details / notes..."
+                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs"
+                          />
+                          {row.detailsNotes && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedActivityText(row.detailsNotes)}
+                              className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-0.5 shrink-0"
+                              title="Expand / View Full Text"
+                            >
+                              <Maximize2 size={12} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-1.5 px-1.5">
                         <select
@@ -710,6 +801,7 @@ const BasicReportPage = () => {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           {/* ══ BLOCKERS & SIGNATURE CARD ══ */}
@@ -828,6 +920,34 @@ const BasicReportPage = () => {
         </div>
       </div>
 
+      {/* Activity Detail Modal */}
+      {selectedActivityText && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative my-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[65vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

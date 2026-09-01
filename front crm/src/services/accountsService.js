@@ -107,6 +107,11 @@ export const updateExpenseCategory = async (id, data) => {
   return response.data;
 };
 
+export const updateBatchCategoryOpeningBalances = async (balances) => {
+  const response = await safePut('/categories/batch/opening-balances', { balances });
+  return response.data;
+};
+
 export const deleteExpenseCategory = async (id) => {
   const response = await safeDelete(`/categories/${id}`);
   return response.data;

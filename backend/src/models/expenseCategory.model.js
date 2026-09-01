@@ -11,6 +11,10 @@ const expenseCategorySchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  openingBalance: {
+    type: Number,
+    default: 0
+  },
   isActive: {
     type: Boolean,
     default: true

@@ -62,6 +62,8 @@ const videographerReportSchema = new mongoose.Schema({
       notes: { type: String }
     }
   ],
+  excludedSections: [{ type: String }],
+  hiddenSections: { type: mongoose.Schema.Types.Mixed, default: {} },
   approval: {
     videographerName: { type: String },
     videographerSignature: { type: String },

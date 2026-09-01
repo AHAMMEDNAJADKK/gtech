@@ -8,10 +8,14 @@ const employeeReportsSchema = new mongoose.Schema({
   },
   pdf_url: {
     type: String,
-    required: [true, 'PDF URL is required']
+    default: ''
   },
   pdf_public_id: {
     type: String
+  },
+  pdf_data: {
+    type: Buffer,
+    select: false
   },
   filename: {
     type: String,

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2,
+  MinusCircle, PlusCircle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -77,6 +79,16 @@ const AccountantReportPage = () => {
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
   const [isPrivileged, setIsPrivileged] = useState(false);
+
+  const [hiddenSections, setHiddenSections] = useState({});
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
+
+  const toggleSectionHidden = (sectionKey) => {
+    setHiddenSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
 
   // Monthly Report States
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
@@ -505,6 +517,8 @@ const AccountantReportPage = () => {
       const cleanIssuesSupportRequired = issuesSupportRequired.filter(t => (t.issue || '').trim() !== '');
       const cleanFinalShiftHandover = finalShiftHandover.filter(t => (t.item || t.particulars || '').trim() !== '');
 
+      const excludedSections = Object.entries(hiddenSections).filter(([_, h]) => h).map(([k]) => k);
+
       const payload = {
         userId: selectedUserId,
         dateString: selectedDate,
@@ -521,7 +535,9 @@ const AccountantReportPage = () => {
         nextDayTaskPlan,
         finalShiftHandover: cleanFinalShiftHandover,
         accountantComments,
-        approval
+        approval,
+        excludedSections,
+        hiddenSections
       };
 
       const res = await fetch(`${API_BASE}/v1/accountant-reports`, {
@@ -2250,6 +2266,27 @@ const AccountantReportPage = () => {
               title="Accountant Report AI Analysis"
             />
 
+            {/* Excluded Sections Banner */}
+            {Object.values(hiddenSections).some(Boolean) && (
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                  <MinusCircle size={15} /> Excluded Sections (Will not appear in Report or PDF):
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {Object.entries(hiddenSections).map(([secKey, isHidden]) => isHidden && (
+                    <button
+                      key={secKey}
+                      type="button"
+                      onClick={() => toggleSectionHidden(secKey)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                    >
+                      <PlusCircle size={13} /> Restore {secKey.replace(/([A-Z])/g, ' $1')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -2374,84 +2411,111 @@ const AccountantReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">2</span>
                   Daily Accounting Summary
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setDailyAccountingSummary([...dailyAccountingSummary, { activity: '', status: '', remarks: '' }])}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyAccountingSummary')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDailyAccountingSummary([...dailyAccountingSummary, { activity: '', status: '', remarks: '' }])}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[40%] min-w-[280px]">Activity</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Status</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
-                      <th className="px-3 py-3 text-center w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {dailyAccountingSummary.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4">
-                          <input
-                            type="text"
-                            value={item.activity || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyAccountingSummary];
-                              updated[idx].activity = e.target.value;
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
-                            placeholder="Activity name"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.status || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyAccountingSummary];
-                              updated[idx].status = e.target.value;
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                            placeholder="e.g. completed"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.remarks || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyAccountingSummary];
-                              updated[idx].remarks = e.target.value;
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                            placeholder="Add remarks..."
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = [...dailyAccountingSummary];
-                              updated.splice(idx, 1);
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="text-rose-500 hover:text-rose-600 transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+
+              {hiddenSections.dailyAccountingSummary ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Daily Accounting Summary (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyAccountingSummary')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[40%] min-w-[280px]">Activity</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Status</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
+                        <th className="px-3 py-3 text-center w-12"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {dailyAccountingSummary.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4">
+                            <input
+                              type="text"
+                              value={item.activity || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyAccountingSummary];
+                                updated[idx].activity = e.target.value;
+                                setDailyAccountingSummary(updated);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
+                              placeholder="Activity name"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.status || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyAccountingSummary];
+                                updated[idx].status = e.target.value;
+                                setDailyAccountingSummary(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                              placeholder="e.g. completed"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.remarks || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyAccountingSummary];
+                                updated[idx].remarks = e.target.value;
+                                setDailyAccountingSummary(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                              placeholder="Add remarks..."
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...dailyAccountingSummary];
+                                updated.splice(idx, 1);
+                                setDailyAccountingSummary(updated);
+                              }}
+                              className="text-rose-500 hover:text-rose-600 transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 3. DAILY TASKS */}
@@ -2461,209 +2525,287 @@ const AccountantReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
                   Daily Tasks
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setDailyTasks([...dailyTasks, { activity: '', dueDate: '', startDate: '', endDate: '', status: '', remarks: '' }])}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Task
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyTasks')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDailyTasks([...dailyTasks, { activity: '', dueDate: '', startDate: '', endDate: '', status: '', remarks: '' }])}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Task
+                  </button>
+                </div>
               </div>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[30%] min-w-[240px]">Activity</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Due Date</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Start Date</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">End Date</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
-                      <th className="px-3 py-3 text-center w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {dailyTasks.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4">
-                          <input
-                            type="text"
-                            value={item.activity || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyTasks];
-                              updated[idx].activity = e.target.value;
-                              setDailyTasks(updated);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
-                            placeholder="Task title"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="date"
-                            value={item.dueDate || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyTasks];
-                              updated[idx].dueDate = e.target.value;
-                              setDailyTasks(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.startDate || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyTasks];
-                              updated[idx].startDate = e.target.value;
-                              setDailyTasks(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="DD-MM-YYYY HH:mm"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.endDate || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyTasks];
-                              updated[idx].endDate = e.target.value;
-                              setDailyTasks(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="DD-MM-YYYY HH:mm"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.status || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyTasks];
-                              updated[idx].status = e.target.value;
-                              setDailyTasks(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                            placeholder="Done / Pending"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.remarks || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyTasks];
-                              updated[idx].remarks = e.target.value;
-                              setDailyTasks(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                            placeholder="Task remarks..."
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = [...dailyTasks];
-                              updated.splice(idx, 1);
-                              setDailyTasks(updated);
-                            }}
-                            className="text-rose-500 hover:text-rose-600 transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+              {hiddenSections.dailyTasks ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Daily Tasks (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyTasks')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[30%] min-w-[240px]">Activity</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Due Date</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Start Date</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">End Date</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
+                        <th className="px-3 py-3 text-center w-12"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {dailyTasks.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4">
+                            <input
+                              type="text"
+                              value={item.activity || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTasks];
+                                updated[idx].activity = e.target.value;
+                                setDailyTasks(updated);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
+                              placeholder="Task title"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="date"
+                              value={item.dueDate || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTasks];
+                                updated[idx].dueDate = e.target.value;
+                                setDailyTasks(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.startDate || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTasks];
+                                updated[idx].startDate = e.target.value;
+                                setDailyTasks(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="DD-MM-YYYY HH:mm"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.endDate || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTasks];
+                                updated[idx].endDate = e.target.value;
+                                setDailyTasks(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="DD-MM-YYYY HH:mm"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.status || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTasks];
+                                updated[idx].status = e.target.value;
+                                setDailyTasks(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                              placeholder="Done / Pending"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.remarks || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTasks];
+                                updated[idx].remarks = e.target.value;
+                                setDailyTasks(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                              placeholder="Task remarks..."
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...dailyTasks];
+                                updated.splice(idx, 1);
+                                setDailyTasks(updated);
+                              }}
+                              className="text-rose-500 hover:text-rose-600 transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 4. TRANSACTION REPORT */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
-                Transaction Report
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Transaction Type</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Count</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Incomes</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Expense</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {transactionReport.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.transactionType}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.amount || ''}
-                            onChange={(e) => {
-                              const updated = [...transactionReport];
-                              updated[idx].amount = e.target.value;
-                              setTransactionReport(updated);
-                            }}
-                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.incomes || ''}
-                            onChange={(e) => {
-                              const updated = [...transactionReport];
-                              updated[idx].incomes = e.target.value;
-                              setTransactionReport(updated);
-                            }}
-                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
-                            placeholder="Income amount"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.expense || ''}
-                            onChange={(e) => {
-                              const updated = [...transactionReport];
-                              updated[idx].expense = e.target.value;
-                              setTransactionReport(updated);
-                            }}
-                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
-                            placeholder="Expense amount"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 4. INVOICE & BILLING REPORT */}
-            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
-                  Invoice & Billing Report
+                  Transaction Report
                 </h2>
                 <button
                   type="button"
-                  onClick={addInvoiceRow}
-                  className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider"
+                  onClick={() => toggleSectionHidden('transactionReport')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
                 >
-                  <Plus size={14} /> Add Row
+                  <MinusCircle size={14} /> Exclude Table
                 </button>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+              {hiddenSections.transactionReport ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Transaction Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('transactionReport')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Transaction Type</th>
+                        <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Count</th>
+                        <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Incomes</th>
+                        <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Expense</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {transactionReport.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.transactionType}</td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.amount || ''}
+                              onChange={(e) => {
+                                const updated = [...transactionReport];
+                                updated[idx].amount = e.target.value;
+                                setTransactionReport(updated);
+                              }}
+                              className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.incomes || ''}
+                              onChange={(e) => {
+                                const updated = [...transactionReport];
+                                updated[idx].incomes = e.target.value;
+                                setTransactionReport(updated);
+                              }}
+                              className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                              placeholder="Income amount"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.expense || ''}
+                              onChange={(e) => {
+                                const updated = [...transactionReport];
+                                updated[idx].expense = e.target.value;
+                                setTransactionReport(updated);
+                              }}
+                              className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                              placeholder="Expense amount"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 5. INVOICE & BILLING REPORT */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
+                  Invoice & Billing Report
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('invoiceBillingReport')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addInvoiceRow}
+                    className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
+              </div>
+
+              {hiddenSections.invoiceBillingReport ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Invoice & Billing Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('invoiceBillingReport')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
@@ -2740,131 +2882,212 @@ const AccountantReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
-            {/* 5. PAYROLL & PAYMENT STATUS */}
+            {/* 6. PAYROLL & PAYMENT STATUS */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
-                Payroll & Payment Status
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[240px]">Activity</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Amount</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {payrollPaymentStatus.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.amount || ''}
-                            onChange={(e) => {
-                              const updated = [...payrollPaymentStatus];
-                              updated[idx].amount = e.target.value;
-                              setPayrollPaymentStatus(updated);
-                            }}
-                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
-                            placeholder="Amount"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.status || ''}
-                            onChange={(e) => {
-                              const updated = [...payrollPaymentStatus];
-                              updated[idx].status = e.target.value;
-                              setPayrollPaymentStatus(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                            placeholder="Status"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.remarks || ''}
-                            onChange={(e) => {
-                              const updated = [...payrollPaymentStatus];
-                              updated[idx].remarks = e.target.value;
-                              setPayrollPaymentStatus(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                            placeholder="Remarks"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
+                  Payroll & Payment Status
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('payrollPaymentStatus')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
-            </div>
 
-            {/* 6. EXPENSE TRACKING */}
-            <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
-                Expense Tracking
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Expense Category</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Amount</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {expenseTracking.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.category}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.amount || ''}
-                            onChange={(e) => {
-                              const updated = [...expenseTracking];
-                              updated[idx].amount = e.target.value;
-                              setExpenseTracking(updated);
-                            }}
-                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none font-mono"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.remarks || ''}
-                            onChange={(e) => {
-                              const updated = [...expenseTracking];
-                              updated[idx].remarks = e.target.value;
-                              setExpenseTracking(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
+              {hiddenSections.payrollPaymentStatus ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Payroll & Payment Status (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('payrollPaymentStatus')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[240px]">Activity</th>
+                        <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Amount</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {payrollPaymentStatus.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.amount || ''}
+                              onChange={(e) => {
+                                const updated = [...payrollPaymentStatus];
+                                updated[idx].amount = e.target.value;
+                                setPayrollPaymentStatus(updated);
+                              }}
+                              className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                              placeholder="Amount"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.status || ''}
+                              onChange={(e) => {
+                                const updated = [...payrollPaymentStatus];
+                                updated[idx].status = e.target.value;
+                                setPayrollPaymentStatus(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                              placeholder="Status"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.remarks || ''}
+                              onChange={(e) => {
+                                const updated = [...payrollPaymentStatus];
+                                updated[idx].remarks = e.target.value;
+                                setPayrollPaymentStatus(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                              placeholder="Remarks"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
-            {/* 7. DOCUMENTATION & COMPLIANCE */}
+            {/* 7. EXPENSE TRACKING */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">7</span>
-                Documentation & Compliance
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">7</span>
+                  Expense Tracking
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('expenseTracking')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
+              </div>
+
+              {hiddenSections.expenseTracking ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Expense Tracking (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('expenseTracking')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Expense Category</th>
+                        <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Amount</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {expenseTracking.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.category}</td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.amount || ''}
+                              onChange={(e) => {
+                                const updated = [...expenseTracking];
+                                updated[idx].amount = e.target.value;
+                                setExpenseTracking(updated);
+                              }}
+                              className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none font-mono"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.remarks || ''}
+                              onChange={(e) => {
+                                const updated = [...expenseTracking];
+                                updated[idx].remarks = e.target.value;
+                                setExpenseTracking(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 8. DOCUMENTATION & COMPLIANCE */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
+                  Documentation & Compliance
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('documentationCompliance')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
+              </div>
+
+              {hiddenSections.documentationCompliance ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Documentation & Compliance (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('documentationCompliance')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
@@ -2894,121 +3117,175 @@ const AccountantReportPage = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
 
-            {/* 8. KPI TRACKING */}
-            <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
-                KPI Tracking
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-2/3">KPI</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Target Achieved</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {kpiTracking.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.kpi}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.targetAchieved || ''}
-                            onChange={(e) => {
-                              const updated = [...kpiTracking];
-                              updated[idx].targetAchieved = e.target.value;
-                              setKpiTracking(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 9. ISSUES / SUPPORT REQUIRED */}
+            {/* 9. KPI TRACKING */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">9</span>
-                  Issues / Support Required
+                  KPI Tracking
                 </h2>
                 <button
                   type="button"
-                  onClick={addIssueRow}
-                  className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider"
+                  onClick={() => toggleSectionHidden('kpiTracking')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
                 >
-                  <Plus size={14} /> Add Row
+                  <MinusCircle size={14} /> Exclude Table
                 </button>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Issue</th>
-                      <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-40">Priority</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Action Taken / Required</th>
-                      <th className="px-3 py-3 text-center w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {issuesSupportRequired.length === 0 ? (
+              {hiddenSections.kpiTracking ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    KPI Tracking (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('kpiTracking')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
                       <tr>
-                        <td colSpan="4" className="px-6 py-8 text-center text-slate-400 dark:text-slate-600 italic">
-                          No issues logged. Click "Add Row" to report issues.
-                        </td>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-2/3">KPI</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Target Achieved</th>
                       </tr>
-                    ) : (
-                      issuesSupportRequired.map((row, idx) => (
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {kpiTracking.map((item, idx) => (
                         <tr key={idx}>
-                          <td className="px-4 py-2">
+                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.kpi}</td>
+                          <td className="px-6 py-3">
                             <input
                               type="text"
-                              value={row.issue || ''}
-                              onChange={(e) => handleIssueChange(idx, 'issue', e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              value={item.targetAchieved || ''}
+                              onChange={(e) => {
+                                const updated = [...kpiTracking];
+                                updated[idx].targetAchieved = e.target.value;
+                                setKpiTracking(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
                             />
-                          </td>
-                          <td className="px-4 py-2">
-                            <input
-                              type="text"
-                              value={row.priority || ''}
-                              onChange={(e) => handleIssueChange(idx, 'priority', e.target.value)}
-                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                              placeholder="e.g. High / Med / Low"
-                            />
-                          </td>
-                          <td className="px-4 py-2">
-                            <input
-                              type="text"
-                              value={row.action || ''}
-                              onChange={(e) => handleIssueChange(idx, 'action', e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => removeIssueRow(idx)}
-                              className="text-rose-500 hover:text-rose-600 transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 10. ISSUES / SUPPORT REQUIRED */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">10</span>
+                  Issues / Support Required
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('issuesSupportRequired')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addIssueRow}
+                    className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
+
+              {hiddenSections.issuesSupportRequired ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Issues / Support Required (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('issuesSupportRequired')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Issue</th>
+                        <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-40">Priority</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Action Taken / Required</th>
+                        <th className="px-3 py-3 text-center w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {issuesSupportRequired.length === 0 ? (
+                        <tr>
+                          <td colSpan="4" className="px-6 py-8 text-center text-slate-400 dark:text-slate-600 italic">
+                            No issues logged. Click "Add Row" to report issues.
+                          </td>
+                        </tr>
+                      ) : (
+                        issuesSupportRequired.map((row, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={row.issue || ''}
+                                onChange={(e) => handleIssueChange(idx, 'issue', e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={row.priority || ''}
+                                onChange={(e) => handleIssueChange(idx, 'priority', e.target.value)}
+                                className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                                placeholder="e.g. High / Med / Low"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={row.action || ''}
+                                onChange={(e) => handleIssueChange(idx, 'action', e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeIssueRow(idx)}
+                                className="text-rose-500 hover:text-rose-600 transition"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 10. NEXT DAY TASK PLAN */}
@@ -3039,39 +3316,66 @@ const AccountantReportPage = () => {
 
             {/* 11. FINAL SHIFT HANDOVER */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">11</span>
-                Final Shift Handover
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-2/3">Handover Item</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {finalShiftHandover.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.item}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.status || ''}
-                            onChange={(e) => {
-                              const updated = [...finalShiftHandover];
-                              updated[idx].status = e.target.value;
-                              setFinalShiftHandover(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">11</span>
+                  Final Shift Handover
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('finalShiftHandover')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.finalShiftHandover ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Final Shift Handover (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('finalShiftHandover')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-2/3">Handover Item</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {finalShiftHandover.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.item}</td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.status || ''}
+                              onChange={(e) => {
+                                const updated = [...finalShiftHandover];
+                                updated[idx].status = e.target.value;
+                                setFinalShiftHandover(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 12. ACCOUNTANT COMMENTS */}
@@ -4529,6 +4833,35 @@ const AccountantReportPage = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Activity Detail Modal */}
+      {selectedActivityText && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative my-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[65vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

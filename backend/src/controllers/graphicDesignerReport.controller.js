@@ -120,10 +120,13 @@ export const saveReport = async (req, res, next) => {
       dateString,
       basicDetails: req.body.basicDetails,
       taskLog: req.body.taskLog || [],
+      teamLeadKpi: req.body.teamLeadKpi || [],
       keyNumbers: req.body.keyNumbers || {},
       blockers: req.body.blockers || [],
       tomorrowTasks: req.body.tomorrowTasks || [],
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await GraphicDesignerReport.findOneAndUpdate(

@@ -104,7 +104,9 @@ export const saveReport = async (req, res, next) => {
       nextDayActionPlan: req.body.nextDayActionPlan,
       finalShiftHandover: req.body.finalShiftHandover || [],
       hrAdminComments: req.body.hrAdminComments,
-      approval: req.body.approval
+      approval: req.body.approval,
+      excludedSections: req.body.excludedSections || [],
+      hiddenSections: req.body.hiddenSections || {}
     };
 
     const report = await HrReport.findOneAndUpdate(

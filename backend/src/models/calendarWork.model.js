@@ -55,6 +55,12 @@ const calendarWorkSchema = new mongoose.Schema(
       default: null
     },
 
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
     assignedDesignation: {
       type: String,
       default: ''
@@ -240,6 +246,25 @@ const calendarWorkSchema = new mongoose.Schema(
           type: Date,
           default: Date.now
         }
+      }
+    ],
+
+    // ========== UPDATE AUDIT LOGS ==========
+    updateLogs: [
+      {
+        updatedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User'
+        },
+        updatedAt: {
+          type: Date,
+          default: Date.now
+        },
+        action: {
+          type: String,
+          default: 'Updated details'
+        },
+        notes: String
       }
     ],
 

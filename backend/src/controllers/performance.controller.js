@@ -12,6 +12,22 @@ import { sendSuccess, sendError } from '../utils/response.helper.js';
 import notificationService from '../services/notification.service.js';
 import { recordAudit } from '../middleware/audit.middleware.js';
 
+const isStudentUser = (u) => {
+  if (!u) return false;
+  const r = String(u.role || '').toLowerCase().trim();
+  const rid = String(u.role_id || '').toLowerCase().trim();
+  const d = String(u.department || u.departmentId?.name || u.departmentId?.department_name || '').toLowerCase().trim();
+  const des = String(u.designation || u.designationId?.name || '').toLowerCase().trim();
+  const sId = String(u.studentId || '').trim();
+
+  if (r.includes('student') || rid.includes('student') || rid === '9' || rid === '11') return true;
+  if (d === 'student' || d === 'students' || d === 'academy students') return true;
+  if (des.includes('student')) return true;
+  if (sId.length > 0 && !u.employeeId) return true;
+
+  return false;
+};
+
 /**
  * Helper to build user query scoped strictly to Team Lead department unless Admin/HR
  */
@@ -29,7 +45,12 @@ const buildDepartmentUserQuery = async (reqUser) => {
     ['0', 'admin', 'hr', 'superadmin', 'md', 'coo'].includes(roleName)
   );
 
-  const query = { status: { $ne: 'inactive' } };
+  const query = {
+    status: { $ne: 'inactive' },
+    role: { $nin: ['student', 'Student', 'STUDENT', 'learner', 'Learner'] },
+    role_id: { $nin: ['student', 'Student', '9', '11'] },
+    department: { $nin: ['Student', 'Students', 'STUDENT', 'Academy Students'] }
+  };
 
   // If user is not Admin/HR (e.g. Team Lead), scope strictly to their department
   if (!isUserAdminOrHr && loggedUser) {
@@ -505,9 +526,11 @@ export const getPerformanceAnalytics = async (req, res) => {
 
     const { query: userQuery } = await buildDepartmentUserQuery(req.user);
 
-    const users = await User.find(userQuery)
+    const allUsers = await User.find(userQuery)
       .populate('departmentId', 'name department_name')
       .populate('designationId', 'name');
+
+    const users = allUsers.filter(u => !isStudentUser(u));
 
     // Fetch existing KPI scores for the month
     const existingKpiScores = await KPIScore.find({ month });
@@ -627,9 +650,11 @@ export const getPerformanceReports = async (req, res) => {
     const { query: userQuery } = await buildDepartmentUserQuery(req.user);
 
     // 1. Fetch users matching userQuery
-    const users = await User.find(userQuery)
+    const allUsers = await User.find(userQuery)
       .populate('departmentId', 'name department_name')
       .populate('designationId', 'name');
+
+    const users = allUsers.filter(u => !isStudentUser(u));
 
     // 2. Fetch existing PerformanceReview records for the month
     const reviews = await PerformanceReview.find({ month });
