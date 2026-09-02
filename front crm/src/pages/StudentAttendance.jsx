@@ -720,20 +720,12 @@ const StudentAttendance = () => {
                       </div>
 
                       <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => handleOpenProfile(studentId)}
-                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Eye size={12} /> Profile
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(s)}
-                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Edit size={12} /> Edit
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleOpenProfile(studentId)}
+                          className="w-full py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Eye size={12} /> Profile
+                        </button>
 
                         <div className="grid grid-cols-2 gap-3">
                           <button 
@@ -814,13 +806,6 @@ const StudentAttendance = () => {
                                 >
                                   <Eye size={14} />
                                 </button>
-                                <button
-                                  onClick={() => handleOpenEditModal(s)}
-                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
-                                  title="Edit Student"
-                                >
-                                  <Edit size={14} />
-                                </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'present')} 
                                   className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'PRESENT' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
@@ -886,7 +871,6 @@ const StudentAttendance = () => {
           setIsProfileModalOpen(false);
           setSelectedProfileStudentId(null);
         }}
-        onEditStudent={handleOpenEditModal}
         getHeaders={getHeaders}
       />
 

@@ -2031,47 +2031,465 @@ const AccountantReportPage = () => {
   };
 
   const handleDownloadPDF = async () => {
-    const reportType = 'accountant';
-    // Automatically save report as well
+    // Automatically save report first
     await handleSaveReport();
 
     try {
-      showToast("Generating PDF on server...", "info");
-      const token = localStorage.getItem('token');
-      const cleanToken = token ? token.replace(/"/g, '') : '';
-      
-      const url = `${API_BASE}/v1/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`;
-      
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
-        }
+      showToast("Generating Accountant Shift PDF report...", "info");
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
       });
+
+      let currentY = 15;
       
-      if (!res.ok) {
-        throw new Error("Failed to generate PDF report on server.");
+      const checkHeightAndAddPage = (neededHeight) => {
+        if (currentY + neededHeight > 270) {
+          doc.addPage();
+          currentY = 15;
+        }
+      };
+
+      const drawSectionHeader = (title) => {
+        checkHeightAndAddPage(12);
+        doc.setFillColor(60, 35, 117);
+        doc.rect(14, currentY, 182, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), 17, currentY + 5);
+        currentY += 7;
+      };
+
+      // Header Brand Logo
+      const logoImg = new Image();
+      logoImg.src = '/logo3.png';
+      await new Promise((resolve) => {
+        logoImg.onload = () => {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+          resolve();
+        };
+        logoImg.onerror = () => {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(22);
+          doc.setTextColor(132, 204, 22);
+          doc.text("KOD.", 14, 21);
+          doc.setTextColor(60, 35, 117);
+          doc.text("brand", 34, 21);
+          resolve();
+        };
+      });
+
+      // Document Title & Designation
+      doc.setFontSize(13);
+      doc.setTextColor(60, 35, 117);
+      doc.text("DAILY ACCOUNTANT SHIFT REPORT", 80, 16);
+      
+      doc.setFontSize(7.5);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text("FINANCE & ACCOUNTS DEPARTMENT", 112, 22);
+
+      currentY = 27;
+
+      // 1. BASIC DETAILS
+      if (!hiddenSections.basicDetails) {
+        const validBasicRows = [
+          ["Date", basicDetails.date || selectedDate],
+          ["Day", basicDetails.day || ''],
+          ["Employee Name", basicDetails.employeeName || ''],
+          ["Employee ID", basicDetails.employeeId || ''],
+          ["Department", basicDetails.department || 'Accounts & Finance'],
+          ["Designation", basicDetails.designation || 'Accountant / Accounts Executive'],
+          ["Shift Timing", basicDetails.shiftTiming || ''],
+          ["Reporting To", basicDetails.reportingTo || ''],
+          ["Prepared Time", basicDetails.preparedTime || '']
+        ].filter(r => r[1] && String(r[1]).trim() !== '');
+
+        if (validBasicRows.length > 0) {
+          drawSectionHeader("1. BASIC DETAILS");
+          autoTable(doc, {
+            body: validBasicRows,
+            startY: currentY,
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+            columnStyles: {
+              0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
+              1: { width: 137 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
       }
-      
-      const blob = await res.blob();
-      const filename = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)}_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      }, 15000);
-      
-      showToast("PDF report downloaded and saved successfully!", "success");
+
+      // 2. DAILY ACCOUNTING SUMMARY
+      if (!hiddenSections.dailyAccountingSummary && Array.isArray(dailyAccountingSummary)) {
+        const summaryHeaders = [["Activity", "Category / Head", "Amount (Rs.)", "Status", "Remarks"]];
+        const validSummaryRows = dailyAccountingSummary
+          .map(t => [t.activity || '', t.category || '', t.amount ? `Rs. ${t.amount}` : '', t.status || '', t.remarks || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validSummaryRows.length > 0) {
+          drawSectionHeader("2. DAILY ACCOUNTING SUMMARY");
+          autoTable(doc, {
+            head: summaryHeaders,
+            body: validSummaryRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 50 },
+              1: { width: 35 },
+              2: { width: 30, halign: 'right' },
+              3: { width: 25, halign: 'center' },
+              4: { width: 42 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 3. DAILY TASKS
+      if (!hiddenSections.dailyTasks && Array.isArray(dailyTasks)) {
+        const taskHeaders = [["Task Description", "Related Account", "Time Spent", "Status", "Remarks"]];
+        const validTaskRows = dailyTasks
+          .map(t => [t.taskDescription || t.task || '', t.account || t.relatedAccount || '', t.timeSpent || '', t.status || '', t.remarks || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validTaskRows.length > 0) {
+          drawSectionHeader("3. DAILY TASKS");
+          autoTable(doc, {
+            head: taskHeaders,
+            body: validTaskRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 35 },
+              2: { width: 25, halign: 'center' },
+              3: { width: 25, halign: 'center' },
+              4: { width: 37 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 4. TRANSACTION REPORT
+      if (!hiddenSections.transactionReport && Array.isArray(transactionReport)) {
+        const txHeaders = [["Transaction Type", "Total Count", "Total Amount (Rs.)", "Status / Remarks"]];
+        const validTxRows = transactionReport
+          .map(t => [t.type || t.transactionType || '', t.count || '', t.amount ? `Rs. ${t.amount}` : '', t.remarks || t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validTxRows.length > 0) {
+          drawSectionHeader("4. TRANSACTION REPORT");
+          autoTable(doc, {
+            head: txHeaders,
+            body: validTxRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 30, halign: 'center' },
+              2: { width: 45, halign: 'right' },
+              3: { width: 47 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 5. INVOICE & BILLING REPORT
+      if (!hiddenSections.invoiceBillingReport && Array.isArray(invoiceBillingReport)) {
+        const invHeaders = [["Category", "Count", "Total Value (Rs.)", "Status / Remarks"]];
+        const validInvRows = invoiceBillingReport
+          .map(t => [t.category || '', t.count || '', t.value ? `Rs. ${t.value}` : (t.amount ? `Rs. ${t.amount}` : ''), t.remarks || t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validInvRows.length > 0) {
+          drawSectionHeader("5. INVOICE & BILLING REPORT");
+          autoTable(doc, {
+            head: invHeaders,
+            body: validInvRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 30, halign: 'center' },
+              2: { width: 45, halign: 'right' },
+              3: { width: 47 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 6. PAYROLL & PAYMENT STATUS
+      if (!hiddenSections.payrollPaymentStatus && Array.isArray(payrollPaymentStatus)) {
+        const payHeaders = [["Payment Category", "Processed Count", "Total Disbursed (Rs.)", "Status"]];
+        const validPayRows = payrollPaymentStatus
+          .map(t => [t.category || '', t.count || '', t.amount ? `Rs. ${t.amount}` : '', t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validPayRows.length > 0) {
+          drawSectionHeader("6. PAYROLL & PAYMENT STATUS");
+          autoTable(doc, {
+            head: payHeaders,
+            body: validPayRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 47, halign: 'right' },
+              3: { width: 40, halign: 'center' }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 7. EXPENSE TRACKING
+      if (!hiddenSections.expenseTracking && Array.isArray(expenseTracking)) {
+        const expHeaders = [["Expense Category", "Budget (Rs.)", "Actual (Rs.)", "Variance / Remarks"]];
+        const validExpRows = expenseTracking
+          .map(t => [t.category || '', t.budget ? `Rs. ${t.budget}` : '', t.actual ? `Rs. ${t.actual}` : '', t.remarks || t.variance || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validExpRows.length > 0) {
+          drawSectionHeader("7. EXPENSE TRACKING");
+          autoTable(doc, {
+            head: expHeaders,
+            body: validExpRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 55 },
+              1: { width: 35, halign: 'right' },
+              2: { width: 35, halign: 'right' },
+              3: { width: 57 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 8. DOCUMENTATION & COMPLIANCE
+      if (!hiddenSections.documentationCompliance && Array.isArray(documentationCompliance)) {
+        const docHeaders = [["Compliance / Doc Item", "Status", "Remarks"]];
+        const validDocRows = documentationCompliance
+          .map(t => [t.item || t.activity || '', t.status || '', t.remarks || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validDocRows.length > 0) {
+          drawSectionHeader("8. DOCUMENTATION & COMPLIANCE");
+          autoTable(doc, {
+            head: docHeaders,
+            body: validDocRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 85 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 62 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 9. KPI TRACKING
+      if (!hiddenSections.kpiTracking && Array.isArray(kpiTracking)) {
+        const kpiHeaders = [["KPI", "Target", "Achieved", "Status"]];
+        const validKpiRows = kpiTracking
+          .map(t => [t.kpi || '', t.target || '', t.achieved || '', t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validKpiRows.length > 0) {
+          drawSectionHeader("9. KPI TRACKING");
+          autoTable(doc, {
+            head: kpiHeaders,
+            body: validKpiRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 75 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 35, halign: 'center' },
+              3: { width: 37, halign: 'center' }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 10. ISSUES / SUPPORT REQUIRED
+      if (!hiddenSections.issuesSupportRequired && Array.isArray(issuesSupportRequired)) {
+        const issueHeaders = [["Issue Description", "Impact Level", "Required Action"]];
+        const validIssueRows = issuesSupportRequired
+          .map(t => [t.issue || t.description || '', t.impact || t.priority || '', t.action || t.actionTaken || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validIssueRows.length > 0) {
+          drawSectionHeader("10. ISSUES / SUPPORT REQUIRED");
+          autoTable(doc, {
+            head: issueHeaders,
+            body: validIssueRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 75 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 72 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 11. NEXT DAY TASK PLAN
+      if (!hiddenSections.nextDayTaskPlan && Array.isArray(nextDayTaskPlan)) {
+        const validPlans = nextDayTaskPlan.filter(p => p && String(p).trim() !== '');
+        if (validPlans.length > 0) {
+          drawSectionHeader("11. NEXT DAY TASK PLAN");
+          checkHeightAndAddPage(20);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+          doc.setTextColor(0, 0, 0);
+          const formattedText = validPlans.map((plan, i) => `${i + 1}. ${plan}`).join('\n');
+          const splitText = doc.splitTextToSize(formattedText, 178);
+          doc.text(splitText, 16, currentY + 4);
+          currentY += (splitText.length * 4) + 6;
+        }
+      }
+
+      // 12. FINAL SHIFT HANDOVER
+      if (!hiddenSections.finalShiftHandover && Array.isArray(finalShiftHandover)) {
+        const handoverHeaders = [["Handover Item", "Status"]];
+        const validHandoverRows = finalShiftHandover
+          .map(t => [t.item || '', t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validHandoverRows.length > 0) {
+          drawSectionHeader("12. FINAL SHIFT HANDOVER");
+          autoTable(doc, {
+            head: handoverHeaders,
+            body: validHandoverRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 110 },
+              1: { width: 72, halign: 'center' }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 13. ACCOUNTANT COMMENTS
+      if (!hiddenSections.accountantComments && accountantComments && String(accountantComments).trim() !== '') {
+        drawSectionHeader("13. ACCOUNTANT COMMENTS");
+        checkHeightAndAddPage(20);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        const splitText = doc.splitTextToSize(accountantComments, 178);
+        doc.text(splitText, 16, currentY + 4);
+        currentY += (splitText.length * 4) + 6;
+      }
+
+      // 14. APPROVAL SIGN-OFFS
+      if (!hiddenSections.approval) {
+        const approvalHeaders = [["Role", "Name", "Status", "Date"]];
+        const validApprovalRows = [
+          ["Accountant", approval?.accountantName || basicDetails.employeeName || '', approval?.accountantSignature ? 'Signed' : 'Pending', approval?.accountantDate || selectedDate],
+          ["Accounts Manager / HOD", approval?.managerName || '', approval?.managerSignature ? 'Signed' : 'Pending', approval?.managerDate || '']
+        ];
+
+        drawSectionHeader("14. APPROVAL SIGN-OFFS");
+        autoTable(doc, {
+          head: approvalHeaders,
+          body: validApprovalRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+          columnStyles: {
+            0: { width: 50, fontStyle: 'bold' },
+            1: { width: 60 },
+            2: { width: 35, halign: 'center' },
+            3: { width: 37, halign: 'center' }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // Page Numbers Footer
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text(`Accountant Shift Report — ${selectedDate}`, 14, 287);
+        doc.text(`Page ${i} of ${totalPages}`, 180, 287);
+      }
+
+      const filename = `Accountant_Shift_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      const pdfBlob = doc.output('blob');
+
+      // Auto upload to server
+      if (pdfBlob && selectedUserId) {
+        try {
+          await uploadCompiledPDFReport(selectedUserId, selectedDate, pdfBlob, filename, 'accountant', 'daily');
+        } catch (uploadErr) {
+          console.warn("PDF upload to server skipped:", uploadErr);
+        }
+      }
+
+      // Initiate download
+      doc.save(filename);
+      showToast("Accountant Shift PDF report downloaded successfully!", "success");
     } catch (e) {
-      console.error(e);
-      showToast("Failed to download PDF.", "error");
+      console.error("Accountant PDF Generation Error:", e);
+      showToast("Failed to generate Accountant PDF.", "error");
     }
-  };;
+  };
 
   // Generate months starting from April 2026 up to current month
   const getRecentMonths = () => {

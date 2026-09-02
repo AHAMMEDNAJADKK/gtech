@@ -75,10 +75,13 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
           {/* Top Banner Header */}
           <div className="relative bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-800 p-8 sm:p-10 text-white">
             <button
+              type="button"
               onClick={onClose}
-              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-2xl backdrop-blur-md transition-all text-white cursor-pointer"
+              className="absolute top-5 right-5 z-50 p-3 bg-white/20 hover:bg-rose-600 text-white rounded-2xl backdrop-blur-md transition-all shadow-xl border border-white/40 cursor-pointer flex items-center justify-center"
+              aria-label="Close Profile"
+              title="Close Profile"
             >
-              <X size={20} />
+              <X size={22} className="stroke-[2.5]" />
             </button>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
