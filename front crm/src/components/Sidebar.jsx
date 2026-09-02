@@ -156,7 +156,7 @@ const menuItems = [
   { icon: Award, label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'] },
   { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports', allowedRoles: ['hr', 'admin'] },
   { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports', isTeamLeadOnly: true },
-  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev'] },
+  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev', 'junior', 'jr', 'software', 'engineer', 'react', 'node', 'flutter', 'coder', 'programmer', 'frontend', 'backend', 'fullstack', 'web'] },
   { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod', 'r&d', 'research'] },
   { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
   { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports', allowedDesignationNames: ['video', 'editor', 'media'] },

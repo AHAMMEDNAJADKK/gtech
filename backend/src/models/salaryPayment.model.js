@@ -76,6 +76,33 @@ const salaryPaymentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  companyName: {
+    type: String,
+    default: 'KODBRAND SOLUTIONS'
+  },
+  companyAddressLine1: {
+    type: String,
+    default: '3rd Floor, Aranyakam Building'
+  },
+  companyAddressLine2: {
+    type: String,
+    default: 'thamarauzhi road, up hill'
+  },
+  companyAddressLine3: {
+    type: String,
+    default: 'malappuram, kerala-676505'
+  },
+  signatoryName: {
+    type: String,
+    default: 'Aoj.'
+  },
+  signatoryTitle: {
+    type: String,
+    default: 'Authorized Signature'
+  },
+  customNetPay: {
+    type: Number
+  },
 
   // Earnings Breakdown
   hra: {

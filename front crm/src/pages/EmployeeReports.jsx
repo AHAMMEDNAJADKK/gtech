@@ -315,7 +315,6 @@ const EmployeeReports = () => {
 
       if (res.ok) {
         const blob = await res.blob();
-        console.log(`[Diagnostic] Generated blob size: ${blob.size} bytes, type: ${blob.type}`);
         const filename = `${config.name.replace(/\s+/g, '_')}_Report_${(emp.name || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_Daily.pdf`;
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -365,7 +364,6 @@ const EmployeeReports = () => {
 
       if (res.ok) {
         const blob = await res.blob();
-        console.log(`[Diagnostic] Saved report blob size: ${blob.size} bytes, type: ${blob.type}`);
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;

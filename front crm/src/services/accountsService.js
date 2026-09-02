@@ -216,3 +216,14 @@ export const setOpeningBalance = async (data) => {
   const response = await safePost('/opening-balance', data);
   return response.data;
 };
+
+// ── Payment Settlement Logs Service ──
+export const updatePaymentSettlement = async (incomeId, paymentId, data) => {
+  const response = await safePut(`/income/${incomeId}/payments/${paymentId}`, data);
+  return response.data;
+};
+
+export const deletePaymentSettlement = async (incomeId, paymentId) => {
+  const response = await safeDelete(`/income/${incomeId}/payments/${paymentId}`);
+  return response.data;
+};

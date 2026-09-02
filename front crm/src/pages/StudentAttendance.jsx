@@ -322,6 +322,17 @@ const StudentAttendance = () => {
     setEditingStudent(student);
     const existingImg = student.profile_image || student.avatar || '';
     setImagePreview(existingImg || null);
+
+    let formattedDob = '';
+    if (student.dateOfBirth) {
+      try {
+        const dobStr = String(student.dateOfBirth);
+        formattedDob = dobStr.includes('T') ? dobStr.split('T')[0] : new Date(dobStr).toISOString().split('T')[0];
+      } catch (e) {
+        formattedDob = student.dateOfBirth || '';
+      }
+    }
+
     setFormData({
       name: student.name || '',
       email: student.email || '',
@@ -334,7 +345,7 @@ const StudentAttendance = () => {
       identityType: student.identityType || 'aadhaar',
       identityNumber: student.identityNumber || '',
       profile_image: existingImg,
-      dateOfBirth: student.dateOfBirth || '',
+      dateOfBirth: formattedDob,
       gender: student.gender || '',
       alternatePhone: student.alternatePhone || '',
       city: student.city || '',
@@ -378,29 +389,31 @@ const StudentAttendance = () => {
     const idType = formData.identityType;
     const idNum = (formData.identityNumber || '').trim();
 
-    if (!idNum) {
+    if (!editingStudent && !idNum) {
       showToast('ID Document Number is required.', 'warning');
       setIsAddingStudent(false);
       return;
     }
 
     let cleanIdentityNumber = idNum;
-    if (idType === 'aadhaar') {
-      const cleanAadhaar = idNum.replace(/[\s-]/g, '');
-      if (!/^\d{12}$/.test(cleanAadhaar)) {
-        showToast('Aadhaar Card number must be exactly 12 digits.', 'warning');
-        setIsAddingStudent(false);
-        return;
+    if (idNum) {
+      if (idType === 'aadhaar') {
+        const cleanAadhaar = idNum.replace(/[\s-]/g, '');
+        if (!/^\d{12}$/.test(cleanAadhaar)) {
+          showToast('Aadhaar Card number must be exactly 12 digits.', 'warning');
+          setIsAddingStudent(false);
+          return;
+        }
+        cleanIdentityNumber = cleanAadhaar;
+      } else if (idType === 'pancard') {
+        const cleanPAN = idNum.toUpperCase();
+        if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(cleanPAN)) {
+          showToast('Invalid PAN Card format. E.g. ABCDE1234F', 'warning');
+          setIsAddingStudent(false);
+          return;
+        }
+        cleanIdentityNumber = cleanPAN;
       }
-      cleanIdentityNumber = cleanAadhaar;
-    } else if (idType === 'pancard') {
-      const cleanPAN = idNum.toUpperCase();
-      if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(cleanPAN)) {
-        showToast('Invalid PAN Card format. E.g. ABCDE1234F', 'warning');
-        setIsAddingStudent(false);
-        return;
-      }
-      cleanIdentityNumber = cleanPAN;
     }
 
     const finalPayload = { 
@@ -409,6 +422,10 @@ const StudentAttendance = () => {
       salary: 1, 
       role_id: STUDENT_ROLE_ID 
     };
+
+    if (editingStudent && !finalPayload.password) {
+      delete finalPayload.password;
+    }
 
     try {
       let response;

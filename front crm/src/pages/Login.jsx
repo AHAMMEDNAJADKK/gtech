@@ -130,7 +130,6 @@ const Login = () => {
         // --- CRITICAL FIX: Save the specific 'user_id' key for Attendance ---
         if (userId) {
           localStorage.setItem('user_id', String(userId));
-          console.log("✅ User ID saved to storage:", userId);
         }
 
         // 3. Save full user object for profile/other uses

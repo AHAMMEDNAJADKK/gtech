@@ -19,7 +19,6 @@ export const sendSms = async ({ to, content }) => {
   };
   try {
     const data = await smsApi.sendTransacSms(sms);
-    console.log('Brevo SMS sent:', data);
     return data;
   } catch (error) {
     console.error('Brevo SMS error:', error);

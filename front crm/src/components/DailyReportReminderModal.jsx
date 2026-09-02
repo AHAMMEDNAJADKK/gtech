@@ -18,7 +18,31 @@ const getReportConfig = (user) => {
   if (designation.includes('video') || role.includes('video')) {
     return { route: '/videographer-report', apiPrefix: 'videographer-reports', name: 'Videographer Daily Report' };
   }
-  if (designation.includes('developer') || designation.includes('react') || designation.includes('node') || designation.includes('flutter') || role.includes('developer')) {
+  if (
+    designation.includes('developer') ||
+    designation.includes('dev') ||
+    designation.includes('junior') ||
+    designation.includes('jr') ||
+    designation.includes('react') ||
+    designation.includes('node') ||
+    designation.includes('flutter') ||
+    designation.includes('python') ||
+    designation.includes('software') ||
+    designation.includes('engineer') ||
+    designation.includes('programmer') ||
+    designation.includes('coder') ||
+    designation.includes('fullstack') ||
+    designation.includes('frontend') ||
+    designation.includes('backend') ||
+    designation.includes('web') ||
+    role.includes('developer') ||
+    role.includes('dev') ||
+    role.includes('junior') ||
+    department.includes('development') ||
+    department.includes('software') ||
+    department.includes('engineering') ||
+    department.includes('it')
+  ) {
     return { route: '/developer-report', apiPrefix: 'developer-reports', name: 'Developer Daily Report' };
   }
   if (department.includes('market') || designation.includes('market') || role === '4' || role.includes('digital')) {

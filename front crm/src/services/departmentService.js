@@ -157,7 +157,6 @@ const compressPdfBlob = async (pdfBlob) => {
     const compressedBlob = new Blob([compressedBytes], { type: 'application/pdf' });
     const originalMB = (pdfBlob.size / 1024 / 1024).toFixed(2);
     const compressedMB = (compressedBlob.size / 1024 / 1024).toFixed(2);
-    console.log(`[PDF Compress] ${originalMB}MB → ${compressedMB}MB`);
     // Use compressed only if it's actually smaller
     return compressedBlob.size < pdfBlob.size ? compressedBlob : pdfBlob;
   } catch (err) {

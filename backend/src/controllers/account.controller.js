@@ -636,7 +636,9 @@ export const updateSalaryPayment = async (req, res) => {
       'transportAllowance', 'otherAllowance', 'integrityAward', 'bonus',
       'totalEarnings', 'pf', 'professionalTax', 'incomeTax',
       'unpaidLeave', 'advanceSalary', 'otherDeductions', 'totalDeductions',
-      'paidAmount', 'paymentMode', 'remarks'
+      'paidAmount', 'paymentMode', 'remarks',
+      'companyName', 'companyAddressLine1', 'companyAddressLine2', 'companyAddressLine3',
+      'signatoryName', 'signatoryTitle', 'customNetPay'
     ];
 
     allowedFields.forEach(field => {
@@ -939,7 +941,22 @@ export const getDailyReport = async (req, res) => {
     const categoryOpeningBalanceTotal = allCategories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
     const expenseOpeningBalance = baseExpenseOpeningBalance + categoryOpeningBalanceTotal;
 
-    const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const getPaidIncomeAmt = (inc) => {
+      let paid = 0;
+      if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+        paid = inc.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      }
+      if (paid <= 0 && typeof inc.receiptAmount === 'number' && inc.receiptAmount > 0) {
+        paid = inc.receiptAmount;
+      }
+      if (paid <= 0 && (inc.status || '').toLowerCase() === 'paid') {
+        paid = parseFloat(inc.totalAmount || inc.amount || 0);
+      }
+      return paid;
+    };
+
+    const totalIncome = incomes.reduce((sum, i) => sum + getPaidIncomeAmt(i), 0);
+    const totalBilledIncome = incomes.reduce((sum, i) => sum + (i.totalAmount || i.amount || 0), 0);
     const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
     const salaryTotal = expenses.filter(e => e.type === 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
     const generalExpenseTotal = expenses.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory') && e.type !== 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -960,6 +977,7 @@ export const getDailyReport = async (req, res) => {
         categoryOpeningBalance: categoryOpeningBalanceTotal,
         openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
+        totalBilledIncome,
         effectiveTotalIncome,
         totalAmount: totalOutflow,
         totalOutflow,
@@ -1002,7 +1020,22 @@ export const getMonthlyReport = async (req, res) => {
     const categoryOpeningBalanceTotal = allCategories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
     const expenseOpeningBalance = baseExpenseOpeningBalance + categoryOpeningBalanceTotal;
 
-    const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const getPaidIncomeAmt = (inc) => {
+      let paid = 0;
+      if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+        paid = inc.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      }
+      if (paid <= 0 && typeof inc.receiptAmount === 'number' && inc.receiptAmount > 0) {
+        paid = inc.receiptAmount;
+      }
+      if (paid <= 0 && (inc.status || '').toLowerCase() === 'paid') {
+        paid = parseFloat(inc.totalAmount || inc.amount || 0);
+      }
+      return paid;
+    };
+
+    const totalIncome = incomes.reduce((sum, i) => sum + getPaidIncomeAmt(i), 0);
+    const totalBilledIncome = incomes.reduce((sum, i) => sum + (i.totalAmount || i.amount || 0), 0);
     const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
     const salaryTotal = expenses.filter(e => e.type === 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
     const generalExpenseTotal = expenses.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory') && e.type !== 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -1023,6 +1056,7 @@ export const getMonthlyReport = async (req, res) => {
         categoryOpeningBalance: categoryOpeningBalanceTotal,
         openingBalance: incomeOpeningBalance - expenseOpeningBalance,
         totalIncome,
+        totalBilledIncome,
         effectiveTotalIncome,
         totalAmount: totalOutflow,
         totalOutflow,
@@ -1998,6 +2032,132 @@ export const recordPaymentSettlement = async (req, res) => {
     });
   } catch (error) {
     console.error('recordPaymentSettlement Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * PUT /api/v1/accounts/income/:id/payments/:paymentId
+ * Update an individual payment settlement log entry
+ */
+export const updatePaymentSettlement = async (req, res) => {
+  try {
+    const { id, paymentId } = req.params;
+    const { amount, paymentMethod, receiptNo, receiptDate, notes } = req.body;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income record ID.' });
+    }
+
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    if (!Array.isArray(income.payments)) {
+      income.payments = [];
+    }
+
+    const targetPayment = income.payments.id ? income.payments.id(paymentId) : income.payments.find(p => String(p._id) === String(paymentId));
+    if (!targetPayment) {
+      return res.status(404).json({ success: false, message: 'Payment settlement log entry not found.' });
+    }
+
+    if (amount !== undefined) {
+      const parsedAmount = parseFloat(amount || 0);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid settlement amount.' });
+      }
+      targetPayment.amount = parsedAmount;
+    }
+
+    if (paymentMethod !== undefined) targetPayment.paymentMethod = paymentMethod;
+    if (receiptNo !== undefined) targetPayment.receiptNo = receiptNo;
+    if (receiptDate !== undefined) targetPayment.receiptDate = new Date(receiptDate);
+    if (notes !== undefined) targetPayment.notes = notes;
+
+    // Recalculate status and total collected
+    const totalCollected = income.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    income.receiptAmount = totalCollected;
+
+    const totalBilled = income.totalAmount || income.amount || 0;
+    const balanceDue = Math.max(0, totalBilled - totalCollected);
+
+    if (totalCollected <= 0) {
+      income.status = 'Pending';
+    } else if (balanceDue <= 0.01 || totalCollected >= (totalBilled - 0.01)) {
+      income.status = 'Paid';
+    } else {
+      income.status = 'Partially Paid';
+    }
+
+    await income.save();
+    const populatedDoc = await Income.findById(income._id).populate('client');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment settlement log entry updated successfully.',
+      data: populatedDoc || income
+    });
+  } catch (error) {
+    console.error('updatePaymentSettlement Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * DELETE /api/v1/accounts/income/:id/payments/:paymentId
+ * Delete an individual payment settlement log entry
+ */
+export const deletePaymentSettlement = async (req, res) => {
+  try {
+    const { id, paymentId } = req.params;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income record ID.' });
+    }
+
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    if (!Array.isArray(income.payments)) {
+      income.payments = [];
+    }
+
+    const initialLength = income.payments.length;
+    income.payments = income.payments.filter(p => String(p._id) !== String(paymentId));
+
+    if (income.payments.length === initialLength) {
+      return res.status(404).json({ success: false, message: 'Payment settlement log entry not found.' });
+    }
+
+    // Recalculate status and total collected
+    const totalCollected = income.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    income.receiptAmount = totalCollected;
+
+    const totalBilled = income.totalAmount || income.amount || 0;
+    const balanceDue = Math.max(0, totalBilled - totalCollected);
+
+    if (totalCollected <= 0) {
+      income.status = 'Pending';
+    } else if (balanceDue <= 0.01 || totalCollected >= (totalBilled - 0.01)) {
+      income.status = 'Paid';
+    } else {
+      income.status = 'Partially Paid';
+    }
+
+    await income.save();
+    const populatedDoc = await Income.findById(income._id).populate('client');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment settlement log entry deleted successfully.',
+      data: populatedDoc || income
+    });
+  } catch (error) {
+    console.error('deletePaymentSettlement Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
