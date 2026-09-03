@@ -15,17 +15,23 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
   // Form States
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [kbEmployeeId, setKbEmployeeId] = useState('KB-DV-002');
-  const [month, setMonth] = useState(() => {
+  const [location, setLocation] = useState('HEAD OFFICE');
+  const [payPeriod, setPayPeriod] = useState(() => {
     const d = new Date();
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    const m = monthNames[d.getMonth()];
+    const y = d.getFullYear();
+    const lastDay = new Date(y, d.getMonth() + 1, 0).getDate();
+    return `01 ${m} ${y} - ${lastDay} ${m} ${y}`;
   });
-  const [location, setLocation] = useState('HEAD OFFICE');
-  const [payPeriod, setPayPeriod] = useState('01 July 2026 - 31 July 2026');
-  const [payDateStr, setPayDateStr] = useState('On or Before 10th August 2026');
+  const [payDateStr, setPayDateStr] = useState(() => {
+    const d = new Date();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `On or Before 10th ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+  });
   const [workingDays, setWorkingDays] = useState(27);
-  const [daysWorked, setDaysWorked] = useState(21);
-  const [daysInLeave, setDaysInLeave] = useState(6);
+  const [daysWorked, setDaysWorked] = useState(27);
+  const [daysInLeave, setDaysInLeave] = useState(0);
   const [paymentMode, setPaymentMode] = useState('Bank');
   const [remarks, setRemarks] = useState('');
 
@@ -46,6 +52,44 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
   const [unpaidLeave, setUnpaidLeave] = useState('0');
   const [advanceSalary, setAdvanceSalary] = useState('0');
   const [otherDeductions, setOtherDeductions] = useState('0');
+  const [department, setDepartment] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+  });
+
+  const getEmployeeDepartment = (emp) => {
+    if (!emp) return 'GENERAL';
+    if (emp.departmentId && typeof emp.departmentId === 'object' && emp.departmentId.name) {
+      return emp.departmentId.name;
+    }
+    if (emp.department && typeof emp.department === 'string' && emp.department.trim()) {
+      return emp.department;
+    }
+    if (emp.department && typeof emp.department === 'object' && emp.department.name) {
+      return emp.department.name;
+    }
+    if (emp.department_name && typeof emp.department_name === 'string' && emp.department_name.trim()) {
+      return emp.department_name;
+    }
+    return 'GENERAL';
+  };
+
+  const getEmployeeDesignation = (emp) => {
+    if (!emp) return 'STAFF MEMBER';
+    if (emp.designationName && typeof emp.designationName === 'string' && emp.designationName.trim()) {
+      return emp.designationName;
+    }
+    if (emp.designation && typeof emp.designation === 'string' && emp.designation.trim()) {
+      return emp.designation;
+    }
+    if (emp.designationId && typeof emp.designationId === 'object' && emp.designationId.name) {
+      return emp.designationId.name;
+    }
+    return 'STAFF MEMBER';
+  };
 
   // Fetch Active Employees
   useEffect(() => {
@@ -69,9 +113,12 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
           const activeList = userList.filter(u => u.isActive !== false);
           setEmployees(activeList);
           if (activeList.length > 0 && !selectedEmployeeId) {
-            setSelectedEmployeeId(activeList[0]._id || activeList[0].id);
-            setBasicSalary(activeList[0].salary || '12000');
-            setKbEmployeeId(activeList[0].employeeId || `KB-${(activeList[0].name || '').slice(0, 2).toUpperCase()}-001`);
+            const firstEmp = activeList[0];
+            setSelectedEmployeeId(firstEmp._id || firstEmp.id);
+            setBasicSalary(firstEmp.salary || '12000');
+            setKbEmployeeId(firstEmp.employeeId || `KB-${(firstEmp.name || '').slice(0, 2).toUpperCase()}-001`);
+            setDepartment(getEmployeeDepartment(firstEmp));
+            setDesignation(getEmployeeDesignation(firstEmp));
           }
         }
       } catch (err) {
@@ -90,6 +137,8 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
     if (empObj) {
       setBasicSalary(empObj.salary || '12000');
       setKbEmployeeId(empObj.employeeId || `KB-${(empObj.name || '').slice(0, 2).toUpperCase()}-001`);
+      setDepartment(getEmployeeDepartment(empObj));
+      setDesignation(getEmployeeDesignation(empObj));
     }
   };
 
@@ -113,6 +162,8 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
       const payload = {
         employeeId: selectedEmployeeId,
         month,
+        department: department ? department.trim() : 'GENERAL',
+        designation: designation ? designation.trim() : 'STAFF MEMBER',
         basicSalary: Number(basicSalary || 0),
         paidAmount: netPay,
         paymentMode,
@@ -229,13 +280,33 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
                 </div>
 
                 <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Department</label>
+                  <input
+                    type="text"
+                    value={department}
+                    onChange={e => setDepartment(e.target.value)}
+                    placeholder="e.g. Operations / Development"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-medium text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Pay Month *</label>
                   <input
                     type="text"
                     required
                     value={month}
-                    onChange={e => setMonth(e.target.value)}
-                    placeholder="July 2026"
+                    onChange={e => {
+                      const val = e.target.value;
+                      setMonth(val);
+                      if (val && val.trim()) {
+                        const parts = val.trim().split(/\s+/);
+                        const mName = parts[0] || '';
+                        const yearStr = parts[1] || new Date().getFullYear();
+                        setPayDateStr(`On or Before 10th ${mName} ${yearStr}`);
+                      }
+                    }}
+                    placeholder="September 2026"
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-medium"
                   />
                 </div>
@@ -278,7 +349,12 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
                   <input
                     type="number"
                     value={workingDays}
-                    onChange={e => setWorkingDays(e.target.value)}
+                    onChange={e => {
+                      const wd = Number(e.target.value) || 0;
+                      setWorkingDays(wd);
+                      const dw = Number(daysWorked) || 0;
+                      setDaysInLeave(Math.max(0, wd - dw));
+                    }}
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-medium"
                   />
                 </div>
@@ -288,8 +364,28 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
                   <input
                     type="number"
                     value={daysWorked}
-                    onChange={e => setDaysWorked(e.target.value)}
+                    onChange={e => {
+                      const dw = Number(e.target.value) || 0;
+                      setDaysWorked(dw);
+                      const wd = Number(workingDays) || 0;
+                      setDaysInLeave(Math.max(0, wd - dw));
+                    }}
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Days in Leave</label>
+                  <input
+                    type="number"
+                    value={daysInLeave}
+                    onChange={e => {
+                      const dil = Number(e.target.value) || 0;
+                      setDaysInLeave(dil);
+                      const wd = Number(workingDays) || 0;
+                      setDaysWorked(Math.max(0, wd - dil));
+                    }}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 font-medium text-amber-600 dark:text-amber-400"
                   />
                 </div>
               </div>

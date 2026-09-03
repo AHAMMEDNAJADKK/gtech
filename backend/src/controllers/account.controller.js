@@ -5,6 +5,7 @@ import SalaryPayment from '../models/salaryPayment.model.js';
 import User from '../models/user.model.js';
 import Income from '../models/income.model.js';
 import OpeningBalance from '../models/openingBalance.model.js';
+import Capital from '../models/capital.model.js';
 import { sendEmail } from '../services/emailService.js';
 
 const DEFAULT_CATEGORIES = [
@@ -518,7 +519,7 @@ export const createSalaryPayment = async (req, res) => {
   try {
     const {
       employeeId, month, basicSalary, paidAmount, paymentDate, paymentMode, remarks,
-      kbEmployeeId, location, payPeriod, payDateStr, workingDays, daysWorked, daysInLeave,
+      kbEmployeeId, department, designation, location, payPeriod, payDateStr, workingDays, daysWorked, daysInLeave,
       hra, medicalAllowance, specialAllowance, transportAllowance, otherAllowance, integrityAward, bonus, totalEarnings,
       pf, professionalTax, incomeTax, unpaidLeave, advanceSalary, otherDeductions, totalDeductions
     } = req.body;
@@ -544,7 +545,7 @@ export const createSalaryPayment = async (req, res) => {
       });
     }
 
-    const employeeObj = await User.findById(cleanEmployeeId);
+    const employeeObj = await User.findById(cleanEmployeeId).populate('departmentId', 'name');
     if (!employeeObj) {
       return res.status(404).json({ success: false, message: 'Selected Employee not found in database.' });
     }
@@ -560,6 +561,26 @@ export const createSalaryPayment = async (req, res) => {
     const computedTotalDeductions = Number(totalDeductions || (Number(pf || 0) + Number(professionalTax || 0) + Number(incomeTax || 0) + Number(unpaidLeave || 0) + Number(advanceSalary || 0) + Number(otherDeductions || 0)));
     const finalPaidAmount = Number(paidAmount !== undefined ? paidAmount : Math.max(0, computedTotalEarnings - computedTotalDeductions));
 
+    let resolvedDepartment = department ? String(department).trim() : '';
+    if (!resolvedDepartment && employeeObj) {
+      if (employeeObj.departmentId && typeof employeeObj.departmentId === 'object' && employeeObj.departmentId.name) {
+        resolvedDepartment = employeeObj.departmentId.name;
+      } else if (employeeObj.department) {
+        resolvedDepartment = String(employeeObj.department);
+      }
+    }
+    if (!resolvedDepartment) resolvedDepartment = 'GENERAL';
+
+    let resolvedDesignation = designation ? String(designation).trim() : '';
+    if (!resolvedDesignation && employeeObj) {
+      if (employeeObj.designationName) {
+        resolvedDesignation = String(employeeObj.designationName);
+      } else if (employeeObj.designation) {
+        resolvedDesignation = String(employeeObj.designation);
+      }
+    }
+    if (!resolvedDesignation) resolvedDesignation = 'STAFF MEMBER';
+
     // 1. Create Salary Payment
     const salaryPayment = new SalaryPayment({
       employee: employeeObj._id,
@@ -571,6 +592,8 @@ export const createSalaryPayment = async (req, res) => {
       paymentMode,
       remarks: remarks ? remarks.trim() : '',
       kbEmployeeId: kbEmployeeId || employeeObj.employeeId || `KB-${(employeeObj.name || '').slice(0, 2).toUpperCase()}-001`,
+      department: resolvedDepartment,
+      designation: resolvedDesignation,
       location: location || 'HEAD OFFICE',
       payPeriod: payPeriod || `${month}`,
       payDateStr: payDateStr || `On or Before 10th ${month}`,
@@ -1420,16 +1443,32 @@ export const approveOrRejectExpense = async (req, res) => {
 export const sendSalaryPayslipEmail = async (req, res) => {
   try {
     const { id } = req.params;
-    const { email } = req.body;
+    const { email, brevoApiKey, senderEmail, senderName } = req.body;
+    const headerApiKey = req.headers['x-brevo-api-key'] || req.headers['x-api-key'] || brevoApiKey;
+    const headerSenderEmail = req.headers['x-sender-email'] || senderEmail;
+    const headerSenderName = req.headers['x-sender-name'] || senderName;
 
     const payment = await SalaryPayment.findById(id).populate('employee', 'name email designation employeeId');
     if (!payment) {
       return res.status(404).json({ success: false, message: 'Salary payment record not found.' });
     }
 
-    const recipientEmail = (email && email.trim()) || payment.employee?.email;
+    let recipientEmail = (email && typeof email === 'string' && email.trim()) || payment.employee?.email;
+    if (!recipientEmail && payment.employee) {
+      try {
+        const u = await User.findById(payment.employee).select('email');
+        if (u?.email) recipientEmail = u.email;
+      } catch (e) {}
+    }
+    if (!recipientEmail && payment.employeeName) {
+      try {
+        const uByName = await User.findOne({ name: new RegExp(`^${payment.employeeName.trim()}$`, 'i') }).select('email');
+        if (uByName?.email) recipientEmail = uByName.email;
+      } catch (e) {}
+    }
+
     if (!recipientEmail) {
-      return res.status(400).json({ success: false, message: 'Recipient email address is required.' });
+      return res.status(400).json({ success: false, message: 'Recipient email address is required. Please specify a recipient email address.' });
     }
 
     const empName = payment.employeeName || payment.employee?.name || 'Employee';
@@ -1438,48 +1477,104 @@ export const sendSalaryPayslipEmail = async (req, res) => {
     const empId = payment.kbEmployeeId || payment.employee?.employeeId || 'KB-EMP-001';
     const payDate = payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
 
+    const basicSalary = (payment.basicSalary || payment.basic || 0).toLocaleString('en-IN');
+    const hra = (payment.hra || 0).toLocaleString('en-IN');
+    const medicalAllowance = (payment.medicalAllowance || 0).toLocaleString('en-IN');
+    const specialAllowance = (payment.specialAllowance || 0).toLocaleString('en-IN');
+    const transportAllowance = (payment.transportAllowance || 0).toLocaleString('en-IN');
+    const otherAllowance = (payment.otherAllowance || 0).toLocaleString('en-IN');
+    const integrityAward = (payment.integrityAward || 0).toLocaleString('en-IN');
+    const bonus = (payment.bonus || 0).toLocaleString('en-IN');
+    const totalEarnings = (payment.totalEarnings || payment.paidAmount || 0).toLocaleString('en-IN');
+
+    const pf = (payment.pf || 0).toLocaleString('en-IN');
+    const professionalTax = (payment.professionalTax || 0).toLocaleString('en-IN');
+    const incomeTax = (payment.incomeTax || 0).toLocaleString('en-IN');
+    const unpaidLeave = (payment.unpaidLeave || 0).toLocaleString('en-IN');
+    const advanceSalary = (payment.advanceSalary || 0).toLocaleString('en-IN');
+    const otherDeductions = (payment.otherDeductions || 0).toLocaleString('en-IN');
+    const totalDeductions = (payment.totalDeductions || 0).toLocaleString('en-IN');
+
     const htmlContent = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
-        <div style="background-color: #4f46e5; color: #ffffff; padding: 24px; text-align: center;">
-          <h2 style="margin: 0; font-size: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">KOD.BRAND</h2>
-          <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">Official Employee Salary Payslip — ${month}</p>
+      <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
+        <div style="background-color: #0D1E4A; color: #ffffff; padding: 24px; text-align: center; border-bottom: 3px solid #65B32E;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 900; letter-spacing: 1px;">KOD.BRAND</h2>
+          <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9; color: #65B32E; font-weight: bold; text-transform: uppercase;">Official Salary Payslip Statement — ${month}</p>
         </div>
 
         <div style="padding: 24px; color: #334155;">
           <p style="font-size: 14px; margin-top: 0;">Dear <strong>${empName}</strong>,</p>
           <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
-            Your salary payslip statement for <strong>${month}</strong> has been generated. Please find the disbursal details below:
+            Your official salary payslip for <strong>${month}</strong> has been generated and issued. Please review your complete earnings and deductions summary below:
           </p>
 
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+          <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; border: 1px solid #cbd5e1;">
+            <tr style="background-color: #0D1E4A; color: #ffffff;">
+              <th colspan="2" style="padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase;">EMPLOYEE & PAY DETAILS</th>
+            </tr>
             <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 10px; font-weight: bold; color: #475569;">Employee Name</td>
-              <td style="padding: 10px; text-align: right; font-weight: bold; color: #0f172a;">${empName}</td>
+              <td style="padding: 8px 12px; font-weight: bold; color: #475569; width: 40%;">Employee Name</td>
+              <td style="padding: 8px 12px; font-weight: bold; color: #0f172a;">${empName}</td>
             </tr>
             <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 10px; font-weight: bold; color: #475569;">Employee ID</td>
-              <td style="padding: 10px; text-align: right; color: #0f172a;">${empId}</td>
+              <td style="padding: 8px 12px; font-weight: bold; color: #475569;">Employee ID</td>
+              <td style="padding: 8px 12px; color: #0f172a;">${empId}</td>
             </tr>
             <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 10px; font-weight: bold; color: #475569;">Pay Period</td>
-              <td style="padding: 10px; text-align: right; color: #0f172a;">${payment.payPeriod || month}</td>
+              <td style="padding: 8px 12px; font-weight: bold; color: #475569;">Pay Period</td>
+              <td style="padding: 8px 12px; color: #0f172a;">${payment.payPeriod || month}</td>
             </tr>
             <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 10px; font-weight: bold; color: #475569;">Disbursal Date</td>
-              <td style="padding: 10px; text-align: right; color: #0f172a;">${payDate}</td>
+              <td style="padding: 8px 12px; font-weight: bold; color: #475569;">Disbursal Date</td>
+              <td style="padding: 8px 12px; color: #0f172a;">${payDate}</td>
             </tr>
             <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 10px; font-weight: bold; color: #475569;">Payment Mode</td>
-              <td style="padding: 10px; text-align: right; color: #0f172a;">${payment.paymentMode || 'Bank'}</td>
+              <td style="padding: 8px 12px; font-weight: bold; color: #475569;">Working Days / Worked / Leave</td>
+              <td style="padding: 8px 12px; color: #0f172a;">${payment.workingDays ?? 27} Days / ${payment.daysWorked ?? 27} Days / ${payment.daysInLeave ?? 0} Leave Days</td>
             </tr>
-            <tr style="background-color: #e0e7ff; border-top: 2px solid #6366f1;">
-              <td style="padding: 12px; font-weight: bold; color: #3730a3; font-size: 14px;">Net Salary Disbursed</td>
-              <td style="padding: 12px; text-align: right; font-weight: bold; color: #3730a3; font-size: 16px;">₹${netPay}</td>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px 12px; font-weight: bold; color: #475569;">Payment Mode</td>
+              <td style="padding: 8px 12px; color: #0f172a;">${payment.paymentMode || 'Bank Transfer'}</td>
             </tr>
           </table>
 
-          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-            This is an official computer-generated salary advice statement issued by KOD.BRAND HR & Payroll Department.
+          <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden;">
+              <div style="background-color: #0D1E4A; color: #ffffff; padding: 6px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase;">EARNINGS</div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Basic Salary</td><td style="padding: 6px 10px; text-align: right; font-weight: bold;">₹${basicSalary}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">HRA</td><td style="padding: 6px 10px; text-align: right;">₹${hra}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Medical Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${medicalAllowance}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Special Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${specialAllowance}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Transport Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${transportAllowance}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Other Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${otherAllowance}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Integrity Award</td><td style="padding: 6px 10px; text-align: right;">₹${integrityAward}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Bonus</td><td style="padding: 6px 10px; text-align: right;">₹${bonus}</td></tr>
+                <tr style="background-color: #FFF4E6; font-weight: bold; color: #0D1E4A;"><td style="padding: 8px 10px;">TOTAL EARNINGS</td><td style="padding: 8px 10px; text-align: right;">₹${totalEarnings}</td></tr>
+              </table>
+            </div>
+
+            <div style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden;">
+              <div style="background-color: #0D1E4A; color: #ffffff; padding: 6px 10px; font-size: 11px; font-weight: bold; text-transform: uppercase;">DEDUCTIONS</div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Provident Fund (PF)</td><td style="padding: 6px 10px; text-align: right;">₹${pf}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Professional Tax</td><td style="padding: 6px 10px; text-align: right;">₹${professionalTax}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Income Tax</td><td style="padding: 6px 10px; text-align: right;">₹${incomeTax}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Unpaid Leave</td><td style="padding: 6px 10px; text-align: right;">₹${unpaidLeave}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Advance Salary</td><td style="padding: 6px 10px; text-align: right;">₹${advanceSalary}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Other Deductions</td><td style="padding: 6px 10px; text-align: right;">₹${otherDeductions}</td></tr>
+                <tr style="background-color: #FFF4E6; font-weight: bold; color: #0D1E4A;"><td style="padding: 8px 10px;">TOTAL DEDUCTIONS</td><td style="padding: 8px 10px; text-align: right;">₹${totalDeductions}</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; background-color: #f8fafc; border: 2px solid #0D1E4A; border-radius: 8px; padding: 16px; text-align: center;">
+            <span style="font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">NET SALARY DISBURSED</span>
+            <div style="font-size: 24px; font-weight: 900; color: #0D1E4A; margin-top: 4px;">₹${netPay}</div>
+          </div>
+
+          <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            This is an official computer-generated salary advice statement issued by KODBRAND SOLUTIONS HR & Payroll Department.
           </p>
         </div>
       </div>
@@ -1489,12 +1584,27 @@ export const sendSalaryPayslipEmail = async (req, res) => {
       to: recipientEmail,
       subject: `Official Salary Payslip Statement — ${month} | ${empName}`,
       htmlContent,
-      senderName: 'KOD.BRAND Payroll'
+      senderName: headerSenderName || 'KODBRAND',
+      senderEmail: headerSenderEmail || null,
+      apiKeyOverride: headerApiKey || null
     });
+
+    if (emailResult?.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: emailResult.error || emailResult.message || 'Failed to dispatch payslip email.'
+      });
+    }
+
+    const isSimulated = emailResult?.simulated || emailResult?.provider === 'simulated';
+    const responseMsg = isSimulated
+      ? `[Simulated Mode] Email generated for ${recipientEmail}. (To deliver real inbox emails, set BREVO_API_KEY or SMTP credentials in backend .env)`
+      : `Payslip email sent successfully to ${recipientEmail}!`;
 
     return res.status(200).json({
       success: true,
-      message: `Payslip email sent successfully to ${recipientEmail}.`,
+      simulated: isSimulated,
+      message: responseMsg,
       data: emailResult
     });
   } catch (error) {
@@ -2228,4 +2338,113 @@ export const deletePaymentSettlement = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ── Capital Accounts Controllers ──
+
+export const getCapitals = async (req, res) => {
+  try {
+    const capitals = await Capital.find().sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, data: capitals });
+  } catch (error) {
+    console.error('getCapitals Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createCapital = async (req, res) => {
+  try {
+    const { voucherNo, investorName, innerInvestors, subInvestors, amount, openingBalance, date, paymentMethod, referenceNo, status, remarks } = req.body;
+    
+    let nextVoucherNo = voucherNo;
+    if (!nextVoucherNo) {
+      nextVoucherNo = `CAP-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+    }
+
+    const newCapital = await Capital.create({
+      voucherNo: nextVoucherNo,
+      investorName,
+      innerInvestors: innerInvestors || '',
+      subInvestors: Array.isArray(subInvestors) ? subInvestors : [],
+      amount: Number(amount || 0),
+      openingBalance: Number(openingBalance || 0),
+      date: date || new Date().toISOString().split('T')[0],
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNo: referenceNo || '',
+      status: status || 'Verified',
+      remarks: remarks || '',
+      paymentLogs: []
+    });
+
+    return res.status(201).json({ success: true, data: newCapital });
+  } catch (error) {
+    console.error('createCapital Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateCapital = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updated = await Capital.findByIdAndUpdate(id, req.body, { new: true });
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'Capital record not found' });
+    }
+    return res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    console.error('updateCapital Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteCapital = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Capital.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Capital record not found' });
+    }
+    return res.status(200).json({ success: true, message: 'Capital record deleted' });
+  } catch (error) {
+    console.error('deleteCapital Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const addCapitalTopUp = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { additionalAmount, date, paymentMethod, referenceNo, remarks, subInvestors } = req.body;
+    
+    const record = await Capital.findById(id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Capital record not found' });
+    }
+
+    const addAmt = Number(additionalAmount || 0);
+    record.amount = (record.amount || 0) + addAmt;
+    
+    if (Array.isArray(subInvestors) && subInvestors.length > 0) {
+      record.subInvestors = subInvestors;
+    }
+
+    const newLog = {
+      id: `log_${Date.now()}`,
+      date: date || new Date().toISOString().split('T')[0],
+      type: 'Capital Addition',
+      amount: addAmt,
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      referenceNo: referenceNo || '',
+      remarks: remarks || 'Top-Up Capital'
+    };
+
+    record.paymentLogs.push(newLog);
+    await record.save();
+
+    return res.status(200).json({ success: true, data: record });
+  } catch (error) {
+    console.error('addCapitalTopUp Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 

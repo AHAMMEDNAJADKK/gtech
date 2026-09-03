@@ -12,7 +12,7 @@ const BREVO_API_URL = 'https://api.brevo.com/v3';
  * Get Brevo API Key
  */
 const getBrevoApiKey = () => {
-  const key = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  const key = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || process.env.VITE_BREVO_API_KEY;
   return key && !key.includes('your_brevo_api_key') && key.trim() !== '' ? key.trim() : null;
 };
 
@@ -22,8 +22,8 @@ const getBrevoApiKey = () => {
 const createSmtpTransporter = () => {
   const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.BREVO_API_KEY;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER || process.env.VITE_EMAIL_SENDER_ADDRESS || process.env.BREVO_SENDER_EMAIL;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.BREVO_API_KEY || process.env.VITE_BREVO_API_KEY;
 
   if (!user || user.includes('smtp_username_here') || !pass || pass.includes('smtp_password_here')) {
     return null;
@@ -63,7 +63,8 @@ export const sendEmail = async ({
   textContent = '',
   senderName = null,
   senderEmail = null,
-  cc = null
+  cc = null,
+  apiKeyOverride = null
 }) => {
   if (!to) return { success: false, message: 'Recipient email is required.' };
 
@@ -74,11 +75,11 @@ export const sendEmail = async ({
     recipients = to.map(e => (typeof e === 'string' ? { email: e.trim() } : e));
   }
 
-  const defaultSenderEmail = senderEmail || process.env.BREVO_SENDER_EMAIL || process.env.SMTP_FROM || 'no-reply@kodbrand.com';
-  const defaultSenderName = senderName || process.env.BREVO_SENDER_NAME || 'KOD.BRAND CRM';
+  const defaultSenderEmail = senderEmail || process.env.BREVO_SENDER_EMAIL || process.env.VITE_EMAIL_SENDER_ADDRESS || process.env.SMTP_FROM || 'kodbrandsolutions@gmail.com';
+  const defaultSenderName = senderName || process.env.BREVO_SENDER_NAME || process.env.VITE_EMAIL_SENDER_NAME || 'KODBRAND';
 
   // 1. Try Brevo API v3
-  const apiKey = getBrevoApiKey();
+  const apiKey = (apiKeyOverride && String(apiKeyOverride).trim()) || getBrevoApiKey();
   if (apiKey) {
     try {
       const payload = {
@@ -105,6 +106,8 @@ export const sendEmail = async ({
       if (res.ok && data.messageId) {
         console.log(`[emailService Brevo] 🚀 Email sent to ${recipients.map(r => r.email).join(', ')} | ID: ${data.messageId}`);
         return { success: true, messageId: data.messageId, provider: 'brevo_api' };
+      } else {
+        console.error('[emailService Brevo Error Response]:', data);
       }
     } catch (e) {
       console.error('[emailService Brevo API Error]:', e.message);

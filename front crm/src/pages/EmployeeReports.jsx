@@ -16,6 +16,7 @@ const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase.slice(0, -3) : rawApiBa
 const DESIGNATION_API_MAP = {
   'developer':         { name: 'Developer',          apiPrefix: 'developer-reports',          byDate: 'by-date' },
   'hodrd':             { name: 'HOD R&D',            apiPrefix: 'hod-rd-reports',             byDate: 'by-date' },
+  'hodmarketing':      { name: 'HOD Marketing',      apiPrefix: 'hod-marketing-reports',      byDate: 'by-date' },
   'graphicdesigner':   { name: 'Graphic Designer',   apiPrefix: 'graphic-designer-reports',   byDate: 'by-date' },
   'academiccounselor': { name: 'Academic Counselor', apiPrefix: 'academic-counselor-reports', byDate: 'by-date' },
   'videographer':      { name: 'Videographer',       apiPrefix: 'videographer-reports',       byDate: 'by-date' },

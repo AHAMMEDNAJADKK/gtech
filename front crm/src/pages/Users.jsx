@@ -91,7 +91,8 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports' },
   { label: 'Videographer Report', path: '/videographer-report', category: 'Reports' },
   { label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports' },
-  { label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports' }
+  { label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports' },
+  { label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports' }
 ];
 
 const STATUS_META = {

@@ -28,6 +28,9 @@ export const getClients = async (params = {}) => {
 };
 
 export const getClientById = async (id) => {
+  if (!id || id === 'undefined' || id === 'null') {
+    return { success: false, message: 'Client ID is missing or invalid' };
+  }
   const response = await axios.get(`${getBaseUrl()}/${id}`, getAuthHeaders());
   return response.data;
 };

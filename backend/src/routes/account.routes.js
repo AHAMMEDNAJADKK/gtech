@@ -33,7 +33,12 @@ import {
   updatePaymentSettlement,
   deletePaymentSettlement,
   getOpeningBalance,
-  setOpeningBalance
+  setOpeningBalance,
+  getCapitals,
+  createCapital,
+  updateCapital,
+  deleteCapital,
+  addCapitalTopUp
 } from '../controllers/account.controller.js';
 import protectRoute from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
@@ -42,6 +47,13 @@ const router = Router();
 
 // Protect all account routes
 router.use(protectRoute);
+
+// ── Capital Accounts Routes ──
+router.get('/capital', getCapitals);
+router.post('/capital', createCapital);
+router.put('/capital/:id', updateCapital);
+router.delete('/capital/:id', deleteCapital);
+router.post('/capital/:id/topup', addCapitalTopUp);
 
 // ── Opening Balance Routes ──
 router.get('/opening-balance', getOpeningBalance);

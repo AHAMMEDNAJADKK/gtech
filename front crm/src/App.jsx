@@ -41,6 +41,7 @@ import OpsReportPage from './pages/OpsReportPage';
 import AccountantReportPage from './pages/AccountantReportPage';
 import AccountantDashboard from './pages/AccountantDashboard';
 import MarketingReportPage from './pages/MarketingReportPage';
+import HodMarketingReportPage from './pages/HodMarketingReportPage';
 import VideographerReportPage from './pages/VideographerReportPage';
 import EmployeeReports from './pages/EmployeeReports';
 import CounselorDashboard from './pages/CounselorDashboard';
@@ -216,6 +217,7 @@ function App() {
         <Route path="/accountant-report" element={<ProtectedRoute><MainLayout><AccountantReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/accountant-dashboard" element={<ProtectedRoute><MainLayout><AccountantDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/marketing-report" element={<ProtectedRoute><MainLayout><MarketingReportPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/hod-marketing-report" element={<ProtectedRoute><MainLayout><HodMarketingReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/videographer-report" element={<ProtectedRoute><MainLayout><VideographerReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/employee-reports" element={<ProtectedRoute><MainLayout><EmployeeReports /></MainLayout></ProtectedRoute>} />
         <Route path="/team-reports" element={<ProtectedRoute><MainLayout><EmployeeReports /></MainLayout></ProtectedRoute>} />

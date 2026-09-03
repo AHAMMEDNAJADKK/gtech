@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, Download, FileText, Pencil, Check, XCircle, Loader2, Mail, Send, Trash2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import html2pdf from 'html2pdf.js';
 import { updateSalaryPayment, sendSalaryPayslipEmail, deleteSalaryPayment } from '../../services/accountsService';
 import { useToast } from '../ToastProvider';
@@ -42,9 +44,39 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     // Fallback: If basic salary is not specified separately, set basic equal to paid amount
     const computedBasic = (rawBasic > 0 || hasAllowances) ? rawBasic : rawPaid;
 
-    const formattedPayDate = rec.paymentDate
-      ? new Date(rec.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-      : (rec.payDateStr || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }));
+    let computedPayDateStr = rec.payDateStr;
+    if (!computedPayDateStr || computedPayDateStr.includes('10th August 2026')) {
+      const monthVal = rec.month ? rec.month.trim() : '';
+      if (monthVal) {
+        const parts = monthVal.split(/\s+/);
+        const mName = parts[0] || '';
+        const yearStr = parts[1] || new Date().getFullYear();
+        computedPayDateStr = `On or Before 10th ${mName} ${yearStr}`;
+      } else {
+        const d = new Date();
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        computedPayDateStr = `On or Before 10th ${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+      }
+    }
+
+    let computedPayPeriod = rec.payPeriod;
+    if (!computedPayPeriod || computedPayPeriod.includes('July 2026')) {
+      const monthVal = rec.month ? rec.month.trim() : '';
+      if (monthVal) {
+        const parts = monthVal.split(/\s+/);
+        const mName = parts[0] || '';
+        const yearStr = parts[1] || new Date().getFullYear();
+        const lastDay = new Date(Number(yearStr) || new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+        computedPayPeriod = `01 ${mName} ${yearStr} - ${lastDay} ${mName} ${yearStr}`;
+      } else {
+        const d = new Date();
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const m = monthNames[d.getMonth()];
+        const y = d.getFullYear();
+        const lastDay = new Date(y, d.getMonth() + 1, 0).getDate();
+        computedPayPeriod = `01 ${m} ${y} - ${lastDay} ${m} ${y}`;
+      }
+    }
 
     const empCode = rec.kbEmployeeId || rec.employee?.employeeId || rec.employee?.kbEmployeeId ||
       (rec.employee?._id ? `KB-EMP-${String(rec.employee._id).slice(-4).toUpperCase()}` : 'KB-EMP-001');
@@ -52,15 +84,26 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     return {
       empId:              empCode,
       empName:            (rec.employeeName || rec.employee?.name || 'Employee').toUpperCase(),
-      designation:        (rec.employee?.designation || rec.designation || 'STAFF MEMBER').toUpperCase(),
-      department:         (rec.employee?.department || rec.department || 'OPERATIONS').toUpperCase(),
+      designation: (
+        rec.designation ||
+        rec.employee?.designationName ||
+        (typeof rec.employee?.designation === 'string' ? rec.employee.designation : rec.employee?.designation?.name) ||
+        'STAFF MEMBER'
+      ).toUpperCase(),
+      department: (
+        rec.department ||
+        (typeof rec.employee?.department === 'string' ? rec.employee.department : rec.employee?.department?.name) ||
+        rec.employee?.departmentId?.name ||
+        rec.employee?.department_name ||
+        'GENERAL'
+      ).toUpperCase(),
       location:           (rec.location || 'HEAD OFFICE').toUpperCase(),
-      month:              rec.month || '',
-      payPeriod:          rec.payPeriod || (rec.month ? `01 ${rec.month} - End ${rec.month}` : 'Full Month'),
-      payDateStr:         formattedPayDate,
+      month:              rec.month || `${new Date().toLocaleDateString('en-IN', { month: 'long' })} ${new Date().getFullYear()}`,
+      payPeriod:          computedPayPeriod,
+      payDateStr:         computedPayDateStr,
       workingDays:        rec.workingDays ?? 27,
-      daysWorked:         rec.daysWorked ?? 21,
-      daysInLeave:        rec.daysInLeave ?? 6,
+      daysWorked:         rec.daysWorked ?? (rec.workingDays ? Math.max(0, rec.workingDays - (rec.daysInLeave || 0)) : 27),
+      daysInLeave:        rec.daysInLeave ?? (rec.workingDays && rec.daysWorked !== undefined ? Math.max(0, rec.workingDays - rec.daysWorked) : 0),
       basicSalary:        computedBasic,
       hra:                Number(rec.hra || 0),
       medicalAllowance:   Number(rec.medicalAllowance || 0),
@@ -91,6 +134,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       setEdited(vals);
       setOriginal(vals);
       setEditMode(false);
+      const initialEmail = salaryRecord?.employee?.email || salaryRecord?.email || salaryRecord?.employeeEmail || '';
+      setTargetEmail(initialEmail);
     }
   }, [salaryRecord]);
 
@@ -177,7 +222,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     try {
       const element = payslipRef.current;
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -240,12 +285,14 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
         }
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+      const margin = 5; // 5mm margin
+      const printableWidth = pdfWidth - (margin * 2); // 200mm
+      const imgHeight = (canvas.height * printableWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData, 'PNG', margin, margin, printableWidth, imgHeight);
       pdf.save(filename);
       if (showToast) showToast(`Downloaded ${filename} to your system!`, 'success');
     } catch (err) {
@@ -280,7 +327,13 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     }
     setSendingEmail(true);
     try {
-      const res = await sendSalaryPayslipEmail(salaryRecord._id, { email: finalEmail.trim() });
+      const payload = {
+        email: finalEmail.trim(),
+        brevoApiKey: import.meta.env.VITE_BREVO_API_KEY,
+        senderEmail: import.meta.env.VITE_EMAIL_SENDER_ADDRESS,
+        senderName: import.meta.env.VITE_EMAIL_SENDER_NAME
+      };
+      const res = await sendSalaryPayslipEmail(salaryRecord._id, payload);
       if (res?.success !== false) {
         showToast(`Payslip email sent successfully to ${finalEmail.trim()}!`, 'success');
         setShowEmailModal(false);
@@ -397,7 +450,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
               </button>
               <button
                 onClick={() => {
-                  const empEmail = salaryRecord?.employee?.email || salaryRecord?.email || '';
+                  const empEmail = salaryRecord?.employee?.email || salaryRecord?.email || salaryRecord?.employeeEmail || targetEmail || '';
                   setTargetEmail(empEmail);
                   setShowEmailModal(true);
                 }}
@@ -436,7 +489,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           )}
 
           {/* ── Printable Payslip Body ───────────────────────── */}
-          <div className="p-2 sm:p-3 overflow-y-auto flex-1 bg-white" ref={payslipRef}>
+          <div className="p-2 sm:p-3 overflow-y-auto flex-1 bg-white" ref={payslipRef} data-payslip-ref="true">
             <div className="border border-[#94a3b8] p-2 space-y-1.5 font-sans bg-white text-[#0f172a] text-[10px]">
 
               {/* Header: Logo + Banner */}
@@ -468,8 +521,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
               {/* Employee + Pay Period Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <div className="border border-[#94a3b8]">
-                  <div className="bg-[#0D1E4A] text-white py-0.5 px-1.5 text-center font-extrabold italic uppercase tracking-wider text-[9px]">EMPLOYEE DETAILS</div>
-                  <table className="w-full text-[9px]">
+                  <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">EMPLOYEE DETAILS</div>
+                  <table className="w-full text-[10px] leading-normal">
                     <tbody className="divide-y divide-[#cbd5e1]">
                       {[
                         ['empId', 'Employee ID'],
@@ -479,8 +532,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                         ['location', 'Location'],
                       ].map(([field, label]) => (
                         <tr key={field}>
-                          <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">{label}</td>
-                          <td className="py-[1px] px-1.5">{renderEditCell(field)}</td>
+                          <td className="py-1 px-2 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">{label}</td>
+                          <td className="py-1 px-2">{renderEditCell(field)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -488,16 +541,16 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 </div>
 
                 <div className="border border-[#94a3b8]">
-                  <div className="bg-[#0D1E4A] text-white py-0.5 px-1.5 text-center font-extrabold italic uppercase tracking-wider text-[9px]">PAY PERIOD DETAILS</div>
-                  <table className="w-full text-[9px]">
+                  <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">PAY PERIOD DETAILS</div>
+                  <table className="w-full text-[10px] leading-normal">
                     <tbody className="divide-y divide-[#cbd5e1]">
                       <tr>
-                        <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">Pay period</td>
-                        <td className="py-[1px] px-1.5">{renderEditCell("payPeriod")}</td>
+                        <td className="py-1 px-2 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">Pay period</td>
+                        <td className="py-1 px-2">{renderEditCell("payPeriod")}</td>
                       </tr>
                       <tr>
-                        <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] border-r border-[#cbd5e1]">Pay date</td>
-                        <td className="py-[1px] px-1.5">{renderEditCell("payDateStr")}</td>
+                        <td className="py-1 px-2 italic font-semibold text-[#334155] border-r border-[#cbd5e1]">Pay date</td>
+                        <td className="py-1 px-2">{renderEditCell("payDateStr")}</td>
                       </tr>
                       {[
                         ['workingDays', 'Working Days'],
@@ -505,15 +558,15 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                         ['daysInLeave', 'Days in Leave'],
                       ].map(([field, label]) => (
                         <tr key={field}>
-                          <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] border-r border-[#cbd5e1]">{label}</td>
-                          <td className="py-[1px] px-1.5">
+                          <td className="py-1 px-2 italic font-semibold text-[#334155] border-r border-[#cbd5e1]">{label}</td>
+                          <td className="py-1 px-2">
                             {editMode ? (
                               <input
                                 key={`workdays_${field}`}
                                 type="number" min="0"
                                 value={edited[field] ?? 0}
                                 onChange={e => set(field, Number(e.target.value))}
-                                className="w-16 bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1.5 py-0.5 text-[9.5px] font-bold text-slate-900 outline-none rounded shadow-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-16 bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-900 outline-none rounded shadow-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             ) : (
                               <span className="font-semibold text-[#0f172a]">{edited[field]} Days</span>
@@ -531,12 +584,12 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 {/* Earnings */}
                 <div className="border border-[#94a3b8] flex flex-col justify-between">
                   <div>
-                    <div className="bg-[#0D1E4A] text-white py-0.5 px-1.5 text-center font-extrabold italic uppercase tracking-wider text-[9px]">EARNINGS</div>
-                    <table className="w-full text-[9px]">
-                      <thead className="bg-[#EAEFE6] border-b border-[#94a3b8] font-extrabold text-[8px] italic">
+                    <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">EARNINGS</div>
+                    <table className="w-full text-[10px] leading-normal">
+                      <thead className="bg-[#EAEFE6] border-b border-[#94a3b8] font-extrabold text-[9px] italic">
                         <tr>
-                          <th className="py-0.5 px-1.5 text-left border-r border-[#94a3b8]">PARTICULARS</th>
-                          <th className="py-0.5 px-1.5 text-right">AMOUNT (INR)</th>
+                          <th className="py-1 px-2 text-left border-r border-[#94a3b8]">PARTICULARS</th>
+                          <th className="py-1 px-2 text-right">AMOUNT (INR)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#cbd5e1]">
@@ -551,14 +604,14 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                           ['bonus', 'Bonus'],
                         ].map(([field, label]) => (
                           <tr key={field}>
-                            <td className="py-[1px] px-1.5 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
-                            <td className="py-[1px] px-1.5 text-right font-medium">{renderEditNumCell(field)}</td>
+                            <td className="py-1 px-2 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
+                            <td className="py-1 px-2 text-right font-medium">{renderEditNumCell(field)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="bg-[#FFF4E6] border-t border-[#94a3b8] py-0.5 px-1.5 flex justify-between font-extrabold text-[#0D1E4A] text-[9px]">
+                  <div className="bg-[#FFF4E6] border-t border-[#94a3b8] py-1 px-2 flex justify-between font-extrabold text-[#0D1E4A] text-[10px]">
                     <span>TOTAL EARNINGS</span>
                     <span>{totalEarnings.toLocaleString('en-IN')}</span>
                   </div>
@@ -567,12 +620,12 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 {/* Deductions */}
                 <div className="border border-[#94a3b8] flex flex-col justify-between">
                   <div>
-                    <div className="bg-[#0D1E4A] text-white py-0.5 px-1.5 text-center font-extrabold italic uppercase tracking-wider text-[9px]">DEDUCTIONS</div>
-                    <table className="w-full text-[9px]">
-                      <thead className="bg-[#EAEFE6] border-b border-[#94a3b8] font-extrabold text-[8px] italic">
+                    <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">DEDUCTIONS</div>
+                    <table className="w-full text-[10px] leading-normal">
+                      <thead className="bg-[#EAEFE6] border-b border-[#94a3b8] font-extrabold text-[9px] italic">
                         <tr>
-                          <th className="py-0.5 px-1.5 text-left border-r border-[#94a3b8]">PARTICULARS</th>
-                          <th className="py-0.5 px-1.5 text-right">AMOUNT (INR)</th>
+                          <th className="py-1 px-2 text-left border-r border-[#94a3b8]">PARTICULARS</th>
+                          <th className="py-1 px-2 text-right">AMOUNT (INR)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#cbd5e1]">
@@ -585,14 +638,14 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                           ['otherDeductions', 'Other Deductions'],
                         ].map(([field, label]) => (
                           <tr key={field}>
-                            <td className="py-[1px] px-1.5 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
-                            <td className="py-[1px] px-1.5 text-right font-medium">{renderEditNumCell(field)}</td>
+                            <td className="py-1 px-2 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
+                            <td className="py-1 px-2 text-right font-medium">{renderEditNumCell(field)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="bg-[#FFF4E6] border-t border-[#94a3b8] py-0.5 px-1.5 flex justify-between font-extrabold text-[#0D1E4A] text-[9px]">
+                  <div className="bg-[#FFF4E6] border-t border-[#94a3b8] py-1 px-2 flex justify-between font-extrabold text-[#0D1E4A] text-[9px]">
                     <span>TOTAL DEDUCTIONS</span>
                     <span>{totalDeductions.toLocaleString('en-IN')}</span>
                   </div>

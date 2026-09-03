@@ -45,6 +45,9 @@ const getReportConfig = (user) => {
   ) {
     return { route: '/developer-report', apiPrefix: 'developer-reports', name: 'Developer Daily Report' };
   }
+  if (designation.includes('hod') && (department.includes('market') || designation.includes('market'))) {
+    return { route: '/hod-marketing-report', apiPrefix: 'hod-marketing-reports', name: 'HOD Marketing Daily Report' };
+  }
   if (department.includes('market') || designation.includes('market') || role === '4' || role.includes('digital')) {
     return { route: '/marketing-report', apiPrefix: 'marketing-reports', name: 'Marketing Daily Report' };
   }
