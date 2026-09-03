@@ -33,6 +33,7 @@ import {
   Tag,
   ShoppingBag,
   ShoppingCart,
+  Coins,
   ChevronDown,
   Calendar,
   CheckCircle2,
@@ -128,6 +129,7 @@ const menuItems = [
 
   // --- FINANCE & PAYROLL ---
   { icon: Wallet, label: 'Accounts', path: '/accounts', category: 'Finance & Payroll', children: [
+      { icon: Coins, label: 'Capital', path: '/accounts/capital' },
       { icon: TrendingUp, label: 'Sales', path: '/accounts/sales' },
       { icon: ShoppingBag, label: 'Income', path: '/accounts/income' },
       { icon: ShoppingCart, label: 'Purchase', path: '/accounts/purchase' },
@@ -394,6 +396,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           'accountant dashboard': '/accountant-dashboard',
           'income': '/accounts/income',
           'sales': '/accounts/sales',
+          'capital': '/accounts/capital',
           'purchase': '/accounts/purchase',
           'create invoice': '/accounts/create-invoice',
         };

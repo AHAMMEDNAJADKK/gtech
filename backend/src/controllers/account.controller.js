@@ -263,11 +263,35 @@ export const getExpenses = async (req, res) => {
     const expenses = await Expense.find(query)
       .populate('category', 'name openingBalance')
       .populate('addedBy', 'name email')
+      .populate('salaryPaymentId', 'paidAmount customNetPay basicSalary status')
       .sort({ date: -1, createdAt: -1 });
+
+    const normalizedExpenses = expenses
+      .filter(exp => {
+        // Salary expenses MUST only appear in expenses after MD approval!
+        const isSalaryExp = exp.type === 'Salary' || exp.salaryPaymentId || (exp.categoryName || '').toLowerCase() === 'salary';
+        if (isSalaryExp) {
+          const salStatus = String(exp.status || exp.salaryPaymentId?.status || 'PENDING').toUpperCase();
+          if (salStatus !== 'APPROVED') {
+            return false;
+          }
+        }
+        return true;
+      })
+      .map(exp => {
+        const expObj = exp.toObject();
+        if (expObj.salaryPaymentId && typeof expObj.salaryPaymentId === 'object') {
+          const sp = expObj.salaryPaymentId;
+          const netPaid = sp.paidAmount !== undefined ? sp.paidAmount : (sp.customNetPay !== undefined ? sp.customNetPay : expObj.amount);
+          expObj.amount = netPaid;
+          expObj.totalAmount = netPaid;
+        }
+        return expObj;
+      });
 
     return res.status(200).json({
       success: true,
-      data: expenses
+      data: normalizedExpenses
     });
   } catch (error) {
     console.error('getExpenses Error:', error);
@@ -597,7 +621,7 @@ export const createSalaryPayment = async (req, res) => {
       addedByName,
       type: 'Salary',
       salaryPaymentId: salaryPayment._id,
-      status: salaryPayment.paidAmount > 1000 ? 'PENDING' : 'APPROVED'
+      status: 'PENDING'
     });
 
     // Link back expense ID to salary payment
@@ -647,7 +671,47 @@ export const updateSalaryPayment = async (req, res) => {
       }
     });
 
+    // Recompute Net Paid Amount (Total Earnings - Total Deductions or Custom Net Pay)
+    const calcEarnings = Number(payment.totalEarnings || (
+      Number(payment.basicSalary || 0) + Number(payment.hra || 0) + Number(payment.medicalAllowance || 0) +
+      Number(payment.specialAllowance || 0) + Number(payment.transportAllowance || 0) + Number(payment.otherAllowance || 0) +
+      Number(payment.integrityAward || 0) + Number(payment.bonus || 0)
+    ));
+    const calcDeductions = Number(payment.totalDeductions || (
+      Number(payment.pf || 0) + Number(payment.professionalTax || 0) + Number(payment.incomeTax || 0) +
+      Number(payment.unpaidLeave || 0) + Number(payment.advanceSalary || 0) + Number(payment.otherDeductions || 0)
+    ));
+
+    const finalNetPay = payment.customNetPay !== undefined && payment.customNetPay !== null && !isNaN(Number(payment.customNetPay))
+      ? Number(payment.customNetPay)
+      : (req.body.paidAmount !== undefined
+          ? Number(req.body.paidAmount)
+          : Math.max(0, calcEarnings - calcDeductions));
+
+    payment.paidAmount = finalNetPay;
     await payment.save();
+
+    // Sync linked expense entry amount to net paid amount
+    if (payment.expenseId) {
+      await Expense.findByIdAndUpdate(payment.expenseId, {
+        amount: finalNetPay,
+        totalAmount: finalNetPay,
+        paidTo: payment.employeeName,
+        paymentMode: payment.paymentMode,
+        description: `Employee Salary Payment for ${payment.month}${payment.remarks ? ' (' + payment.remarks.trim() + ')' : ''}`
+      });
+    } else {
+      await Expense.updateMany(
+        { salaryPaymentId: payment._id },
+        {
+          amount: finalNetPay,
+          totalAmount: finalNetPay,
+          paidTo: payment.employeeName,
+          paymentMode: payment.paymentMode,
+          description: `Employee Salary Payment for ${payment.month}${payment.remarks ? ' (' + payment.remarks.trim() + ')' : ''}`
+        }
+      );
+    }
 
     return res.status(200).json({
       success: true,

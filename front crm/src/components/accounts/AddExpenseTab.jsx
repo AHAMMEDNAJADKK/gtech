@@ -219,7 +219,15 @@ const AddExpenseTab = () => {
 
   // Sort & Filter Expenses Client-Side
   const sortedAndFilteredExpenses = React.useMemo(() => {
-    let result = [...expenses];
+    let result = expenses.filter(e => {
+      // Salary expenses MUST only appear in expense ledger after MD approval!
+      const isSalaryExp = e.type === 'Salary' || e.salaryPaymentId || (e.categoryName || '').toLowerCase() === 'salary';
+      if (isSalaryExp) {
+        const salStatus = String(e.status || e.salaryPaymentId?.status || 'PENDING').toUpperCase();
+        if (salStatus !== 'APPROVED') return false;
+      }
+      return true;
+    });
     if (startDate) {
       result = result.filter(e => {
         const d = e.date ? new Date(e.date).toISOString().split('T')[0] : '';
@@ -603,7 +611,13 @@ const AddExpenseTab = () => {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-rose-600 dark:text-rose-400">
-                        ₹{parseFloat(exp.amount || 0).toLocaleString('en-IN')}
+                        ₹{parseFloat((() => {
+                          if (exp.salaryPaymentId && typeof exp.salaryPaymentId === 'object') {
+                            return exp.salaryPaymentId.paidAmount ?? exp.salaryPaymentId.customNetPay ?? exp.amount;
+                          }
+                          if (exp.paidAmount !== undefined) return exp.paidAmount;
+                          return exp.amount || 0;
+                        })()).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3.5 px-4">
                         {status === 'APPROVED' && (

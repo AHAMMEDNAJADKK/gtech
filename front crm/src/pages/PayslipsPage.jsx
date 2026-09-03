@@ -367,7 +367,6 @@ const PayslipsPage = () => {
                   <th className="py-3.5 px-4">Disbursal Date</th>
                   <th className="py-3.5 px-4">Employee</th>
                   <th className="py-3.5 px-4">Pay Period</th>
-                  <th className="py-3.5 px-4">Basic Salary</th>
                   <th className="py-3.5 px-4 text-right">Net Paid (₹)</th>
                   <th className="py-3.5 px-4">Mode</th>
                   <th className="py-3.5 px-4">Status</th>
@@ -379,7 +378,7 @@ const PayslipsPage = () => {
                   const empName = r.employeeName || r.employee?.name || 'Employee';
                   const desig = r.employee?.designation || r.designation || 'Staff Member';
                   const status = r.status || 'PENDING';
-                  const paid = Number(r.paidAmount || 0);
+                  const paid = Number(r.paidAmount !== undefined ? r.paidAmount : (r.customNetPay !== undefined ? r.customNetPay : r.basicSalary));
 
                   return (
                     <tr key={r._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
@@ -399,9 +398,6 @@ const PayslipsPage = () => {
                       </td>
                       <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                         {r.month}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
-                        ₹{(Number(r.basicSalary) || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3.5 px-4 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         ₹{paid.toLocaleString('en-IN')}

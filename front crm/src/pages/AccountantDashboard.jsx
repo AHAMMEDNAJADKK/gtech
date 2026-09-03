@@ -193,7 +193,7 @@ const AccountantDashboard = () => {
 
     // Salary sums
     const totalSalaryPaid = filteredSalaries.reduce((sum, item) => {
-      const amt = Number(item.netSalary || item.amount || item.totalPaid || 0);
+      const amt = Number(item.paidAmount !== undefined ? item.paidAmount : (item.customNetPay !== undefined ? item.customNetPay : (item.netSalary !== undefined ? item.netSalary : (item.amount || 0))));
       return sum + (isNaN(amt) ? 0 : amt);
     }, 0);
 
@@ -701,7 +701,7 @@ const AccountantDashboard = () => {
                       const empName = sal.user?.name || sal.employeeName || sal.name || 'Staff Member';
                       const dept = sal.user?.department || sal.department || 'Payroll';
                       const period = sal.month || sal.payPeriod || 'Monthly Salary';
-                      const amt = Number(sal.netSalary || sal.amount || 0);
+                      const amt = Number(sal.paidAmount !== undefined ? sal.paidAmount : (sal.customNetPay !== undefined ? sal.customNetPay : (sal.netSalary !== undefined ? sal.netSalary : (sal.amount || 0))));
                       return (
                         <tr key={sal._id || i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition">
                           <td className="px-5 py-3.5">

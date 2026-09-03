@@ -262,8 +262,8 @@ const PersonalPayslipPage = () => {
 
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Basic Salary</span>
-                      <strong className="text-slate-800 dark:text-slate-200">₹{(Number(r.basicSalary) || 0).toLocaleString('en-IN')}</strong>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Net Paid Amount</span>
+                      <strong className="text-emerald-600 dark:text-emerald-400">₹{paid.toLocaleString('en-IN')}</strong>
                     </div>
                     <div>
                       <span className="block text-[10px] text-slate-400 font-bold uppercase">Payment Mode</span>
@@ -276,8 +276,8 @@ const PersonalPayslipPage = () => {
                       </span>
                     </div>
                     <div>
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Net Paid</span>
-                      <strong className="text-emerald-600 dark:text-emerald-400">₹{paid.toLocaleString('en-IN')}</strong>
+                      <span className="block text-[10px] text-slate-400 font-bold uppercase">Status</span>
+                      <span className="text-slate-700 dark:text-slate-300">{status}</span>
                     </div>
                   </div>
                 </div>
@@ -305,7 +305,6 @@ const PersonalPayslipPage = () => {
                 <tr>
                   <th className="py-3.5 px-4">Disbursal Date</th>
                   <th className="py-3.5 px-4">Pay Period</th>
-                  <th className="py-3.5 px-4">Basic Salary</th>
                   <th className="py-3.5 px-4 text-right">Net Paid Amount (₹)</th>
                   <th className="py-3.5 px-4">Payment Mode</th>
                   <th className="py-3.5 px-4">Status</th>
@@ -315,7 +314,7 @@ const PersonalPayslipPage = () => {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                 {filteredRecords.map((r) => {
                   const status = r.status || 'PENDING';
-                  const paid = Number(r.paidAmount || 0);
+                  const paid = Number(r.paidAmount !== undefined ? r.paidAmount : (r.customNetPay !== undefined ? r.customNetPay : r.basicSalary));
 
                   return (
                     <tr key={r._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
@@ -324,9 +323,6 @@ const PersonalPayslipPage = () => {
                       </td>
                       <td className="py-3.5 px-4 font-extrabold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                         {r.month}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
-                        ₹{(Number(r.basicSalary) || 0).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3.5 px-4 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         ₹{paid.toLocaleString('en-IN')}

@@ -962,8 +962,7 @@ export default function ApprovalsPage() {
                     <th className="py-3.5 px-4">Payment Date</th>
                     <th className="py-3.5 px-4">Employee</th>
                     <th className="py-3.5 px-4">Month</th>
-                    <th className="py-3.5 px-4">Basic Salary</th>
-                    <th className="py-3.5 px-4 text-right">Paid Amount (₹)</th>
+                    <th className="py-3.5 px-4 text-right">Net Paid Amount (₹)</th>
                     <th className="py-3.5 px-4">Mode</th>
                     <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
@@ -972,6 +971,7 @@ export default function ApprovalsPage() {
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {filteredSalaries.map((p) => {
                     const status = p.status || 'PENDING';
+                    const netPaid = p.paidAmount !== undefined ? p.paidAmount : (p.customNetPay !== undefined ? p.customNetPay : p.basicSalary);
                     return (
                       <tr key={p._id} className="hover:bg-slate-50/70 transition">
                         <td className="py-3.5 px-4 font-medium whitespace-nowrap">
@@ -984,9 +984,8 @@ export default function ApprovalsPage() {
                           )}
                         </td>
                         <td className="py-3.5 px-4 font-semibold text-indigo-600">{p.month}</td>
-                        <td className="py-3.5 px-4 text-slate-500">₹{(p.basicSalary || 0).toLocaleString('en-IN')}</td>
                         <td className="py-3.5 px-4 text-right font-extrabold text-emerald-600 whitespace-nowrap text-sm">
-                          ₹{(p.paidAmount || 0).toLocaleString('en-IN')}
+                          ₹{Number(netPaid || 0).toLocaleString('en-IN')}
                         </td>
                         <td className="py-3.5 px-4">
                           <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[10px] font-bold text-slate-600 border border-slate-200/60">
