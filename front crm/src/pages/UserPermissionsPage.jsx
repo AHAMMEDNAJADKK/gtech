@@ -74,6 +74,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Videographer Report', path: '/videographer-report', category: 'Reports', desc: 'Videography shift reports' },
   { label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', desc: 'Academic counselor shift reports' },
   { label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', desc: 'HOD R&D shift reports' },
+  { label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports', desc: 'HOD Marketing consolidated shift reports' },
   { label: 'HR Shift Report', path: '/hr-report', category: 'Reports', desc: 'HR shift reports' },
   { label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', desc: 'Operations shift reports' },
   { label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', desc: 'Accountant shift reports' },

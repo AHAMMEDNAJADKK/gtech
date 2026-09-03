@@ -10,6 +10,7 @@ import Designation from '../models/designation.model.js';
 import DeveloperReport from '../models/developerReport.model.js';
 import GraphicDesignerReport from '../models/graphicDesignerReport.model.js';
 import HodRdReport from '../models/hodRdReport.model.js';
+import HodMarketingReport from '../models/hodMarketingReport.model.js';
 import HrReport from '../models/hrReport.model.js';
 import MarketingReport from '../models/marketingReport.model.js';
 import OpsReport from '../models/opsReport.model.js';
@@ -180,6 +181,9 @@ const getReportModel = (type) => {
     case 'hodrd':
     case 'hodrnd':
       return HodRdReport;
+    case 'hodmarketing':
+    case 'hod-marketing':
+      return HodMarketingReport;
     case 'hr':
       return HrReport;
     case 'marketing':
@@ -204,7 +208,8 @@ export const employeeReportPDFController = {
    */
   async generatePDFReport(req, res, next) {
     try {
-      const { userId, dateString, reportType } = req.query;
+      const { userId, dateString, reportType, reportPeriod } = req.query;
+      const period = reportPeriod || 'daily';
 
       if (!userId || !dateString) {
         return res.status(400).json({
@@ -254,12 +259,12 @@ export const employeeReportPDFController = {
         });
       }
 
-      // Query the daily report document
+      // Query the report document
       const report = await ReportModel.findOne({ userId, dateString });
       if (!report) {
         return res.status(404).json({
           success: false,
-          message: `Daily report not found for employee on date ${dateString}.`
+          message: `Report not found for employee on date ${dateString}.`
         });
       }
 
@@ -268,13 +273,12 @@ export const employeeReportPDFController = {
       // Generate the PDF using pdfkit utility
       const pdfBuffer = await generateReportPDFBuffer(report, employee.name, designationName);
 
-      const cleanFilename = `${finalReportType || 'Report'}_Daily_${employee.name.replace(/[^a-zA-Z0-9]/g, '_')}_${dateString}.pdf`;
+      const cleanFilename = `${finalReportType || 'Report'}_${period.charAt(0).toUpperCase() + period.slice(1)}_${employee.name.replace(/[^a-zA-Z0-9]/g, '_')}_${dateString}.pdf`;
 
       // Upload the PDF to Cloudinary dynamically using employee ID folder
-      // Wrap in a try-catch block so network/Cloudinary failures don't block the download
       let uploadResult = null;
       try {
-        uploadResult = await uploadToCloudinary(pdfBuffer, userId, `${dateString}_daily`);
+        uploadResult = await uploadToCloudinary(pdfBuffer, userId, `${dateString}_${period}`);
       } catch (uploadError) {
         console.error('Error uploading PDF to Cloudinary (ignoring to allow local download):', uploadError.message);
       }
@@ -282,15 +286,15 @@ export const employeeReportPDFController = {
       if (uploadResult) {
         // Save or update the record in EmployeeReports model
         await EmployeeReports.findOneAndUpdate(
-          { employee_id: userId, report_date: dateString, report_period: 'daily' },
+          { employee_id: userId, report_date: dateString, report_period: period },
           {
             pdf_url: uploadResult.secure_url,
             pdf_public_id: uploadResult.public_id,
             filename: cleanFilename,
             employee_id: userId,
             report_date: dateString,
-            report_type: finalReportType || 'daily',
-            report_period: 'daily',
+            report_type: finalReportType || period,
+            report_period: period,
             created_at: new Date()
           },
           { upsert: true, new: true }
@@ -445,7 +449,7 @@ export const employeeReportPDFController = {
       // 1. Fetch manual PDF file uploads
       const pdfUploads = await EmployeeReports.find(pdfQuery).lean();
 
-      // 2. Fetch saved shift reports from all 9 report collections for this employee
+      // 2. Fetch saved shift reports from all 10 report collections for this employee
       const [
         devReports,
         gdReports,
@@ -455,7 +459,8 @@ export const employeeReportPDFController = {
         opsReports,
         videoReports,
         counselorReports,
-        acctReports
+        acctReports,
+        hodMktReports
       ] = await Promise.all([
         DeveloperReport.find(userQuery).lean(),
         GraphicDesignerReport.find(userQuery).lean(),
@@ -465,7 +470,8 @@ export const employeeReportPDFController = {
         OpsReport.find(userQuery).lean(),
         VideographerReport.find(userQuery).lean(),
         AcademicCounselorReport.find(userQuery).lean(),
-        AccountantReport.find(userQuery).lean()
+        AccountantReport.find(userQuery).lean(),
+        HodMarketingReport.find(userQuery).lean()
       ]);
 
       const baseUrl = process.env.VITE_API_URL || '/api';
@@ -488,6 +494,7 @@ export const employeeReportPDFController = {
         ...devReports.map(d => mapShiftReport(d, 'Developer', 'developer')),
         ...gdReports.map(d => mapShiftReport(d, 'Graphic Designer', 'graphic-designer')),
         ...hodReports.map(d => mapShiftReport(d, 'HOD R&D', 'hod-rd')),
+        ...hodMktReports.map(d => mapShiftReport(d, 'HOD Marketing', 'hod-marketing')),
         ...hrReports.map(d => mapShiftReport(d, 'HR', 'hr')),
         ...mktReports.map(d => mapShiftReport(d, 'Marketing', 'marketing')),
         ...opsReports.map(d => mapShiftReport(d, 'Ops', 'ops')),
@@ -564,6 +571,7 @@ export const employeeReportPDFController = {
           { model: DeveloperReport, type: 'developer' },
           { model: GraphicDesignerReport, type: 'graphicdesigner' },
           { model: HodRdReport, type: 'hodrd' },
+          { model: HodMarketingReport, type: 'hod-marketing' },
           { model: HrReport, type: 'hr' },
           { model: MarketingReport, type: 'marketing' },
           { model: OpsReport, type: 'ops' },
@@ -622,6 +630,7 @@ export const employeeReportPDFController = {
         { model: DeveloperReport, type: 'developer' },
         { model: GraphicDesignerReport, type: 'graphicdesigner' },
         { model: HodRdReport, type: 'hodrd' },
+        { model: HodMarketingReport, type: 'hod-marketing' },
         { model: HrReport, type: 'hr' },
         { model: MarketingReport, type: 'marketing' },
         { model: OpsReport, type: 'ops' },

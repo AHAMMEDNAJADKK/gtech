@@ -254,7 +254,7 @@ export const fetchDelegatedTasks = async (userId, dateStr, usersList = []) => {
     };
 
     const delegatedTasks = tasks.filter(t => {
-      const createdUser = extractUserId(t.created_by) || extractUserId(t.user_id);
+      const createdUser = extractUserId(t.created_by) || extractUserId(t.createdBy) || extractUserId(t.user_id) || extractUserId(t.assigned_by) || extractUserId(t.assignedBy);
       const isAssignedToSelf = isUserAssigned(t.assigned_to || t.assignedTo, userId);
 
       if (createdUser !== String(userId)) return false;
@@ -338,8 +338,18 @@ export const fetchDelegatedTasks = async (userId, dateStr, usersList = []) => {
       }
 
       return {
+        ...t,
+        title: t.title || t.task || t.name || 'Delegated Task',
+        taskTitle: t.title || t.task || t.name || 'Delegated Task',
+        assignedToName: assignedName !== 'N/A' ? assignedName : 'Team Member',
+        assignedTo: assignedName,
+        status: statusText,
+        dueDate: formattedDueDate,
+        startDate: t.startDate || (t.createdAt ? t.createdAt.split('T')[0] : ''),
+        endDate: t.endDate || formattedDueDate,
+        remarks: t.remarks || t.notes || t.description || '',
         project: assignedName,
-        kpi: t.title || 'N/A',
+        kpi: t.title || t.task || 'N/A',
         target: formattedDueDate,
         achieved: statusText
       };

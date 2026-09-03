@@ -2128,9 +2128,9 @@ const AccountantReportPage = () => {
 
       // 2. DAILY ACCOUNTING SUMMARY
       if (!hiddenSections.dailyAccountingSummary && Array.isArray(dailyAccountingSummary)) {
-        const summaryHeaders = [["Activity", "Category / Head", "Amount (Rs.)", "Status", "Remarks"]];
+        const summaryHeaders = [["Activity", "Status", "Remarks"]];
         const validSummaryRows = dailyAccountingSummary
-          .map(t => [t.activity || '', t.category || '', t.amount ? `Rs. ${t.amount}` : '', t.status || '', t.remarks || ''])
+          .map(t => [t.activity || '', t.status || '', t.remarks || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validSummaryRows.length > 0) {
@@ -2143,11 +2143,9 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 50 },
-              1: { width: 35 },
-              2: { width: 30, halign: 'right' },
-              3: { width: 25, halign: 'center' },
-              4: { width: 42 }
+              0: { width: 90 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 57 }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2157,9 +2155,9 @@ const AccountantReportPage = () => {
 
       // 3. DAILY TASKS
       if (!hiddenSections.dailyTasks && Array.isArray(dailyTasks)) {
-        const taskHeaders = [["Task Description", "Related Account", "Time Spent", "Status", "Remarks"]];
+        const taskHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
         const validTaskRows = dailyTasks
-          .map(t => [t.taskDescription || t.task || '', t.account || t.relatedAccount || '', t.timeSpent || '', t.status || '', t.remarks || ''])
+          .map(t => [t.activity || t.taskDescription || t.task || '', t.dueDate || '', t.startDate || '', t.endDate || '', t.status || '', t.remarks || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validTaskRows.length > 0) {
@@ -2172,11 +2170,12 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 60 },
-              1: { width: 35 },
-              2: { width: 25, halign: 'center' },
-              3: { width: 25, halign: 'center' },
-              4: { width: 37 }
+              0: { width: 50 },
+              1: { width: 24, halign: 'center' },
+              2: { width: 24, halign: 'center' },
+              3: { width: 24, halign: 'center' },
+              4: { width: 24, halign: 'center' },
+              5: { width: 36 }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2186,9 +2185,9 @@ const AccountantReportPage = () => {
 
       // 4. TRANSACTION REPORT
       if (!hiddenSections.transactionReport && Array.isArray(transactionReport)) {
-        const txHeaders = [["Transaction Type", "Total Count", "Total Amount (Rs.)", "Status / Remarks"]];
+        const txHeaders = [["Transaction Type", "Count", "Incomes", "Expense"]];
         const validTxRows = transactionReport
-          .map(t => [t.type || t.transactionType || '', t.count || '', t.amount ? `Rs. ${t.amount}` : '', t.remarks || t.status || ''])
+          .map(t => [t.transactionType || t.type || '', t.amount || t.count || '', t.incomes || '', t.expense || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validTxRows.length > 0) {
@@ -2201,10 +2200,10 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 60 },
-              1: { width: 30, halign: 'center' },
-              2: { width: 45, halign: 'right' },
-              3: { width: 47 }
+              0: { width: 62 },
+              1: { width: 35, halign: 'right' },
+              2: { width: 42, halign: 'right' },
+              3: { width: 43, halign: 'right' }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2214,9 +2213,9 @@ const AccountantReportPage = () => {
 
       // 5. INVOICE & BILLING REPORT
       if (!hiddenSections.invoiceBillingReport && Array.isArray(invoiceBillingReport)) {
-        const invHeaders = [["Category", "Count", "Total Value (Rs.)", "Status / Remarks"]];
+        const invHeaders = [["Client/Vendor", "Type", "Amount", "Status", "Remarks"]];
         const validInvRows = invoiceBillingReport
-          .map(t => [t.category || '', t.count || '', t.value ? `Rs. ${t.value}` : (t.amount ? `Rs. ${t.amount}` : ''), t.remarks || t.status || ''])
+          .map(t => [t.clientVendor || t.category || '', t.type || '', t.amount ? `Rs. ${t.amount}` : (t.value ? `Rs. ${t.value}` : ''), t.status || '', t.remarks || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validInvRows.length > 0) {
@@ -2229,10 +2228,11 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 60 },
-              1: { width: 30, halign: 'center' },
-              2: { width: 45, halign: 'right' },
-              3: { width: 47 }
+              0: { width: 50 },
+              1: { width: 30 },
+              2: { width: 35, halign: 'right' },
+              3: { width: 30, halign: 'center' },
+              4: { width: 37 }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2242,9 +2242,9 @@ const AccountantReportPage = () => {
 
       // 6. PAYROLL & PAYMENT STATUS
       if (!hiddenSections.payrollPaymentStatus && Array.isArray(payrollPaymentStatus)) {
-        const payHeaders = [["Payment Category", "Processed Count", "Total Disbursed (Rs.)", "Status"]];
+        const payHeaders = [["Activity", "Amount", "Status", "Remarks"]];
         const validPayRows = payrollPaymentStatus
-          .map(t => [t.category || '', t.count || '', t.amount ? `Rs. ${t.amount}` : '', t.status || ''])
+          .map(t => [t.activity || t.category || '', t.amount ? `Rs. ${t.amount}` : '', t.status || '', t.remarks || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validPayRows.length > 0) {
@@ -2257,10 +2257,10 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 60 },
-              1: { width: 35, halign: 'center' },
-              2: { width: 47, halign: 'right' },
-              3: { width: 40, halign: 'center' }
+              0: { width: 65 },
+              1: { width: 35, halign: 'right' },
+              2: { width: 30, halign: 'center' },
+              3: { width: 52 }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2270,9 +2270,9 @@ const AccountantReportPage = () => {
 
       // 7. EXPENSE TRACKING
       if (!hiddenSections.expenseTracking && Array.isArray(expenseTracking)) {
-        const expHeaders = [["Expense Category", "Budget (Rs.)", "Actual (Rs.)", "Variance / Remarks"]];
+        const expHeaders = [["Expense Category", "Amount", "Remarks"]];
         const validExpRows = expenseTracking
-          .map(t => [t.category || '', t.budget ? `Rs. ${t.budget}` : '', t.actual ? `Rs. ${t.actual}` : '', t.remarks || t.variance || ''])
+          .map(t => [t.category || '', t.amount ? `Rs. ${t.amount}` : '', t.remarks || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validExpRows.length > 0) {
@@ -2285,10 +2285,9 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 55 },
-              1: { width: 35, halign: 'right' },
-              2: { width: 35, halign: 'right' },
-              3: { width: 57 }
+              0: { width: 65 },
+              1: { width: 45, halign: 'right' },
+              2: { width: 72 }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2298,9 +2297,9 @@ const AccountantReportPage = () => {
 
       // 8. DOCUMENTATION & COMPLIANCE
       if (!hiddenSections.documentationCompliance && Array.isArray(documentationCompliance)) {
-        const docHeaders = [["Compliance / Doc Item", "Status", "Remarks"]];
+        const docHeaders = [["Activity", "Status"]];
         const validDocRows = documentationCompliance
-          .map(t => [t.item || t.activity || '', t.status || '', t.remarks || ''])
+          .map(t => [t.activity || t.item || '', t.status || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validDocRows.length > 0) {
@@ -2313,9 +2312,8 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 85 },
-              1: { width: 35, halign: 'center' },
-              2: { width: 62 }
+              0: { width: 130 },
+              1: { width: 52, halign: 'center' }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2325,9 +2323,9 @@ const AccountantReportPage = () => {
 
       // 9. KPI TRACKING
       if (!hiddenSections.kpiTracking && Array.isArray(kpiTracking)) {
-        const kpiHeaders = [["KPI", "Target", "Achieved", "Status"]];
+        const kpiHeaders = [["KPI", "Target Achieved"]];
         const validKpiRows = kpiTracking
-          .map(t => [t.kpi || '', t.target || '', t.achieved || '', t.status || ''])
+          .map(t => [t.kpi || '', t.targetAchieved || t.achieved || t.status || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validKpiRows.length > 0) {
@@ -2340,10 +2338,8 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 75 },
-              1: { width: 35, halign: 'center' },
-              2: { width: 35, halign: 'center' },
-              3: { width: 37, halign: 'center' }
+              0: { width: 120 },
+              1: { width: 62, halign: 'center' }
             },
             margin: { left: 14, right: 14 }
           });
@@ -2353,9 +2349,9 @@ const AccountantReportPage = () => {
 
       // 10. ISSUES / SUPPORT REQUIRED
       if (!hiddenSections.issuesSupportRequired && Array.isArray(issuesSupportRequired)) {
-        const issueHeaders = [["Issue Description", "Impact Level", "Required Action"]];
+        const issueHeaders = [["Issue", "Priority", "Action Taken / Required"]];
         const validIssueRows = issuesSupportRequired
-          .map(t => [t.issue || t.description || '', t.impact || t.priority || '', t.action || t.actionTaken || ''])
+          .map(t => [t.issue || t.description || '', t.priority || t.impact || '', t.action || t.actionTaken || ''])
           .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
 
         if (validIssueRows.length > 0) {
@@ -2368,9 +2364,9 @@ const AccountantReportPage = () => {
             headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
             styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
             columnStyles: {
-              0: { width: 75 },
+              0: { width: 65 },
               1: { width: 35, halign: 'center' },
-              2: { width: 72 }
+              2: { width: 82 }
             },
             margin: { left: 14, right: 14 }
           });

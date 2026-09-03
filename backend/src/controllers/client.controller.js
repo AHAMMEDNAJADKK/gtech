@@ -114,11 +114,15 @@ export const getClientById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return sendError(res, 'Invalid Client ID format', 400);
+    if (!id || id === 'undefined' || id === 'null') {
+      return sendError(res, 'Client ID is required', 400);
     }
 
-    const client = await Client.findById(id)
+    const clientQuery = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ _id: id }, { clientId: id }] }
+      : { clientId: id };
+
+    const client = await Client.findOne(clientQuery)
       .populate('accountManager', 'name email avatar employeeId phone designation department')
       .populate('assignedTeamLead', 'name email avatar employeeId phone designation department')
       .populate('createdBy', 'name email')
@@ -129,17 +133,17 @@ export const getClientById = async (req, res) => {
       return sendError(res, 'Client not found', 404);
     }
 
-    const projects = await Project.find({ client: id })
+    const projects = await Project.find({ client: client._id })
       .populate('projectManager', 'name email avatar')
       .populate('assignedTeamLead', 'name email avatar')
       .populate('assignedEmployees', 'name email avatar role')
       .sort({ createdAt: -1 });
 
-    const documents = await ProjectDocument.find({ client: id })
+    const documents = await ProjectDocument.find({ client: client._id })
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
 
-    const activities = await ProjectActivity.find({ client: id })
+    const activities = await ProjectActivity.find({ client: client._id })
       .populate('user', 'name email avatar')
       .sort({ createdAt: -1 })
       .limit(20);
@@ -176,24 +180,24 @@ export const createClient = async (req, res) => {
 
     await newClient.save();
 
-    // Non-blocking activity logging to ensure log failures do not break transaction
+    const populatedClient = await Client.findById(newClient._id)
+      .populate('accountManager', 'name email avatar employeeId')
+      .populate('assignedTeamLead', 'name email avatar employeeId');
+
+    // Non-blocking activity logging
     try {
       if (userId) {
         await ProjectActivity.create({
           client: newClient._id,
           user: userId,
           action: 'CLIENT_CREATED',
-          title: `Client Account Initialized: ${newClient.companyName}`,
-          description: `Client profile created with ID ${clientId}`
+          title: `New Client Account Created: ${newClient.companyName}`,
+          description: `Client ID ${clientId} assigned`
         });
       }
     } catch (actErr) {
-      console.warn('Non-fatal warning: Client activity logging failed:', actErr.message);
+      console.warn('Non-fatal warning: Client creation activity logging failed:', actErr.message);
     }
-
-    const populatedClient = await Client.findById(newClient._id)
-      .populate('accountManager', 'name email avatar employeeId')
-      .populate('assignedTeamLead', 'name email avatar employeeId');
 
     return sendSuccess(res, 'Client created successfully', populatedClient, 201);
   } catch (error) {
@@ -210,15 +214,19 @@ export const updateClient = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return sendError(res, 'Invalid Client ID format', 400);
+    if (!id || id === 'undefined' || id === 'null') {
+      return sendError(res, 'Client ID is required', 400);
     }
+
+    const clientQuery = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ _id: id }, { clientId: id }] }
+      : { clientId: id };
 
     const userId = req.user?.id || req.user?._id || req.user?.userId;
     const sanitizedBody = sanitizeClientPayload(req.body);
 
-    const updatedClient = await Client.findByIdAndUpdate(
-      id,
+    const updatedClient = await Client.findOneAndUpdate(
+      clientQuery,
       {
         ...sanitizedBody,
         updatedBy: userId
@@ -262,11 +270,15 @@ export const deleteClient = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return sendError(res, 'Invalid Client ID format', 400);
+    if (!id || id === 'undefined' || id === 'null') {
+      return sendError(res, 'Client ID is required', 400);
     }
 
-    const client = await Client.findByIdAndDelete(id);
+    const clientQuery = mongoose.Types.ObjectId.isValid(id)
+      ? { $or: [{ _id: id }, { clientId: id }] }
+      : { clientId: id };
+
+    const client = await Client.findOneAndDelete(clientQuery);
     if (!client) {
       return sendError(res, 'Client not found', 404);
     }
@@ -275,7 +287,7 @@ export const deleteClient = async (req, res) => {
     try {
       if (userId) {
         await ProjectActivity.create({
-          client: id,
+          client: client._id,
           user: userId,
           action: 'CLIENT_DELETED',
           title: `Client Account Deleted: ${client.companyName}`,
@@ -286,7 +298,7 @@ export const deleteClient = async (req, res) => {
       console.warn('Non-fatal warning: Client deletion activity logging failed:', actErr.message);
     }
 
-    return sendSuccess(res, 'Client deleted successfully', { id });
+    return sendSuccess(res, 'Client deleted successfully', { id: client._id });
   } catch (error) {
     console.error('deleteClient Error:', error);
     return sendError(res, error.message, 500);

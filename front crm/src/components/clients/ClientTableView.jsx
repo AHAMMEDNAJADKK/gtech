@@ -123,7 +123,7 @@ const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
 
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
             {clients.map((client) => {
-              const id = client._id || client.id;
+              const id = client._id || client.id || client.clientId;
               const isSelected = selectedIds.includes(id);
               const managerName = client.accountManager?.name || 'Unassigned';
 

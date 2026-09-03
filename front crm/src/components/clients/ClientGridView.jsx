@@ -34,7 +34,7 @@ const ClientGridView = ({ clients, onDelete }) => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
       {clients.map((client) => {
-        const id = client._id || client.id;
+        const id = client._id || client.id || client.clientId;
         const managerName = client.accountManager?.name || client.primaryContact?.name || 'Unassigned';
         const teamLeadName = client.assignedTeamLead?.name;
 
