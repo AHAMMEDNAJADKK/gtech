@@ -124,12 +124,14 @@ export const getExpenses = async (params = {}) => {
 };
 
 export const createExpense = async (formData) => {
-  const response = await safePost('/expenses', formData, true);
+  const isMultipart = typeof FormData !== 'undefined' && formData instanceof FormData;
+  const response = await safePost('/expenses', formData, isMultipart);
   return response.data;
 };
 
 export const updateExpense = async (id, formData) => {
-  const response = await safePut(`/expenses/${id}`, formData, true);
+  const isMultipart = typeof FormData !== 'undefined' && formData instanceof FormData;
+  const response = await safePut(`/expenses/${id}`, formData, isMultipart);
   return response.data;
 };
 

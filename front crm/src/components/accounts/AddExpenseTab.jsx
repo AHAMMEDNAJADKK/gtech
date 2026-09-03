@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { getExpenseCategories, getExpenses, createExpense, deleteExpense, approveOrRejectExpense } from '../../services/accountsService';
+import { getExpenseCategories, getExpenses, createExpense, updateExpense, deleteExpense, approveOrRejectExpense } from '../../services/accountsService';
 import ExpenseCategoriesTab from './ExpenseCategoriesTab';
 import { 
   PlusCircle, 
@@ -12,6 +12,7 @@ import {
   Paperclip, 
   Trash2, 
   Eye, 
+  Edit3,
   X, 
   CheckCircle, 
   AlertCircle, 
@@ -36,6 +37,97 @@ const AddExpenseTab = () => {
     }
     return 'expenses';
   });
+
+  // Edit Expense State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [editExpenseSubmitting, setEditExpenseSubmitting] = useState(false);
+  const [editForm, setEditForm] = useState({
+    date: '',
+    paidTo: '',
+    category: '',
+    paymentMode: 'Cash',
+    amount: '',
+    description: ''
+  });
+
+  const handleOpenEdit = (exp) => {
+    const st = String(exp.status || 'PENDING').toUpperCase();
+    if (st === 'APPROVED') {
+      showToast('Approved expenses cannot be edited.', 'warning');
+      return;
+    }
+    setEditingExpense(exp);
+    let expDate = new Date().toISOString().split('T')[0];
+    if (exp.date) {
+      try {
+        expDate = new Date(exp.date).toISOString().split('T')[0];
+      } catch (e) {}
+    }
+    setEditForm({
+      date: expDate,
+      paidTo: exp.paidTo || '',
+      category: exp.category?._id || exp.category || '',
+      paymentMode: exp.paymentMode || 'Cash',
+      amount: exp.amount !== undefined ? String(exp.amount) : '',
+      description: exp.description || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingExpense) return;
+    if (!editForm.paidTo || !editForm.amount) {
+      showToast('Please fill in Paid To and Amount.', 'warning');
+      return;
+    }
+
+    setEditExpenseSubmitting(true);
+    try {
+      const payload = {
+        date: editForm.date,
+        paidTo: editForm.paidTo.trim(),
+        category: editForm.category || undefined,
+        paymentMode: editForm.paymentMode,
+        amount: parseFloat(editForm.amount) || 0,
+        description: editForm.description ? editForm.description.trim() : ''
+      };
+
+      const res = await updateExpense(editingExpense._id, payload);
+      if (res.success || res.data) {
+        const updatedRecord = res.data || {};
+        showToast('Expense updated successfully!', 'success');
+        setIsEditModalOpen(false);
+        setEditingExpense(null);
+        setExpenses(prev => prev.map(e => {
+          if (String(e._id || e.id) === String(editingExpense._id)) {
+            const selectedCat = categories.find(c => String(c._id) === String(payload.category));
+            return {
+              ...e,
+              ...updatedRecord,
+              date: payload.date || e.date,
+              paidTo: payload.paidTo,
+              amount: payload.amount,
+              totalAmount: payload.amount,
+              paymentMode: payload.paymentMode,
+              description: payload.description,
+              categoryName: selectedCat ? selectedCat.name : (updatedRecord.categoryName || e.categoryName)
+            };
+          }
+          return e;
+        }));
+        loadData();
+      } else {
+        showToast(res.message || 'Failed to update expense.', 'warning');
+      }
+    } catch (err) {
+      console.error('Error updating expense:', err);
+      showToast('Failed to update expense.', 'warning');
+    } finally {
+      setEditExpenseSubmitting(false);
+    }
+  };
 
   // Expense Opening Balance State
   const [showExpenseObModal, setShowExpenseObModal] = useState(false);
@@ -654,6 +746,15 @@ const AddExpenseTab = () => {
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
+                          {status === 'PENDING' && (
+                            <button
+                              onClick={() => handleOpenEdit(exp)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
+                              title="Edit Expense"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                          )}
                           {isApprover && status === 'PENDING' && (
                             <>
                               <button
@@ -1283,6 +1384,141 @@ const AddExpenseTab = () => {
                 Apply & Close
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Edit Expense Modal */}
+      {isEditModalOpen && editingExpense && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsEditModalOpen(false);
+          }}
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    Edit Expense Entry
+                  </h3>
+                  <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                    Modify expense details
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Expense Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={editForm.date}
+                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Paid To / Recipient</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Vendor / Employee Name"
+                    value={editForm.paidTo}
+                    onChange={(e) => setEditForm({ ...editForm, paidTo: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">-- Select Category --</option>
+                    {categories.map(cat => (
+                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Payment Mode</label>
+                  <select
+                    value={editForm.paymentMode}
+                    onChange={(e) => setEditForm({ ...editForm, paymentMode: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="UPI">UPI / Online</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  placeholder="0.00"
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Description / Remarks</label>
+                <textarea
+                  rows="2"
+                  placeholder="Additional expense purpose or notes..."
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editExpenseSubmitting}
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Edit3 size={14} />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

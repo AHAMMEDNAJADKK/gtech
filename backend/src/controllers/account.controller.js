@@ -437,7 +437,10 @@ export const updateExpense = async (req, res) => {
     }
 
     if (date) expense.date = new Date(date);
-    if (amount !== undefined) expense.amount = Number(amount);
+    if (amount !== undefined) {
+      expense.amount = Number(amount);
+      expense.totalAmount = Number(amount);
+    }
     if (paymentMode) expense.paymentMode = paymentMode;
     if (paidTo) expense.paidTo = paidTo.trim();
     if (description !== undefined) expense.description = description.trim();

@@ -23,14 +23,17 @@ import {
   UserPlus,
   Phone,
   MapPin,
-  Download
+  Download,
+  Edit3
 } from 'lucide-react';
 import {
   getSalaryPayments,
   approveOrRejectSalaryPayment,
   approveAllSalaryPayments,
   getExpenses,
-  approveOrRejectExpense
+  approveOrRejectExpense,
+  updateExpense,
+  getExpenseCategories
 } from '../services/accountsService';
 
 const rawApiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
@@ -74,6 +77,19 @@ export default function ApprovalsPage() {
   const [expenseSearch, setExpenseSearch] = useState('');
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+
+  // Edit Expense State
+  const [isEditExpenseModalOpen, setIsEditExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [editExpenseForm, setEditExpenseForm] = useState({
+    date: '',
+    paidTo: '',
+    category: '',
+    paymentMode: 'Cash',
+    amount: '',
+    description: ''
+  });
+  const [expenseCategoriesList, setExpenseCategoriesList] = useState([]);
 
   // Recruitment Approvals State
   const [recruitmentCandidates, setRecruitmentCandidates] = useState([]);
@@ -214,6 +230,98 @@ export default function ApprovalsPage() {
       }
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to reject expense.', 'error');
+    } finally {
+      setExpenseSubmitting(false);
+    }
+  };
+
+  const fetchExpenseCategoriesList = async () => {
+    try {
+      const res = await getExpenseCategories();
+      if (Array.isArray(res)) {
+        setExpenseCategoriesList(res);
+      } else if (res?.data && Array.isArray(res.data)) {
+        setExpenseCategoriesList(res.data);
+      }
+    } catch (err) {
+      console.warn('Error loading categories:', err);
+    }
+  };
+
+  const handleOpenEditExpense = (exp) => {
+    const st = String(exp.status || 'PENDING').toUpperCase();
+    if (st === 'APPROVED') {
+      showToast('Approved expenses cannot be edited.', 'error');
+      return;
+    }
+    setEditingExpense(exp);
+    let expDate = new Date().toISOString().split('T')[0];
+    if (exp.date) {
+      try {
+        expDate = new Date(exp.date).toISOString().split('T')[0];
+      } catch (e) {}
+    }
+    setEditExpenseForm({
+      date: expDate,
+      paidTo: exp.paidTo || '',
+      category: exp.category?._id || exp.category || '',
+      paymentMode: exp.paymentMode || 'Cash',
+      amount: exp.amount !== undefined ? String(exp.amount) : '',
+      description: exp.description || ''
+    });
+    setIsEditExpenseModalOpen(true);
+    fetchExpenseCategoriesList();
+  };
+
+  const handleSaveExpenseEdit = async (e) => {
+    e.preventDefault();
+    if (!editingExpense) return;
+    if (!editExpenseForm.paidTo || !editExpenseForm.amount) {
+      showToast('Please fill in Paid To and Amount.', 'error');
+      return;
+    }
+
+    setExpenseSubmitting(true);
+    try {
+      const payload = {
+        date: editExpenseForm.date,
+        paidTo: editExpenseForm.paidTo.trim(),
+        category: editExpenseForm.category || undefined,
+        paymentMode: editExpenseForm.paymentMode,
+        amount: parseFloat(editExpenseForm.amount) || 0,
+        description: editExpenseForm.description ? editExpenseForm.description.trim() : ''
+      };
+
+      const res = await updateExpense(editingExpense._id, payload);
+      if (res.success || res.data) {
+        const updatedRecord = res.data || {};
+        showToast('Pending expense updated successfully!');
+        setIsEditExpenseModalOpen(false);
+        setEditingExpense(null);
+        setExpenses(prev => prev.map(e => {
+          if (String(e._id || e.id) === String(editingExpense._id)) {
+            const selectedCat = expenseCategoriesList.find(c => String(c._id) === String(payload.category));
+            return {
+              ...e,
+              ...updatedRecord,
+              date: payload.date || e.date,
+              paidTo: payload.paidTo,
+              amount: payload.amount,
+              totalAmount: payload.amount,
+              paymentMode: payload.paymentMode,
+              description: payload.description,
+              categoryName: selectedCat ? selectedCat.name : (updatedRecord.categoryName || e.categoryName)
+            };
+          }
+          return e;
+        }));
+        fetchExpenses();
+      } else {
+        showToast(res.message || 'Failed to update expense.', 'error');
+      }
+    } catch (err) {
+      console.error('Error updating expense:', err);
+      showToast('Failed to update pending expense.', 'error');
     } finally {
       setExpenseSubmitting(false);
     }
@@ -1112,20 +1220,27 @@ export default function ApprovalsPage() {
                         Requires MD Approval (&gt; ₹1k)
                       </span>
                       {status === 'PENDING' ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditExpense(exp)}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                            title="Edit Pending Expense"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" /> Edit
+                          </button>
                           <button
                             onClick={() => {
                               setSelectedExpense(exp);
                               setRejectionReason('');
                             }}
-                            className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                           >
                             Reject
                           </button>
                           <button
                             onClick={() => handleApproveExpense(exp._id)}
                             disabled={expenseSubmitting}
-                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
                           >
                             <Check className="w-3.5 h-3.5" /> Approve
                           </button>
@@ -1197,20 +1312,27 @@ export default function ApprovalsPage() {
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           {status === 'PENDING' ? (
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenEditExpense(exp)}
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                title="Edit Pending Expense"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" /> Edit
+                              </button>
                               <button
                                 onClick={() => {
                                   setSelectedExpense(exp);
                                   setRejectionReason('');
                                 }}
-                                className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                               >
                                 Reject
                               </button>
                               <button
                                 onClick={() => handleApproveExpense(exp._id)}
                                 disabled={expenseSubmitting}
-                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
                               >
                                 <Check className="w-3.5 h-3.5" /> Approve
                               </button>
@@ -1706,6 +1828,150 @@ export default function ApprovalsPage() {
               </div>
             </form>
           </motion.div>
+        </div>
+      )}
+
+      {/* Edit Pending Expense Modal */}
+      {isEditExpenseModalOpen && editingExpense && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsEditExpenseModalOpen(false);
+          }}
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    Edit Pending Expense
+                  </h3>
+                  <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                    Modify expense details before approval
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditExpenseModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExpenseEdit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Expense Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={editExpenseForm.date}
+                    onChange={(e) => setEditExpenseForm({ ...editExpenseForm, date: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Paid To / Recipient</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Vendor / Employee Name"
+                    value={editExpenseForm.paidTo}
+                    onChange={(e) => setEditExpenseForm({ ...editExpenseForm, paidTo: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Category</label>
+                  {expenseCategoriesList.length > 0 ? (
+                    <select
+                      value={editExpenseForm.category}
+                      onChange={(e) => setEditExpenseForm({ ...editExpenseForm, category: e.target.value })}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">-- Select Category --</option>
+                      {expenseCategoriesList.map(cat => (
+                        <option key={cat._id} value={cat._id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Category name"
+                      value={editExpenseForm.category}
+                      onChange={(e) => setEditExpenseForm({ ...editExpenseForm, category: e.target.value })}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Payment Mode</label>
+                  <select
+                    value={editExpenseForm.paymentMode}
+                    onChange={(e) => setEditExpenseForm({ ...editExpenseForm, paymentMode: e.target.value })}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="UPI">UPI / Online</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  placeholder="0.00"
+                  value={editExpenseForm.amount}
+                  onChange={(e) => setEditExpenseForm({ ...editExpenseForm, amount: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Description / Remarks</label>
+                <textarea
+                  rows="2"
+                  placeholder="Additional expense purpose or notes..."
+                  value={editExpenseForm.description}
+                  onChange={(e) => setEditExpenseForm({ ...editExpenseForm, description: e.target.value })}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditExpenseModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={expenseSubmitting}
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Edit3 size={14} />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
