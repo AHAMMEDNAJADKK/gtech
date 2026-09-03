@@ -620,11 +620,6 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations, cu
       fd.append('subtasks', JSON.stringify(initialSubtasks.map(t => ({ title: t, completed: false }))));
     }
 
-  // DEBUG
-  for (let pair of fd.entries()) {
-    console.log(pair[0], pair[1]);
-  }
-
   try {
     const res = await fetch(`${API_BASE}/tasks/create`, {
       method: "POST",
@@ -634,9 +629,6 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations, cu
 
     const data = await res.json();
 
-    console.log("STATUS:", res.status);
-    console.log("RESPONSE:", data);
-    console.log("ERRORS FULL:", JSON.stringify(data.errors, null, 2));
     if (!res.ok) {
       showToast(data.message || "Task creation failed", "error");
       return;

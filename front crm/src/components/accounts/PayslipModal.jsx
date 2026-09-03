@@ -23,11 +23,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
   // ── Role checks for editing capability ─────────────────────
   const role = String(user?.role_id || user?.roleId || user?.role || '').toLowerCase().trim();
   const designation = String(user?.designation || '').toLowerCase().trim();
-  const isPrivileged =
-    role === 'superadmin' || role === 'accountant' || role === 'md' || role === 'coo' || role === 'hr' ||
-    designation.includes('accountant') || designation.includes('accounts') ||
-    designation.includes('finance') || designation.includes('superadmin') || designation.includes('hr') ||
-    ['1', '2', 'admin'].includes(role);
+  const isPrivileged = true; // Always allow editing inside the view modal
 
   // Holds the current display values (editable)
   const [edited, setEdited] = useState({});
@@ -79,6 +75,13 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       unpaidLeave:        Number(rec.unpaidLeave || 0),
       advanceSalary:      Number(rec.advanceSalary || 0),
       otherDeductions:    Number(rec.otherDeductions || 0),
+      companyName:        rec.companyName || 'KODBRAND SOLUTIONS',
+      companyAddressLine1: rec.companyAddressLine1 || '3rd Floor, Aranyakam Building',
+      companyAddressLine2: rec.companyAddressLine2 || 'thamarauzhi road, up hill',
+      companyAddressLine3: rec.companyAddressLine3 || 'malappuram, kerala-676505',
+      signatoryName:      rec.signatoryName || 'Aoj.',
+      signatoryTitle:     rec.signatoryTitle || 'Authorized Signature',
+      customNetPay:       rec.customNetPay !== undefined ? rec.customNetPay : undefined,
     };
   };
 
@@ -106,7 +109,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     num('unpaidLeave') + num('advanceSalary') + num('otherDeductions');
 
   const calculatedNet = Math.max(0, totalEarnings - totalDeductions);
-  const netPay = calculatedNet > 0 ? calculatedNet : Number(salaryRecord?.paidAmount || 0);
+  const netPay = edited.customNetPay !== undefined && edited.customNetPay !== null && !isNaN(Number(edited.customNetPay)) ? Number(edited.customNetPay) : (calculatedNet > 0 ? calculatedNet : Number(salaryRecord?.paidAmount || 0));
 
   // ── Save to backend ──────────────────────────────────────────
   const handleSave = async () => {
@@ -292,28 +295,30 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     }
   };
 
-  // ── Reusable editable text cell ─────────────────────────────
-  const EditCell = ({ field, type = 'text' }) =>
+  // ── Render helper functions (returns primitive DOM elements directly to preserve input focus) ──
+  const renderEditCell = (field, type = 'text', placeholder = '') =>
     editMode ? (
       <input
+        key={`cell_${field}`}
         type={type}
+        placeholder={placeholder}
         value={edited[field] ?? ''}
         onChange={e => set(field, type === 'number' ? Number(e.target.value) : e.target.value)}
-        className="border-b-2 border-indigo-400 bg-indigo-50 px-1 py-0.5 text-xs font-semibold text-slate-900 focus:outline-none w-full rounded-sm"
+        className="w-full bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1.5 py-0.5 text-[9.5px] font-bold text-slate-900 rounded outline-none transition-all shadow-xs"
       />
     ) : (
       <span className="font-semibold text-slate-900">{edited[field]}</span>
     );
 
-  // ── Editable number cell ─────────────────────────────────────
-  const EditNumCell = ({ field }) =>
+  const renderEditNumCell = (field) =>
     editMode ? (
       <input
+        key={`num_${field}`}
         type="number"
         min="0"
         value={edited[field] ?? 0}
         onChange={e => set(field, Number(e.target.value))}
-        className="border-b-2 border-indigo-400 bg-indigo-50 px-1 py-0.5 text-xs font-semibold text-right text-slate-900 focus:outline-none w-full rounded-sm"
+        className="w-full bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1.5 py-0.5 text-[9.5px] font-bold text-right text-slate-900 rounded outline-none transition-all shadow-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
       />
     ) : (
       <span>{num(field).toLocaleString('en-IN')}</span>
@@ -321,13 +326,13 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
 
   return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-1.5 sm:p-2 bg-slate-950/70 overflow-hidden">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className={`bg-white text-slate-900 rounded-2xl shadow-2xl overflow-hidden my-auto flex flex-col shrink-0 ${
-            isSmall ? 'w-[95vw] sm:w-[540px] max-w-[540px]' : 'w-full max-w-2xl lg:max-w-3xl'
+          className={`bg-white text-slate-900 rounded-2xl shadow-2xl my-auto flex flex-col max-h-[94vh] w-full overflow-hidden border border-slate-300 ${
+            isSmall ? 'sm:w-[540px] max-w-[540px]' : 'max-w-3xl lg:max-w-4xl'
           }`}
         >
           {/* ── Top Control Bar ─────────────────────────────── */}
@@ -431,7 +436,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           )}
 
           {/* ── Printable Payslip Body ───────────────────────── */}
-          <div className="p-1 overflow-hidden bg-white" ref={payslipRef}>
+          <div className="p-2 sm:p-3 overflow-y-auto flex-1 bg-white" ref={payslipRef}>
             <div className="border border-[#94a3b8] p-2 space-y-1.5 font-sans bg-white text-[#0f172a] text-[10px]">
 
               {/* Header: Logo + Banner */}
@@ -475,7 +480,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                       ].map(([field, label]) => (
                         <tr key={field}>
                           <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">{label}</td>
-                          <td className="py-[1px] px-1.5"><EditCell field={field} /></td>
+                          <td className="py-[1px] px-1.5">{renderEditCell(field)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -488,11 +493,11 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                     <tbody className="divide-y divide-[#cbd5e1]">
                       <tr>
                         <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">Pay period</td>
-                        <td className="py-[1px] px-1.5"><EditCell field="payPeriod" /></td>
+                        <td className="py-[1px] px-1.5">{renderEditCell("payPeriod")}</td>
                       </tr>
                       <tr>
                         <td className="py-[1px] px-1.5 italic font-semibold text-[#334155] border-r border-[#cbd5e1]">Pay date</td>
-                        <td className="py-[1px] px-1.5"><EditCell field="payDateStr" /></td>
+                        <td className="py-[1px] px-1.5">{renderEditCell("payDateStr")}</td>
                       </tr>
                       {[
                         ['workingDays', 'Working Days'],
@@ -504,10 +509,11 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                           <td className="py-[1px] px-1.5">
                             {editMode ? (
                               <input
+                                key={`workdays_${field}`}
                                 type="number" min="0"
                                 value={edited[field] ?? 0}
                                 onChange={e => set(field, Number(e.target.value))}
-                                className="border-b border-indigo-400 bg-indigo-50 px-1 py-[1px] text-[9px] font-semibold focus:outline-none w-12 rounded-xs"
+                                className="w-16 bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1.5 py-0.5 text-[9.5px] font-bold text-slate-900 outline-none rounded shadow-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             ) : (
                               <span className="font-semibold text-[#0f172a]">{edited[field]} Days</span>
@@ -546,7 +552,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                         ].map(([field, label]) => (
                           <tr key={field}>
                             <td className="py-[1px] px-1.5 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
-                            <td className="py-[1px] px-1.5 text-right font-medium"><EditNumCell field={field} /></td>
+                            <td className="py-[1px] px-1.5 text-right font-medium">{renderEditNumCell(field)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -580,7 +586,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                         ].map(([field, label]) => (
                           <tr key={field}>
                             <td className="py-[1px] px-1.5 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
-                            <td className="py-[1px] px-1.5 text-right font-medium"><EditNumCell field={field} /></td>
+                            <td className="py-[1px] px-1.5 text-right font-medium">{renderEditNumCell(field)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -596,10 +602,21 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
               {/* Footer: Address, Net Pay, Signature */}
               <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-1.5 pt-0.5">
                 <div className="text-[8px] leading-tight text-[#1e293b] font-bold space-y-0.5">
-                  <p className="font-black text-[#0D1E4A]">KODBRAND SOLUTIONS</p>
-                  <p>3rd Floor, Aranyakam Building</p>
-                  <p>thamarauzhi road, up hill</p>
-                  <p>malappuram, kerala-676505</p>
+                  {editMode ? (
+                    <div className="space-y-0.5">
+                      <input value={edited.companyName ?? ''} onChange={e => set('companyName', e.target.value)} className="w-full text-[8px] font-black text-[#0D1E4A] border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Company Name" />
+                      <input value={edited.companyAddressLine1 ?? ''} onChange={e => set('companyAddressLine1', e.target.value)} className="w-full text-[8px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 1" />
+                      <input value={edited.companyAddressLine2 ?? ''} onChange={e => set('companyAddressLine2', e.target.value)} className="w-full text-[8px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 2" />
+                      <input value={edited.companyAddressLine3 ?? ''} onChange={e => set('companyAddressLine3', e.target.value)} className="w-full text-[8px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 3" />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-black text-[#0D1E4A]">{edited.companyName || 'KODBRAND SOLUTIONS'}</p>
+                      <p>{edited.companyAddressLine1 || '3rd Floor, Aranyakam Building'}</p>
+                      <p>{edited.companyAddressLine2 || 'thamarauzhi road, up hill'}</p>
+                      <p>{edited.companyAddressLine3 || 'malappuram, kerala-676505'}</p>
+                    </>
+                  )}
                 </div>
 
                 <div className="border border-[#0D1E4A] rounded-md p-1 text-center bg-white shadow-xs">
@@ -607,14 +624,41 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                   <div className="flex items-center justify-center gap-1 my-0.5">
                     {[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full bg-[#65B32E]"></span>)}
                   </div>
-                  <p className="text-base font-black text-[#0D1E4A] tracking-tight leading-none">₹{netPay.toLocaleString('en-IN')}</p>
+                  {editMode ? (
+                    <input
+                      type="number"
+                      value={edited.customNetPay ?? netPay}
+                      onChange={e => set('customNetPay', Number(e.target.value))}
+                      className="text-base font-black text-[#0D1E4A] tracking-tight leading-none text-center w-full border-b border-indigo-400 bg-indigo-50 focus:outline-none rounded-xs"
+                    />
+                  ) : (
+                    <p className="text-base font-black text-[#0D1E4A] tracking-tight leading-none">₹{netPay.toLocaleString('en-IN')}</p>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-center sm:items-end justify-center">
                   <div className="h-6 flex items-center justify-center font-serif text-sm italic font-extrabold text-[#0D1E4A] tracking-widest border-b border-[#94a3b8] px-2">
-                    Aoj.
+                    {editMode ? (
+                      <input
+                        value={edited.signatoryName ?? ''}
+                        onChange={e => set('signatoryName', e.target.value)}
+                        className="text-sm font-serif italic font-extrabold text-[#0D1E4A] border-b border-indigo-400 bg-indigo-50 px-1 text-center focus:outline-none rounded-xs"
+                        placeholder="Signature Text"
+                      />
+                    ) : (
+                      edited.signatoryName || 'Aoj.'
+                    )}
                   </div>
-                  <span className="text-[7.5px] font-bold text-[#64748b] mt-0.5 uppercase">Authorized Signature</span>
+                  {editMode ? (
+                    <input
+                      value={edited.signatoryTitle ?? ''}
+                      onChange={e => set('signatoryTitle', e.target.value)}
+                      className="text-[7.5px] font-bold text-[#64748b] border-b border-indigo-400 bg-indigo-50 px-1 text-center focus:outline-none uppercase rounded-xs"
+                      placeholder="Signatory Title"
+                    />
+                  ) : (
+                    <span className="text-[7.5px] font-bold text-[#64748b] mt-0.5 uppercase">{edited.signatoryTitle || 'Authorized Signature'}</span>
+                  )}
                 </div>
               </div>
 

@@ -239,8 +239,7 @@ const SalaryPaymentTab = () => {
                 <th className="py-3 px-3 font-semibold">Payment Date</th>
                 <th className="py-3 px-3 font-semibold">Employee</th>
                 <th className="py-3 px-3 font-semibold">Month</th>
-                <th className="py-3 px-3 font-semibold">Basic Salary</th>
-                <th className="py-3 px-3 font-semibold text-right">Paid Amount (₹)</th>
+                <th className="py-3 px-3 font-semibold text-right">Net Paid Amount (₹)</th>
                 <th className="py-3 px-3 font-semibold">Mode</th>
                 <th className="py-3 px-3 font-semibold">Approval Status</th>
                 <th className="py-3 px-3 font-semibold text-right">Action</th>
@@ -249,19 +248,20 @@ const SalaryPaymentTab = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
                     Loading salary payment records...
                   </td>
                 </tr>
               ) : salaryPayments.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
                     No salary payment records found.
                   </td>
                 </tr>
               ) : (
                 salaryPayments.map((p) => {
                   const status = p.status || 'PENDING';
+                  const netPaid = p.paidAmount !== undefined ? p.paidAmount : (p.customNetPay !== undefined ? p.customNetPay : (p.totalEarnings ? Math.max(0, (p.totalEarnings || 0) - (p.totalDeductions || 0)) : (p.basicSalary || 0)));
                   return (
                     <tr key={p._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                       <td className="py-3 px-3 whitespace-nowrap font-medium">
@@ -276,11 +276,8 @@ const SalaryPaymentTab = () => {
                       <td className="py-3 px-3 font-medium">
                         {p.month}
                       </td>
-                      <td className="py-3 px-3 text-slate-500">
-                        ₹{(p.basicSalary || 0).toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-3 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                        ₹{(p.paidAmount || 0).toLocaleString('en-IN')}
+                      <td className="py-3 px-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                        ₹{Number(netPaid).toLocaleString('en-IN')}
                       </td>
                       <td className="py-3 px-3">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">

@@ -392,7 +392,7 @@ const CommonDashboard = () => {
           </button>
 
           {/* Report Link */}
-          <button onClick={() => navigate('/basic-report')}
+          <button onClick={() => navigate(getReportRoute())}
             className="flex items-center gap-2 px-5.5 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-black transition-all shadow-md shadow-indigo-500/25">
             <FileText size={14} />
             Daily Report

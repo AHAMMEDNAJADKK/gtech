@@ -322,6 +322,17 @@ const StudentAttendance = () => {
     setEditingStudent(student);
     const existingImg = student.profile_image || student.avatar || '';
     setImagePreview(existingImg || null);
+
+    let formattedDob = '';
+    if (student.dateOfBirth) {
+      try {
+        const dobStr = String(student.dateOfBirth);
+        formattedDob = dobStr.includes('T') ? dobStr.split('T')[0] : new Date(dobStr).toISOString().split('T')[0];
+      } catch (e) {
+        formattedDob = student.dateOfBirth || '';
+      }
+    }
+
     setFormData({
       name: student.name || '',
       email: student.email || '',
@@ -334,7 +345,7 @@ const StudentAttendance = () => {
       identityType: student.identityType || 'aadhaar',
       identityNumber: student.identityNumber || '',
       profile_image: existingImg,
-      dateOfBirth: student.dateOfBirth || '',
+      dateOfBirth: formattedDob,
       gender: student.gender || '',
       alternatePhone: student.alternatePhone || '',
       city: student.city || '',
@@ -378,29 +389,31 @@ const StudentAttendance = () => {
     const idType = formData.identityType;
     const idNum = (formData.identityNumber || '').trim();
 
-    if (!idNum) {
+    if (!editingStudent && !idNum) {
       showToast('ID Document Number is required.', 'warning');
       setIsAddingStudent(false);
       return;
     }
 
     let cleanIdentityNumber = idNum;
-    if (idType === 'aadhaar') {
-      const cleanAadhaar = idNum.replace(/[\s-]/g, '');
-      if (!/^\d{12}$/.test(cleanAadhaar)) {
-        showToast('Aadhaar Card number must be exactly 12 digits.', 'warning');
-        setIsAddingStudent(false);
-        return;
+    if (idNum) {
+      if (idType === 'aadhaar') {
+        const cleanAadhaar = idNum.replace(/[\s-]/g, '');
+        if (!/^\d{12}$/.test(cleanAadhaar)) {
+          showToast('Aadhaar Card number must be exactly 12 digits.', 'warning');
+          setIsAddingStudent(false);
+          return;
+        }
+        cleanIdentityNumber = cleanAadhaar;
+      } else if (idType === 'pancard') {
+        const cleanPAN = idNum.toUpperCase();
+        if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(cleanPAN)) {
+          showToast('Invalid PAN Card format. E.g. ABCDE1234F', 'warning');
+          setIsAddingStudent(false);
+          return;
+        }
+        cleanIdentityNumber = cleanPAN;
       }
-      cleanIdentityNumber = cleanAadhaar;
-    } else if (idType === 'pancard') {
-      const cleanPAN = idNum.toUpperCase();
-      if (!/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(cleanPAN)) {
-        showToast('Invalid PAN Card format. E.g. ABCDE1234F', 'warning');
-        setIsAddingStudent(false);
-        return;
-      }
-      cleanIdentityNumber = cleanPAN;
     }
 
     const finalPayload = { 
@@ -409,6 +422,10 @@ const StudentAttendance = () => {
       salary: 1, 
       role_id: STUDENT_ROLE_ID 
     };
+
+    if (editingStudent && !finalPayload.password) {
+      delete finalPayload.password;
+    }
 
     try {
       let response;
@@ -703,20 +720,12 @@ const StudentAttendance = () => {
                       </div>
 
                       <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => handleOpenProfile(studentId)}
-                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Eye size={12} /> Profile
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(s)}
-                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
-                          >
-                            <Edit size={12} /> Edit
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleOpenProfile(studentId)}
+                          className="w-full py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Eye size={12} /> Profile
+                        </button>
 
                         <div className="grid grid-cols-2 gap-3">
                           <button 
@@ -797,13 +806,6 @@ const StudentAttendance = () => {
                                 >
                                   <Eye size={14} />
                                 </button>
-                                <button
-                                  onClick={() => handleOpenEditModal(s)}
-                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
-                                  title="Edit Student"
-                                >
-                                  <Edit size={14} />
-                                </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'present')} 
                                   className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'PRESENT' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
@@ -869,7 +871,6 @@ const StudentAttendance = () => {
           setIsProfileModalOpen(false);
           setSelectedProfileStudentId(null);
         }}
-        onEditStudent={handleOpenEditModal}
         getHeaders={getHeaders}
       />
 

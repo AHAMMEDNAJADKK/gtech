@@ -30,6 +30,7 @@ const ExpenseReportsTab = () => {
   const [reportData, setReportData] = useState(null);
   const [incomes, setIncomes] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [capitals, setCapitals] = useState([]);
   const [error, setError] = useState('');
 
   // Daily Filter
@@ -48,7 +49,7 @@ const ExpenseReportsTab = () => {
 
   // Search, Filter & Sort Controls
   const [searchTerm, setSearchTerm] = useState('');
-  const [flowFilter, setFlowFilter] = useState('ALL'); // 'ALL' | 'INCOME' | 'EXPENSE' | 'PURCHASE'
+  const [flowFilter, setFlowFilter] = useState('ALL'); // 'ALL' | 'INCOME' | 'EXPENSE' | 'PURCHASE' | 'CAPITAL'
   const [sortBy, setSortBy] = useState('date-desc'); // 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'
 
   const fetchIncomeData = async () => {
@@ -84,7 +85,7 @@ const ExpenseReportsTab = () => {
           setPurchases(savedLocal);
         }
       } else {
-        setPurchases(savedLocal);
+          setPurchases(savedLocal);
       }
     } catch (e) {
       const saved = localStorage.getItem('crm_purchase_records');
@@ -92,11 +93,29 @@ const ExpenseReportsTab = () => {
     }
   };
 
+  const fetchCapitalData = async () => {
+    try {
+      const savedLocal = JSON.parse(localStorage.getItem('crm_capital_records') || '[]');
+      const res = await fetch(getApiEndpoint('/accounts/capital'), { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setCapitals(data.data);
+          return;
+        }
+      }
+      setCapitals(savedLocal);
+    } catch (e) {
+      const saved = localStorage.getItem('crm_capital_records');
+      if (saved) setCapitals(JSON.parse(saved));
+    }
+  };
+
   const fetchReport = async () => {
     setLoading(true);
     setError('');
     try {
-      await Promise.all([fetchIncomeData(), fetchPurchaseData()]);
+      await Promise.all([fetchIncomeData(), fetchPurchaseData(), fetchCapitalData()]);
 
       if (activeReportSubTab === 'daily') {
         const res = await getDailyReport({ date: dailyDate });
@@ -144,8 +163,17 @@ const ExpenseReportsTab = () => {
     });
   };
 
+  const getDailyCapitals = () => {
+    if (!dailyDate || !Array.isArray(capitals)) return [];
+    return capitals.filter(cap => {
+      const capDate = cap.date ? new Date(cap.date).toISOString().split('T')[0] : '';
+      return capDate === dailyDate;
+    });
+  };
+
   const dayIncomesList = getDailyIncomes();
   const dayPurchasesList = getDailyPurchases();
+  const dayCapitalsList = getDailyCapitals();
 
   const dayBackendList = reportData?.data || [];
   const dayBackendPurchases = dayBackendList.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory'));
@@ -171,9 +199,11 @@ const ExpenseReportsTab = () => {
   };
 
   const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + getPaidIncomeAmt(item), 0);
+  const dayCapitalTotal = dayCapitalsList.reduce((sum, item) => sum + (Number(item.totalCapital || 0) || (Number(item.amount || 0) + Number(item.openingBalance || 0))), 0);
+  const dayTotalSales = dayIncomesList.reduce((sum, item) => sum + (Number(item.totalAmount || item.amount) || 0), 0);
   const dayExpenseTotal = dayBackendGenExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const dayTotalOutflow = dayExpenseTotal + dayPurchaseTotal;
-  const dayNetSurplus = dayIncomeTotal - dayTotalOutflow;
+  const dayNetSurplus = (dayIncomeTotal + dayCapitalTotal) - dayTotalOutflow;
 
   const getDailyCombinedRegister = () => {
     const combined = [];
@@ -188,11 +218,25 @@ const ExpenseReportsTab = () => {
         category: inc.department || 'Income',
         payee: inc.clientName || 'Client',
         paymentMode: inc.paymentMethod || 'Bank Transfer',
-        amount: Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0
+        amount: getPaidIncomeAmt(inc)
       });
     });
 
-    // 2. Day Expenses from backend reportData
+    // 2. Day Capitals
+    dayCapitalsList.forEach(cap => {
+      combined.push({
+        _id: cap._id || cap.id,
+        flowType: 'CAPITAL',
+        date: cap.date || dailyDate,
+        title: cap.remarks ? `Capital: ${cap.remarks}` : 'Capital Account Inflow',
+        category: 'Capital Account',
+        payee: cap.investorName || 'Investor / Contributor',
+        paymentMode: cap.paymentMethod || 'Bank Transfer',
+        amount: Number(cap.totalCapital || 0) || (Number(cap.amount || 0) + Number(cap.openingBalance || 0))
+      });
+    });
+
+    // 3. Day Expenses from backend reportData
     const addedIds = new Set();
     dayBackendList.forEach(exp => {
       addedIds.add(String(exp._id));
@@ -210,7 +254,7 @@ const ExpenseReportsTab = () => {
       });
     });
 
-    // 3. Day Purchases from dayPurchasesList not in addedIds
+    // 4. Day Purchases from dayPurchasesList not in addedIds
     dayPurchasesList.forEach(pur => {
       const pId = String(pur._id || pur.id);
       if (!addedIds.has(pId)) {
@@ -231,7 +275,7 @@ const ExpenseReportsTab = () => {
     return combined;
   };
 
-  // Helper calculations for Monthly Income, Purchases & Expense
+  // Helper calculations for Monthly Income, Purchases, Capital & Expense
   const getMonthlyIncomes = () => {
     if (!Array.isArray(incomes)) return [];
     const targetMonth = parseInt(monthlyMonth, 10);
@@ -255,9 +299,23 @@ const ExpenseReportsTab = () => {
     });
   };
 
+  const getMonthlyCapitals = () => {
+    if (!Array.isArray(capitals)) return [];
+    const targetMonth = parseInt(monthlyMonth, 10);
+    const targetYear = parseInt(monthlyYear, 10);
+    return capitals.filter(cap => {
+      if (!cap.date) return false;
+      const d = new Date(cap.date);
+      return d.getMonth() + 1 === targetMonth && d.getFullYear() === targetYear;
+    });
+  };
+
   const monthIncomesList = getMonthlyIncomes();
   const monthPurchasesList = getMonthlyPurchases();
-  const monthIncomeTotal = monthIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
+  const monthCapitalsList = getMonthlyCapitals();
+
+  const monthIncomeTotal = monthIncomesList.reduce((sum, item) => sum + getPaidIncomeAmt(item), 0);
+  const monthCapitalTotal = monthCapitalsList.reduce((sum, item) => sum + (Number(item.totalCapital || 0) || (Number(item.amount || 0) + Number(item.openingBalance || 0))), 0);
 
   // Consolidated Backend + Local Expense & Purchase Lists
   const backendExpList = reportData?.data || [];
@@ -269,9 +327,10 @@ const ExpenseReportsTab = () => {
   monthBackendPurchases.forEach(p => allMonthlyPurchasesMap.set(String(p._id || p.id), p));
   const monthPurchaseTotal = Array.from(allMonthlyPurchasesMap.values()).reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
 
+  const monthTotalSales = monthIncomesList.reduce((sum, item) => sum + (Number(item.totalAmount || item.amount) || 0), 0);
   const monthGeneralExpenseTotal = monthBackendGenExp.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const monthTotalOutflow = monthGeneralExpenseTotal + monthPurchaseTotal;
-  const monthNetProfit = monthIncomeTotal - monthTotalOutflow;
+  const monthNetProfit = (monthIncomeTotal + monthCapitalTotal) - monthTotalOutflow;
 
   const getMonthlyCombinedRegister = () => {
     const combined = [];
@@ -284,7 +343,20 @@ const ExpenseReportsTab = () => {
         category: inc.department || 'Income',
         payee: inc.clientName || 'Client',
         paymentMode: inc.paymentMethod || 'Bank Transfer',
-        amount: Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0
+        amount: getPaidIncomeAmt(inc)
+      });
+    });
+
+    monthCapitalsList.forEach(cap => {
+      combined.push({
+        _id: cap._id || cap.id,
+        flowType: 'CAPITAL',
+        date: cap.date,
+        title: cap.remarks ? `Capital: ${cap.remarks}` : 'Capital Account Inflow',
+        category: 'Capital Account',
+        payee: cap.investorName || 'Investor / Contributor',
+        paymentMode: cap.paymentMethod || 'Bank Transfer',
+        amount: Number(cap.totalCapital || 0) || (Number(cap.amount || 0) + Number(cap.openingBalance || 0))
       });
     });
 
@@ -482,70 +554,103 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
-          {/* Comprehensive 6-Column Profit & Loss Metric Cards for Daily View */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+          {/* Comprehensive 9-Column Profit & Loss Metric Cards for Daily View */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Opening</p>
-                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Sales (Billed)</p>
+                <DollarSign size={16} className="text-blue-600 dark:text-blue-400" />
               </div>
-              <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
-                ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}
+              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.totalBilledIncome !== undefined ? reportData.summary.totalBilledIncome : dayTotalSales).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">As of Day Start</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Total Invoiced Sales</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Income Received</p>
                 <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
                 +₹{((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal).toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">Inc. OB ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Capital Account</p>
+                <Coins size={16} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                +₹{dayCapitalTotal.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Capital Inflow</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Purchases</p>
+                <ShoppingCart size={16} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.purchaseTotal !== undefined ? reportData.summary.purchaseTotal : purchases.filter(p => (p.date ? new Date(p.date).toISOString().split('T')[0] : '') === dailyDate).reduce((s, p) => s + (Number(p.amount || p.totalAmount) || 0), 0)).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Vendor Procurement</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">General Expenses</p>
+                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <h4 className="text-base font-black text-purple-600 dark:text-purple-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.generalExpenseTotal !== undefined ? reportData.summary.generalExpenseTotal : dayExpenseTotal).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Ops & Utilities Outflow</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Opening</p>
+                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">As of Day Start</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Expense Opening</p>
                 <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
               </div>
-              <h4 className="text-lg font-black text-rose-600 dark:text-rose-400 mt-1.5 font-mono">
+              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono">
                 ₹{(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">As of Day Start</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Outflows</p>
-                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
-              </div>
-              <h4 className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1.5 font-mono">
-                -₹{((reportData?.summary?.expenseOpeningBalance || 0) + dayExpenseTotal + purchases.filter(p => (p.date ? new Date(p.date).toISOString().split('T')[0] : '') === dailyDate).reduce((s, p) => s + (Number(p.amount || p.totalAmount) || 0), 0)).toLocaleString('en-IN')}
-              </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Inc. OB ₹{(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}</p>
-            </div>
-
-            <div className={`bg-white dark:bg-slate-900 border ${dayNetSurplus >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-4 shadow-2xs`}>
+            <div className={`bg-white dark:bg-slate-900 border ${dayNetSurplus >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-3.5 shadow-2xs`}>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Period Net Profit</p>
                 <Coins size={16} className={dayNetSurplus >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
               </div>
-              <h4 className={`text-lg font-black mt-1.5 font-mono ${dayNetSurplus >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <h4 className={`text-base font-black mt-1 font-mono ${dayNetSurplus >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 {dayNetSurplus >= 0 ? '+' : ''}₹{dayNetSurplus.toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">{dayNetSurplus >= 0 ? 'Period Surplus' : 'Period Deficit'}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Closing Net Balance</p>
                 <Wallet size={16} className="text-indigo-600 dark:text-indigo-400" />
               </div>
-              <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 mt-1.5 font-mono">
-                ₹{((reportData?.summary?.closingBalance) !== undefined ? reportData.summary.closingBalance : (((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + dayExpenseTotal))).toLocaleString('en-IN')}
+              <h4 className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+                ₹{(((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal + dayCapitalTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + dayTotalOutflow)).toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">Effective Closing</p>
             </div>
@@ -575,6 +680,7 @@ const ExpenseReportsTab = () => {
                 >
                   <option value="ALL">All Flows</option>
                   <option value="INCOME">Income Inflow (+)</option>
+                  <option value="CAPITAL">Capital Inflow (+)</option>
                   <option value="EXPENSE">General Expense (-)</option>
                   <option value="PURCHASE">Vendor Purchase (-)</option>
                 </select>
@@ -618,10 +724,11 @@ const ExpenseReportsTab = () => {
                   {loading ? (
                     <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading daily financial ledger...</td></tr>
                   ) : dayCombinedList.length === 0 ? (
-                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No matching income, expense, or purchase transactions found for this date.</td></tr>
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No matching income, capital, expense, or purchase transactions found for this date.</td></tr>
                   ) : (
                     dayCombinedList.map((item) => {
                       const isIncome = item.flowType === 'INCOME';
+                      const isCapital = item.flowType === 'CAPITAL';
                       const isPurchase = item.flowType === 'PURCHASE';
                       return (
                         <tr
@@ -629,6 +736,8 @@ const ExpenseReportsTab = () => {
                           className={
                             isIncome
                               ? 'bg-emerald-50/30 dark:bg-emerald-950/10'
+                              : isCapital
+                              ? 'bg-amber-50/30 dark:bg-amber-950/10'
                               : isPurchase
                               ? 'bg-purple-50/30 dark:bg-purple-950/10'
                               : 'bg-rose-50/20 dark:bg-rose-950/10'
@@ -639,6 +748,8 @@ const ExpenseReportsTab = () => {
                               className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                                 isIncome
                                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : isCapital
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                                   : isPurchase
                                   ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
                                   : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
@@ -654,15 +765,17 @@ const ExpenseReportsTab = () => {
                           <td className="py-3 px-3">{item.payee}</td>
                           <td className="py-3 px-3">{item.paymentMode}</td>
                           <td
-                            className={`py-3 px-3 text-right font-mono font-black ${
+                            className={`py-3 px-3 text-right font-bold font-mono ${
                               isIncome
                                 ? 'text-emerald-600 dark:text-emerald-400'
+                                : isCapital
+                                ? 'text-amber-600 dark:text-amber-400'
                                 : isPurchase
                                 ? 'text-purple-600 dark:text-purple-400'
                                 : 'text-rose-600 dark:text-rose-400'
                             }`}
                           >
-                            {isIncome ? '+' : '-'} ₹{(item.amount || 0).toLocaleString('en-IN')}
+                            {isIncome || isCapital ? '+' : '-'}₹{(item.amount || 0).toLocaleString('en-IN')}
                           </td>
                         </tr>
                       );
@@ -707,70 +820,103 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
-          {/* Comprehensive 6-Column Monthly Financial Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+          {/* Comprehensive 9-Column Monthly Financial Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Opening</p>
-                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Sales (Billed)</p>
+                <DollarSign size={16} className="text-blue-600 dark:text-blue-400" />
               </div>
-              <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
-                ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}
+              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.totalBilledIncome !== undefined ? reportData.summary.totalBilledIncome : monthTotalSales).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">As of Month Start</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Total Invoiced Sales</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Income Received</p>
                 <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
                 +₹{((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal).toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">Inc. OB ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Capital Account</p>
+                <Coins size={16} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                +₹{monthCapitalTotal.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Monthly Equity Capital</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Purchases</p>
+                <ShoppingCart size={16} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.purchaseTotal !== undefined ? reportData.summary.purchaseTotal : monthPurchaseTotal).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Vendor Procurement</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">General Expenses</p>
+                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <h4 className="text-base font-black text-purple-600 dark:text-purple-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.generalExpenseTotal !== undefined ? reportData.summary.generalExpenseTotal : monthGeneralExpenseTotal).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Ops & Utilities Outflow</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Opening</p>
+                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">As of Month Start</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Expense Opening</p>
                 <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
               </div>
-              <h4 className="text-lg font-black text-rose-600 dark:text-rose-400 mt-1.5 font-mono">
+              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono">
                 ₹{(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">As of Month Start</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Outflows & Expenses</p>
-                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
-              </div>
-              <h4 className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1.5 font-mono">
-                -₹{((reportData?.summary?.expenseOpeningBalance || 0) + monthTotalOutflow).toLocaleString('en-IN')}
-              </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Inc. OB ₹{(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}</p>
-            </div>
-
-            <div className={`bg-white dark:bg-slate-900 border ${monthNetProfit >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-4 shadow-2xs`}>
+            <div className={`bg-white dark:bg-slate-900 border ${monthNetProfit >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-3.5 shadow-2xs`}>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Period Net Profit</p>
                 <Coins size={16} className={monthNetProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
               </div>
-              <h4 className={`text-lg font-black mt-1.5 font-mono ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <h4 className={`text-base font-black mt-1 font-mono ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 {monthNetProfit >= 0 ? '+' : ''}₹{monthNetProfit.toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">{monthNetProfit >= 0 ? 'Monthly Net Profit' : 'Monthly Deficit'}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Closing Net Balance</p>
                 <Wallet size={16} className="text-indigo-600 dark:text-indigo-400" />
               </div>
-              <h4 className="text-lg font-black text-indigo-600 dark:text-indigo-400 mt-1.5 font-mono">
-                ₹{((reportData?.summary?.closingBalance) !== undefined ? reportData.summary.closingBalance : (((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + monthTotalOutflow))).toLocaleString('en-IN')}
+              <h4 className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+                ₹{(((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal + monthCapitalTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + monthTotalOutflow)).toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">Effective Closing</p>
             </div>
@@ -800,6 +946,7 @@ const ExpenseReportsTab = () => {
                 >
                   <option value="ALL">All Flows</option>
                   <option value="INCOME">Income Inflow (+)</option>
+                  <option value="CAPITAL">Capital Inflow (+)</option>
                   <option value="EXPENSE">General Expense (-)</option>
                   <option value="PURCHASE">Vendor Purchase (-)</option>
                 </select>
@@ -844,6 +991,7 @@ const ExpenseReportsTab = () => {
                   ) : (
                     monthCombinedList.map((item) => {
                       const isIncome = item.flowType === 'INCOME';
+                      const isCapital = item.flowType === 'CAPITAL';
                       const isPurchase = item.flowType === 'PURCHASE';
                       return (
                         <tr
@@ -851,6 +999,8 @@ const ExpenseReportsTab = () => {
                           className={
                             isIncome
                               ? 'bg-emerald-50/30 dark:bg-emerald-950/10'
+                              : isCapital
+                              ? 'bg-amber-50/30 dark:bg-amber-950/10'
                               : isPurchase
                               ? 'bg-purple-50/30 dark:bg-purple-950/10'
                               : 'bg-rose-50/20 dark:bg-rose-950/10'
@@ -861,6 +1011,8 @@ const ExpenseReportsTab = () => {
                               className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                                 isIncome
                                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : isCapital
+                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                                   : isPurchase
                                   ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
                                   : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
@@ -881,12 +1033,14 @@ const ExpenseReportsTab = () => {
                             className={`py-3 px-3 text-right font-mono font-black ${
                               isIncome
                                 ? 'text-emerald-600 dark:text-emerald-400'
+                                : isCapital
+                                ? 'text-amber-600 dark:text-amber-400'
                                 : isPurchase
                                 ? 'text-purple-600 dark:text-purple-400'
                                 : 'text-rose-600 dark:text-rose-400'
                             }`}
                           >
-                            {isIncome ? '+' : '-'} ₹{(item.amount || 0).toLocaleString('en-IN')}
+                            {isIncome || isCapital ? '+' : '-'}₹{(item.amount || 0).toLocaleString('en-IN')}
                           </td>
                         </tr>
                       );
@@ -1140,27 +1294,28 @@ const ExpenseReportsTab = () => {
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-3">Employee</th>
                     <th className="py-2.5 px-3">Month</th>
-                    <th className="py-2.5 px-3">Basic Salary</th>
                     <th className="py-2.5 px-3">Mode</th>
-                    <th className="py-2.5 px-3 text-right">Paid Amount (₹)</th>
+                    <th className="py-2.5 px-3 text-right">Net Paid Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
-                    <tr><td colSpan={6} className="py-6 text-center text-slate-400">Loading salary report...</td></tr>
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading salary report...</td></tr>
                   ) : !reportData?.data || reportData.data.length === 0 ? (
-                    <tr><td colSpan={6} className="py-6 text-center text-slate-400">No salary payment records found.</td></tr>
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No salary payment records found.</td></tr>
                   ) : (
-                    reportData.data.map((p) => (
-                      <tr key={p._id}>
-                        <td className="py-3 px-3 font-medium">{new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
-                        <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">{p.employeeName || p.employee?.name}</td>
-                        <td className="py-3 px-3">{p.month}</td>
-                        <td className="py-3 px-3 text-slate-500 font-mono">₹{(p.basicSalary || 0).toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-3">{p.paymentMode}</td>
-                        <td className="py-3 px-3 text-right font-bold text-purple-600 dark:text-purple-400 font-mono">₹{p.paidAmount?.toLocaleString('en-IN')}</td>
-                      </tr>
-                    ))
+                    reportData.data.map((p) => {
+                      const netPaid = p.paidAmount !== undefined ? p.paidAmount : (p.customNetPay !== undefined ? p.customNetPay : p.basicSalary);
+                      return (
+                        <tr key={p._id}>
+                          <td className="py-3 px-3 font-medium">{new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                          <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">{p.employeeName || p.employee?.name}</td>
+                          <td className="py-3 px-3">{p.month}</td>
+                          <td className="py-3 px-3">{p.paymentMode}</td>
+                          <td className="py-3 px-3 text-right font-bold text-purple-600 dark:text-purple-400 font-mono">₹{Number(netPaid || 0).toLocaleString('en-IN')}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

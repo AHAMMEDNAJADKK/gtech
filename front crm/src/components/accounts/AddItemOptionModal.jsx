@@ -28,6 +28,10 @@ const AddItemOptionModal = ({
       ? itemOptions
       : [...itemOptions, trimmed];
 
+    try {
+      localStorage.setItem('crm_item_options', JSON.stringify(updated));
+    } catch (e) {}
+
     if (onUpdateOptions) onUpdateOptions(updated);
     if (onSelectItem) onSelectItem(trimmed);
     if (showToast) showToast(`Added '${trimmed}' to dropdown choices!`, 'success');
@@ -38,6 +42,9 @@ const AddItemOptionModal = ({
 
   const handleDeleteOption = (optToDelete) => {
     const updated = itemOptions.filter((o) => o !== optToDelete);
+    try {
+      localStorage.setItem('crm_item_options', JSON.stringify(updated));
+    } catch (e) {}
     if (onUpdateOptions) onUpdateOptions(updated);
     if (showToast) showToast(`Removed '${optToDelete}' from dropdown options.`, 'info');
   };

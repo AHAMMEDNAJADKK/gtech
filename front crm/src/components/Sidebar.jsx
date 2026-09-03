@@ -33,6 +33,7 @@ import {
   Tag,
   ShoppingBag,
   ShoppingCart,
+  Coins,
   ChevronDown,
   Calendar,
   CheckCircle2,
@@ -128,6 +129,7 @@ const menuItems = [
 
   // --- FINANCE & PAYROLL ---
   { icon: Wallet, label: 'Accounts', path: '/accounts', category: 'Finance & Payroll', children: [
+      { icon: Coins, label: 'Capital', path: '/accounts/capital' },
       { icon: TrendingUp, label: 'Sales', path: '/accounts/sales' },
       { icon: ShoppingBag, label: 'Income', path: '/accounts/income' },
       { icon: ShoppingCart, label: 'Purchase', path: '/accounts/purchase' },
@@ -156,7 +158,7 @@ const menuItems = [
   { icon: Award, label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'] },
   { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports', allowedRoles: ['hr', 'admin'] },
   { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports', isTeamLeadOnly: true },
-  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev'] },
+  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev', 'junior', 'jr', 'software', 'engineer', 'react', 'node', 'flutter', 'coder', 'programmer', 'frontend', 'backend', 'fullstack', 'web'] },
   { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod', 'r&d', 'research'] },
   { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
   { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports', allowedDesignationNames: ['video', 'editor', 'media'] },
@@ -394,6 +396,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           'accountant dashboard': '/accountant-dashboard',
           'income': '/accounts/income',
           'sales': '/accounts/sales',
+          'capital': '/accounts/capital',
           'purchase': '/accounts/purchase',
           'create invoice': '/accounts/create-invoice',
         };

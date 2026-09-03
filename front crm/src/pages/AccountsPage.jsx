@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tag, PlusCircle, DollarSign, BookOpen, BarChart3, Wallet, TrendingUp, FileText, ShoppingBag, ShoppingCart } from 'lucide-react';
+import { Tag, PlusCircle, DollarSign, BookOpen, BarChart3, Wallet, TrendingUp, FileText, ShoppingBag, ShoppingCart, Coins } from 'lucide-react';
 
 import AddExpenseTab from '../components/accounts/AddExpenseTab';
 import SalaryPaymentTab from '../components/accounts/SalaryPaymentTab';
@@ -10,6 +10,7 @@ import IncomeTab from '../components/accounts/IncomeTab';
 import CreateInvoiceTab from '../components/accounts/CreateInvoiceTab';
 import SalesTab from '../components/accounts/SalesTab';
 import PurchaseTab from '../components/accounts/PurchaseTab';
+import CapitalTab from '../components/accounts/CapitalTab';
 
 const AccountsPage = () => {
   const location = useLocation();
@@ -20,6 +21,7 @@ const AccountsPage = () => {
     if (path.includes('/accounts/create-invoice')) return 'create-invoice';
     if (path.includes('/accounts/income') || path === '/income') return 'income';
     if (path.includes('/accounts/sales')) return 'sales';
+    if (path.includes('/accounts/capital') || path === '/capital') return 'capital';
     if (path.includes('/accounts/purchase')) return 'purchase';
     if (path.includes('/accounts/categories') || path.includes('/accounts/expenses')) return 'expenses';
     if (path.includes('/accounts/salary')) return 'salary';
@@ -54,6 +56,18 @@ const AccountsPage = () => {
 
         {/* Compact Navigation Tabs Bar */}
         <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto scrollbar-none">
+          <button
+            onClick={() => handleTabChange('capital', '/accounts/capital')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'capital'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <Coins size={14} />
+            <span>Capital</span>
+          </button>
+
           <button
             onClick={() => handleTabChange('sales', '/accounts/sales')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
@@ -144,6 +158,7 @@ const AccountsPage = () => {
       <div className="transition-all duration-300">
         {activeTab === 'create-invoice' && <CreateInvoiceTab />}
         {activeTab === 'sales' && <IncomeTab mode="sales" />}
+        {activeTab === 'capital' && <CapitalTab />}
         {activeTab === 'income' && <IncomeTab mode="income" />}
         {activeTab === 'purchase' && <PurchaseTab />}
         {activeTab === 'expenses' && <AddExpenseTab />}

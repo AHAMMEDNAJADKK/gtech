@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus, User } from 'lucide-react';
+import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus, User, Trash2, Check } from 'lucide-react';
+import { updatePaymentSettlement, deletePaymentSettlement } from '../../services/accountsService';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -18,6 +19,93 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
   const [editAmount, setEditAmount] = useState(0);
   const [isEditingReceipt, setIsEditingReceipt] = useState(false);
   const [savingReceipt, setSavingReceipt] = useState(false);
+
+  // Local record & selected settlement state for particular receipt viewing
+  const [localRecord, setLocalRecord] = useState(incomeRecord);
+  const [selectedSettlement, setSelectedSettlement] = useState(null);
+
+  useEffect(() => {
+    setLocalRecord(incomeRecord);
+    setSelectedSettlement(null);
+  }, [incomeRecord]);
+
+  const currentRecord = localRecord || incomeRecord;
+
+  // Edit / Delete payment log entries state
+  const [editingLogId, setEditingLogId] = useState(null);
+  const [editLogAmount, setEditLogAmount] = useState('');
+  const [editLogMethod, setEditLogMethod] = useState('Bank Transfer');
+  const [editLogReceiptNo, setEditLogReceiptNo] = useState('');
+  const [editLogDate, setEditLogDate] = useState('');
+  const [editLogNotes, setEditLogNotes] = useState('');
+  const [savingLogId, setSavingLogId] = useState(null);
+  const [deletingLogId, setDeletingLogId] = useState(null);
+
+  const handleStartEditLog = (st) => {
+    setEditingLogId(st._id);
+    setEditLogAmount(st.amount || 0);
+    setEditLogMethod(st.paymentMethod || 'Bank Transfer');
+    setEditLogReceiptNo(st.receiptNo || '');
+    setEditLogDate(st.receiptDate ? new Date(st.receiptDate).toISOString().split('T')[0] : '');
+    setEditLogNotes(st.notes || '');
+  };
+
+  const handleSaveLogEdit = async (paymentId) => {
+    const recId = currentRecord?._id || incomeRecord?._id;
+    if (!recId || !paymentId) return;
+    setSavingLogId(paymentId);
+    try {
+      const payload = {
+        amount: Number(editLogAmount || 0),
+        paymentMethod: editLogMethod,
+        receiptNo: editLogReceiptNo,
+        receiptDate: editLogDate,
+        notes: editLogNotes
+      };
+      const res = await updatePaymentSettlement(recId, paymentId, payload);
+      if (res.success !== false) {
+        const updated = res.data?.data || res.data || res;
+        if (updated && (updated._id || updated.payments)) {
+          setLocalRecord(updated);
+        }
+        if (showToast) showToast('Payment log entry updated successfully!', 'success');
+        setEditingLogId(null);
+        if (onUpdateSuccess) onUpdateSuccess(updated);
+      } else {
+        if (showToast) showToast(res.message || 'Failed to update payment log entry.', 'error');
+      }
+    } catch (err) {
+      console.error('Error updating payment log:', err);
+      if (showToast) showToast(err?.response?.data?.message || 'Error updating payment log entry.', 'error');
+    } finally {
+      setSavingLogId(null);
+    }
+  };
+
+  const handleDeleteLog = async (paymentId) => {
+    const recId = currentRecord?._id || incomeRecord?._id;
+    if (!recId || !paymentId) return;
+    if (!window.confirm('Are you sure you want to delete this payment log entry? This will update total collected amount and balance due.')) return;
+    setDeletingLogId(paymentId);
+    try {
+      const res = await deletePaymentSettlement(recId, paymentId);
+      if (res.success !== false) {
+        const updated = res.data?.data || res.data || res;
+        if (updated && (updated._id || updated.payments)) {
+          setLocalRecord(updated);
+        }
+        if (showToast) showToast('Payment log entry deleted successfully!', 'success');
+        if (onUpdateSuccess) onUpdateSuccess(updated);
+      } else {
+        if (showToast) showToast(res.message || 'Failed to delete payment log entry.', 'error');
+      }
+    } catch (err) {
+      console.error('Error deleting payment log:', err);
+      if (showToast) showToast(err?.response?.data?.message || 'Error deleting payment log entry.', 'error');
+    } finally {
+      setDeletingLogId(null);
+    }
+  };
 
   useEffect(() => {
     if (incomeRecord) {
@@ -51,13 +139,13 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
   if (!isOpen || !incomeRecord) return null;
 
-  const rawSourceType = incomeRecord.sourceType || 'General';
-  const clientNameStr = incomeRecord.clientName || incomeRecord.client?.name || incomeRecord.client?.companyName || '';
-  const titleStr = incomeRecord.title || 'Income Record';
+  const rawSourceType = currentRecord.sourceType || 'General';
+  const clientNameStr = currentRecord.clientName || currentRecord.client?.name || currentRecord.client?.companyName || '';
+  const titleStr = currentRecord.title || 'Income Record';
 
-  const resolvedSourceType = (rawSourceType === 'Academy' || incomeRecord.department === 'Academy & LMS')
+  const resolvedSourceType = (rawSourceType === 'Academy' || currentRecord.department === 'Academy & LMS')
     ? 'Academy'
-    : (rawSourceType === 'Client' || incomeRecord.client || titleStr.toLowerCase().includes('client'))
+    : (rawSourceType === 'Client' || currentRecord.client || titleStr.toLowerCase().includes('client'))
     ? 'Client'
     : (titleStr.toLowerCase().includes('academy') || titleStr.toLowerCase().includes('lms'))
     ? 'Academy'
@@ -89,9 +177,9 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     lineItems = [],
     notes = 'Thank you for your business!',
     terms = 'Payment due within 15 days.'
-  } = incomeRecord;
+  } = currentRecord;
 
-  const clientObj = (typeof incomeRecord.client === 'object' && incomeRecord.client !== null) ? incomeRecord.client : {};
+  const clientObj = (typeof currentRecord.client === 'object' && currentRecord.client !== null) ? currentRecord.client : {};
 
   const clientCompanyName = (
     clientObj.companyName ||
@@ -364,6 +452,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
       return;
     }
 
+    setSelectedSettlement(null);
     setEditAmount(bal);
 
     const baseRec = editReceiptNo || defaultRecNo;
@@ -429,6 +518,9 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
       const data = await res.json();
       if (data.success) {
+        if (data.data) {
+          setLocalRecord(data.data);
+        }
         if (showToast) showToast('Payment settlement logged successfully!', 'success');
         setEditAmount(0);
         if (onUpdateSuccess) onUpdateSuccess(data.data);
@@ -447,16 +539,26 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
   const displayTotalInvoiceAmt = calculatedTotalPayable;
 
-  const totalSettlementPaid = Array.isArray(incomeRecord?.payments) && incomeRecord.payments.length > 0
-    ? incomeRecord.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-    : (parseFloat(incomeRecord?.receiptAmount || 0) > 0 ? parseFloat(incomeRecord.receiptAmount) : 0);
+  const totalSettlementPaid = Array.isArray(currentRecord?.payments) && currentRecord.payments.length > 0
+    ? currentRecord.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+    : (parseFloat(currentRecord?.receiptAmount || 0) > 0 ? parseFloat(currentRecord.receiptAmount) : 0);
+
+  const displayPaidAmt = totalSettlementPaid;
+  const displayBalanceDue = Math.max(0, calculatedTotalPayable - displayPaidAmt);
 
   const rawEditAmt = parseFloat(editAmount);
-  const displayPaidAmt = (!isNaN(rawEditAmt) && rawEditAmt > 0 && viewMode === 'receipt' && isEditingReceipt)
-    ? rawEditAmt
-    : totalSettlementPaid;
+  const particularReceiptAmt = selectedSettlement
+    ? parseFloat(selectedSettlement.amount || 0)
+    : (!isNaN(rawEditAmt) && rawEditAmt > 0 && isEditingReceipt
+        ? rawEditAmt
+        : (totalSettlementPaid > 0 ? totalSettlementPaid : calculatedTotalPayable));
 
-  const displayBalanceDue = Math.max(0, calculatedTotalPayable - displayPaidAmt);
+  const particularRecNo = selectedSettlement?.receiptNo || editReceiptNo || defaultRecNo;
+  const particularReceiptDate = selectedSettlement?.receiptDate
+    ? new Date(selectedSettlement.receiptDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    : (editReceiptDate ? new Date(editReceiptDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : formattedDate);
+  const particularPaymentMethod = selectedSettlement?.paymentMethod || editPaymentMethod || paymentMethod;
+  const particularNotes = selectedSettlement?.notes || editNotes || '';
 
   const watermarkStampText = displayBalanceDue <= 0.01 
     ? 'PAID' 
@@ -466,14 +568,14 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     ? 'Paid'
     : (displayPaidAmt > 0 ? 'Partially Paid' : 'Pending');
 
-  const allSettlementList = Array.isArray(incomeRecord?.payments) && incomeRecord.payments.length > 0
-    ? incomeRecord.payments
+  const allSettlementList = Array.isArray(currentRecord?.payments) && currentRecord.payments.length > 0
+    ? currentRecord.payments
     : (displayPaidAmt > 0 ? [{
-        receiptNo: editReceiptNo || recNo,
-        receiptDate: editReceiptDate || incomeRecord.receiptDate || date,
-        amount: displayPaidAmt,
-        paymentMethod: editPaymentMethod || paymentMethod,
-        notes: editNotes || notes
+        receiptNo: particularRecNo,
+        receiptDate: particularReceiptDate,
+        amount: particularReceiptAmt,
+        paymentMethod: particularPaymentMethod,
+        notes: particularNotes
       }] : []);
 
   const totalPaymentsCount = allSettlementList.length;
@@ -705,8 +807,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       RECEIPT VOUCHER
                     </span>
                     <div className="pt-1.5 text-xs space-y-0.5">
-                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{recNo}</span></p>
-                      <p className="text-[11px]" style={{ color: '#64748b' }}>Payment Date: <strong style={{ color: '#0f172a' }}>{formattedReceiptDate}</strong></p>
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{particularRecNo}</span></p>
+                      <p className="text-[11px]" style={{ color: '#64748b' }}>Payment Date: <strong style={{ color: '#0f172a' }}>{particularReceiptDate}</strong></p>
                     </div>
                   </div>
                 </div>
@@ -726,15 +828,18 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       )}
                     </h4>
                     <p className="font-bold text-sm" style={{ color: '#0f172a' }}>{finalClientName}</p>
-                    <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{editPaymentMethod || paymentMethod}</strong></p>
+                    <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{particularPaymentMethod}</strong></p>
                     <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo}</strong></p>
+                    {particularNotes && (
+                      <p className="text-[10.5px] italic pt-1 border-t mt-1" style={{ color: '#475569', borderColor: '#e2e8f0' }}>Notes: "{particularNotes}"</p>
+                    )}
                   </div>
 
                   <div className="p-3.5 rounded-xl border space-y-1 text-right flex flex-col justify-center" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Total Net Payable (Incl. GST)</span>
-                    <span className="text-xl font-extrabold font-mono" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Voucher Settlement Amount</span>
+                    <span className="text-xl font-extrabold font-mono" style={{ color: '#047857' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</span>
                     <p className="text-[10.5px] border-t pt-1 mt-0.5 flex justify-between" style={{ borderColor: '#e2e8f0', color: '#475569' }}>
-                      <span>Amount Received:</span>
+                      <span>Total Invoice Paid:</span>
                       <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</strong>
                     </p>
                     <p className="text-[10.5px] flex justify-between" style={{ color: '#475569' }}>
@@ -752,7 +857,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Number</th>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Date</th>
                         <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Net Payable Amount (₹)</th>
-                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Amount Received (₹)</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Voucher Amount Paid (₹)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
@@ -760,7 +865,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                         <td className="py-3 px-3 font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo}</td>
                         <td className="py-3 px-3" style={{ color: '#475569' }}>{formattedDate}</td>
                         <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#0f172a' }}>₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#047857' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1047,48 +1152,154 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                 </div>
 
                 {/* Individual Payment Settlement Entries */}
-                {allSettlementList.map((st, idx) => (
-                  <div key={st._id || idx} className="relative pl-6">
-                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-600 ring-4 ring-emerald-100 flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                    </div>
-                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-emerald-950 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          Payment Settlement #{idx + 1} Logged
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-emerald-800 font-medium">
-                            {st.receiptDate ? new Date(st.receiptDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : formattedDate}
+                {allSettlementList.map((st, idx) => {
+                  const isEditingThis = editingLogId === st._id;
+                  const isSavingThis = savingLogId === st._id;
+                  const isDeletingThis = deletingLogId === st._id;
+
+                  return (
+                    <div key={st._id || idx} className="relative pl-6">
+                      <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-600 ring-4 ring-emerald-100 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                      </div>
+                      <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                          <span className="font-bold text-emerald-950 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            Payment Settlement #{idx + 1} Logged
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditReceiptNo(st.receiptNo || editReceiptNo);
-                              if (st.receiptDate) setEditReceiptDate(new Date(st.receiptDate).toISOString().split('T')[0]);
-                              setEditPaymentMethod(st.paymentMethod || 'Bank Transfer');
-                              setEditAmount(st.amount || 0);
-                              setEditNotes(st.notes || '');
-                              setViewMode('receipt');
-                            }}
-                            className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                            title="View & Download Receipt for this settlement"
-                          >
-                            <Receipt size={11} />
-                            <span>View Receipt</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] text-emerald-800 font-medium mr-1">
+                              {st.receiptDate ? new Date(st.receiptDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : formattedDate}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSettlement(st);
+                                setEditReceiptNo(st.receiptNo || '');
+                                if (st.receiptDate) setEditReceiptDate(new Date(st.receiptDate).toISOString().split('T')[0]);
+                                setEditPaymentMethod(st.paymentMethod || 'Bank Transfer');
+                                setEditAmount(st.amount || 0);
+                                setEditNotes(st.notes || '');
+                                setIsEditingReceipt(false);
+                                setViewMode('receipt');
+                              }}
+                              className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                              title="View & Download Receipt for this settlement"
+                            >
+                              <Receipt size={11} />
+                              <span>View Receipt</span>
+                            </button>
+
+                            {st._id && !isEditingThis && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditLog(st)}
+                                  className="px-2 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                                  title="Edit this payment settlement"
+                                >
+                                  <Pencil size={11} />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLog(st._id)}
+                                  disabled={isDeletingThis}
+                                  className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                                  title="Delete this payment settlement"
+                                >
+                                  {isDeletingThis ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                                  <span>Delete</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-xs text-emerald-900 space-y-1 pt-1">
-                        <p>Receipt Voucher: <strong className="font-mono">{st.receiptNo || editReceiptNo}</strong></p>
-                        <p>Settlement Amount: <strong className="text-emerald-700 font-black text-sm">₹{Math.round(parseFloat(st.amount || 0)).toLocaleString('en-IN')}</strong></p>
-                        <p>Payment Mode: <strong>{st.paymentMethod || editPaymentMethod || paymentMethod}</strong></p>
-                        {st.notes && <p className="text-[11px] italic text-emerald-800">Notes: "{st.notes}"</p>}
+
+                        {isEditingThis ? (
+                          <div className="bg-white p-3 rounded-lg border border-amber-300 space-y-2 mt-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Receipt Voucher No</label>
+                                <input
+                                  value={editLogReceiptNo}
+                                  onChange={e => setEditLogReceiptNo(e.target.value)}
+                                  className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-mono font-bold text-slate-900 outline-none focus:border-amber-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Settlement Amount (₹)</label>
+                                <input
+                                  type="number"
+                                  value={editLogAmount}
+                                  onChange={e => setEditLogAmount(e.target.value)}
+                                  className="w-full px-2 py-1 border border-slate-300 rounded text-xs font-bold text-slate-900 outline-none focus:border-amber-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Payment Date</label>
+                                <input
+                                  type="date"
+                                  value={editLogDate}
+                                  onChange={e => setEditLogDate(e.target.value)}
+                                  className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-900 outline-none focus:border-amber-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Payment Method</label>
+                                <select
+                                  value={editLogMethod}
+                                  onChange={e => setEditLogMethod(e.target.value)}
+                                  className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-900 outline-none focus:border-amber-500 font-medium"
+                                >
+                                  {PAYMENT_METHODS.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Notes / Remarks</label>
+                              <input
+                                value={editLogNotes}
+                                onChange={e => setEditLogNotes(e.target.value)}
+                                className="w-full px-2 py-1 border border-slate-300 rounded text-xs text-slate-900 outline-none focus:border-amber-500"
+                                placeholder="Payment notes"
+                              />
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingLogId(null)}
+                                className="px-2.5 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveLogEdit(st._id)}
+                                disabled={isSavingThis}
+                                className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold transition flex items-center gap-1"
+                              >
+                                {isSavingThis ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                                <span>Save Changes</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-emerald-900 space-y-1 pt-1">
+                            <p>Receipt Voucher: <strong className="font-mono">{st.receiptNo || editReceiptNo}</strong></p>
+                            <p>Settlement Amount: <strong className="text-emerald-700 font-black text-sm">₹{Math.round(parseFloat(st.amount || 0)).toLocaleString('en-IN')}</strong></p>
+                            <p>Payment Mode: <strong>{st.paymentMethod || editPaymentMethod || paymentMethod}</strong></p>
+                            {st.notes && <p className="text-[11px] italic text-emerald-800">Notes: "{st.notes}"</p>}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Entry 3: Status Summary Entry */}
                 {displayBalanceDue <= 0.01 && displayPaidAmt > 0 ? (

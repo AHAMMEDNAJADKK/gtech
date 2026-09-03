@@ -30,6 +30,8 @@ import {
   restoreIncome,
   permanentDeleteIncome,
   recordPaymentSettlement,
+  updatePaymentSettlement,
+  deletePaymentSettlement,
   getOpeningBalance,
   setOpeningBalance
 } from '../controllers/account.controller.js';
@@ -48,13 +50,25 @@ router.put('/opening-balance', setOpeningBalance);
 
 // ── Income Routes ──
 router.get('/income', getIncomes);
-router.get('/income/:id', getIncomeById);
 router.post('/income', createIncome);
+
+// Specific sub-resource payment routes with :paymentId (MUST be declared first)
+router.put('/income/:id/payments/:paymentId', updatePaymentSettlement);
+router.put('/income/:id/payment/:paymentId', updatePaymentSettlement);
+router.delete('/income/:id/payments/:paymentId', deletePaymentSettlement);
+router.delete('/income/:id/payment/:paymentId', deletePaymentSettlement);
+
+// Payment settlement routes without :paymentId
 router.post('/income/:id/payment', recordPaymentSettlement);
 router.put('/income/:id/payment', recordPaymentSettlement);
+
+// Other sub-routes
 router.put('/income/:id/restore', restoreIncome);
-router.put('/income/:id', updateIncome);
 router.delete('/income/:id/permanent', permanentDeleteIncome);
+
+// Generic /income/:id routes
+router.get('/income/:id', getIncomeById);
+router.put('/income/:id', updateIncome);
 router.delete('/income/:id', deleteIncome);
 
 // ── Categories Routes ──

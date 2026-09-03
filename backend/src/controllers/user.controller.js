@@ -576,7 +576,17 @@ export const userController = {
         address,
         identityType,
         identityNumber,
-        employeeId
+        employeeId,
+        dateOfBirth,
+        gender,
+        alternatePhone,
+        city,
+        state,
+        pincode,
+        qualification,
+        institution,
+        passingYear,
+        coursePreference
       } = req.body;
 
       const existingUser =
@@ -611,6 +621,16 @@ export const userController = {
       if (address !== undefined) updateFields.address = address;
       if (identityType !== undefined) updateFields.identityType = identityType;
       if (identityNumber !== undefined) updateFields.identityNumber = identityNumber;
+      if (dateOfBirth !== undefined) updateFields.dateOfBirth = dateOfBirth;
+      if (gender !== undefined) updateFields.gender = gender;
+      if (alternatePhone !== undefined) updateFields.alternatePhone = alternatePhone;
+      if (city !== undefined) updateFields.city = city;
+      if (state !== undefined) updateFields.state = state;
+      if (pincode !== undefined) updateFields.pincode = pincode;
+      if (qualification !== undefined) updateFields.qualification = qualification;
+      if (institution !== undefined) updateFields.institution = institution;
+      if (passingYear !== undefined) updateFields.passingYear = passingYear;
+      if (coursePreference !== undefined) updateFields.coursePreference = coursePreference;
 
       if (email && email !== existingUser.email) {
         const emailTaken = await User.findOne({ email, _id: { $ne: id } });

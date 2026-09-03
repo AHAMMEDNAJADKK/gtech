@@ -29,19 +29,35 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
   const [terms, setTerms] = useState('Payment due within 15 days.');
 
   // Zoho-Style Line Items (Specific Item Details choices)
-  const [itemOptions, setItemOptions] = useState([
-    'Poster',
-    'Brochure',
-    'Website',
-    'Domain',
-    'Server'
-  ]);
+  const [itemOptions, setItemOptions] = useState(() => {
+    const saved = localStorage.getItem('crm_item_options');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+    return ['Poster', 'Brochure', 'Website', 'Domain', 'Server'];
+  });
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [activeLineItemIdx, setActiveLineItemIdx] = useState(0);
 
   const [lineItems, setLineItems] = useState([
     { description: 'Poster', quantity: 1, unitPrice: 0, amount: 0 }
   ]);
+
+  const handleAddLineItemOption = (idx) => {
+    const currentDesc = (lineItems[idx]?.description || '').trim();
+    if (currentDesc && currentDesc !== 'Custom Item' && !itemOptions.includes(currentDesc)) {
+      const updated = [...itemOptions, currentDesc];
+      setItemOptions(updated);
+      localStorage.setItem('crm_item_options', JSON.stringify(updated));
+      showToast(`Added '${currentDesc}' to dropdown choices!`, 'success');
+    } else {
+      setActiveLineItemIdx(idx);
+      setIsAddItemModalOpen(true);
+    }
+  };
 
   // Tax & GST States
   const [taxOption, setTaxOption] = useState('Exclusive GST'); // 'No GST', 'Exclusive GST', 'Inclusive GST'
@@ -455,7 +471,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                       <td className="p-2">
                         <div className="flex items-center gap-1.5">
                           <select
-                            value={itemOptions.includes(item.description) ? item.description : (item.description ? 'Custom Item' : '')}
+                            value={item.description || ''}
                             onChange={(e) => {
                               const val = e.target.value;
                               if (val === '__MANAGE_DELETE__') {
@@ -471,17 +487,17 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                             {itemOptions.map((opt, i) => (
                               <option key={i} value={opt}>{opt}</option>
                             ))}
-                            <option value="__MANAGE_DELETE__">⚙️ Manage / Delete Dropdown Options...</option>
+                            {item.description && !itemOptions.includes(item.description) && (
+                              <option value={item.description}>{item.description} (Custom Item)</option>
+                            )}
+                            <option value="__MANAGE_DELETE__">⚙️ Manage / Add / Delete Dropdown Options...</option>
                           </select>
 
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveLineItemIdx(idx);
-                              setIsAddItemModalOpen(true);
-                            }}
+                            onClick={() => handleAddLineItemOption(idx)}
                             className="p-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 rounded-lg border border-indigo-200 dark:border-indigo-800 transition cursor-pointer shrink-0 flex items-center gap-1 font-bold text-[10px]"
-                            title="Add new item option to dropdown"
+                            title="Add item option to dropdown choices"
                           >
                             <Plus size={13} />
                           </button>

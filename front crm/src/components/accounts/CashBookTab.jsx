@@ -180,6 +180,35 @@ const CashBookTab = () => {
         console.warn('Error reading local purchase records:', localErr);
       }
 
+      // Merge local capital records from crm_capital_records if available
+      try {
+        const localCapitalRaw = JSON.parse(localStorage.getItem('crm_capital_records') || '[]');
+        if (localCapitalRaw.length > 0) {
+          const formattedCapital = localCapitalRaw.map(c => ({
+            _id: c._id || c.id,
+            entryType: 'INCOME',
+            isCapital: true,
+            type: 'Capital Inflow',
+            categoryName: 'Capital Contribution',
+            paidTo: c.investorName || 'Investor / Contributor',
+            paymentMode: c.paymentMethod || 'Bank Transfer',
+            amount: Number(c.totalCapital || 0) || (Number(c.amount || 0) + Number(c.openingBalance || 0)),
+            date: c.date || c.createdAt,
+            referenceNo: c.voucherNo || c.referenceNo || 'CAP-LOCAL',
+            description: `Capital Contribution: ${c.remarks || ''}`
+          }));
+
+          const existingIds = new Set(backendEntries.map(e => String(e._id)));
+          formattedCapital.forEach(c => {
+            if (!existingIds.has(String(c._id))) {
+              backendEntries.push(c);
+            }
+          });
+        }
+      } catch (capErr) {
+        console.warn('Error reading local capital records:', capErr);
+      }
+
       // Sort combined entries by date descending
       backendEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
 

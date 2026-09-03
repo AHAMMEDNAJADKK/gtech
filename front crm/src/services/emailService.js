@@ -156,11 +156,8 @@ export const sendEmail = async ({ to, subject, htmlContent, textContent }) => {
     textContent: plainText,
   };
 
-  console.log('Sending Brevo Email Payload:', emailPayload);
-
   try {
     const data = await brevo.transactionalEmails.sendTransacEmail(emailPayload);
-    console.log('Brevo Email Sent Successfully:', data);
     return data;
   } catch (error) {
     console.error('Brevo Email Error Details:', error);

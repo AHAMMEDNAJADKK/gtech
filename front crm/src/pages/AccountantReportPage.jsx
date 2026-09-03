@@ -4,7 +4,7 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2,
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, ChevronDown, Pencil, X, Maximize2,
   MinusCircle, PlusCircle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
@@ -2031,61 +2031,517 @@ const AccountantReportPage = () => {
   };
 
   const handleDownloadPDF = async () => {
-    const reportType = 'accountant';
-    // Automatically save report as well
+    // Automatically save report first
     await handleSaveReport();
 
     try {
-      showToast("Generating PDF on server...", "info");
-      const token = localStorage.getItem('token');
-      const cleanToken = token ? token.replace(/"/g, '') : '';
-      
-      const url = `${API_BASE}/v1/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`;
-      
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
-        }
-      });
-      
-      if (!res.ok) {
-        throw new Error("Failed to generate PDF report on server.");
-      }
-      
-      const blob = await res.blob();
-      const filename = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)}_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      }, 15000);
-      
-      showToast("PDF report downloaded and saved successfully!", "success");
-    } catch (e) {
-      console.error(e);
-      showToast("Failed to download PDF.", "error");
-    }
-  };;
+      showToast("Generating Accountant Shift PDF report...", "info");
 
-  const getRecentDates = () => {
-    const dates = [];
-    for (let i = 0; i < 14; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateString = d.toISOString().split('T')[0];
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-      const displayDate = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-      dates.push({ dateString, dayName, displayDate });
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      let currentY = 15;
+      
+      const checkHeightAndAddPage = (neededHeight) => {
+        if (currentY + neededHeight > 270) {
+          doc.addPage();
+          currentY = 15;
+        }
+      };
+
+      const drawSectionHeader = (title) => {
+        checkHeightAndAddPage(12);
+        doc.setFillColor(60, 35, 117);
+        doc.rect(14, currentY, 182, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), 17, currentY + 5);
+        currentY += 7;
+      };
+
+      // Header Brand Logo
+      const logoImg = new Image();
+      logoImg.src = '/logo3.png';
+      await new Promise((resolve) => {
+        logoImg.onload = () => {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+          resolve();
+        };
+        logoImg.onerror = () => {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(22);
+          doc.setTextColor(132, 204, 22);
+          doc.text("KOD.", 14, 21);
+          doc.setTextColor(60, 35, 117);
+          doc.text("brand", 34, 21);
+          resolve();
+        };
+      });
+
+      // Document Title & Designation
+      doc.setFontSize(13);
+      doc.setTextColor(60, 35, 117);
+      doc.text("DAILY ACCOUNTANT SHIFT REPORT", 80, 16);
+      
+      doc.setFontSize(7.5);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text("FINANCE & ACCOUNTS DEPARTMENT", 112, 22);
+
+      currentY = 27;
+
+      // 1. BASIC DETAILS
+      if (!hiddenSections.basicDetails) {
+        const validBasicRows = [
+          ["Date", basicDetails.date || selectedDate],
+          ["Day", basicDetails.day || ''],
+          ["Employee Name", basicDetails.employeeName || ''],
+          ["Employee ID", basicDetails.employeeId || ''],
+          ["Department", basicDetails.department || 'Accounts & Finance'],
+          ["Designation", basicDetails.designation || 'Accountant / Accounts Executive'],
+          ["Shift Timing", basicDetails.shiftTiming || ''],
+          ["Reporting To", basicDetails.reportingTo || ''],
+          ["Prepared Time", basicDetails.preparedTime || '']
+        ].filter(r => r[1] && String(r[1]).trim() !== '');
+
+        if (validBasicRows.length > 0) {
+          drawSectionHeader("1. BASIC DETAILS");
+          autoTable(doc, {
+            body: validBasicRows,
+            startY: currentY,
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+            columnStyles: {
+              0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
+              1: { width: 137 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 2. DAILY ACCOUNTING SUMMARY
+      if (!hiddenSections.dailyAccountingSummary && Array.isArray(dailyAccountingSummary)) {
+        const summaryHeaders = [["Activity", "Category / Head", "Amount (Rs.)", "Status", "Remarks"]];
+        const validSummaryRows = dailyAccountingSummary
+          .map(t => [t.activity || '', t.category || '', t.amount ? `Rs. ${t.amount}` : '', t.status || '', t.remarks || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validSummaryRows.length > 0) {
+          drawSectionHeader("2. DAILY ACCOUNTING SUMMARY");
+          autoTable(doc, {
+            head: summaryHeaders,
+            body: validSummaryRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 50 },
+              1: { width: 35 },
+              2: { width: 30, halign: 'right' },
+              3: { width: 25, halign: 'center' },
+              4: { width: 42 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 3. DAILY TASKS
+      if (!hiddenSections.dailyTasks && Array.isArray(dailyTasks)) {
+        const taskHeaders = [["Task Description", "Related Account", "Time Spent", "Status", "Remarks"]];
+        const validTaskRows = dailyTasks
+          .map(t => [t.taskDescription || t.task || '', t.account || t.relatedAccount || '', t.timeSpent || '', t.status || '', t.remarks || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validTaskRows.length > 0) {
+          drawSectionHeader("3. DAILY TASKS");
+          autoTable(doc, {
+            head: taskHeaders,
+            body: validTaskRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 35 },
+              2: { width: 25, halign: 'center' },
+              3: { width: 25, halign: 'center' },
+              4: { width: 37 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 4. TRANSACTION REPORT
+      if (!hiddenSections.transactionReport && Array.isArray(transactionReport)) {
+        const txHeaders = [["Transaction Type", "Total Count", "Total Amount (Rs.)", "Status / Remarks"]];
+        const validTxRows = transactionReport
+          .map(t => [t.type || t.transactionType || '', t.count || '', t.amount ? `Rs. ${t.amount}` : '', t.remarks || t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validTxRows.length > 0) {
+          drawSectionHeader("4. TRANSACTION REPORT");
+          autoTable(doc, {
+            head: txHeaders,
+            body: validTxRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 30, halign: 'center' },
+              2: { width: 45, halign: 'right' },
+              3: { width: 47 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 5. INVOICE & BILLING REPORT
+      if (!hiddenSections.invoiceBillingReport && Array.isArray(invoiceBillingReport)) {
+        const invHeaders = [["Category", "Count", "Total Value (Rs.)", "Status / Remarks"]];
+        const validInvRows = invoiceBillingReport
+          .map(t => [t.category || '', t.count || '', t.value ? `Rs. ${t.value}` : (t.amount ? `Rs. ${t.amount}` : ''), t.remarks || t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validInvRows.length > 0) {
+          drawSectionHeader("5. INVOICE & BILLING REPORT");
+          autoTable(doc, {
+            head: invHeaders,
+            body: validInvRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 30, halign: 'center' },
+              2: { width: 45, halign: 'right' },
+              3: { width: 47 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 6. PAYROLL & PAYMENT STATUS
+      if (!hiddenSections.payrollPaymentStatus && Array.isArray(payrollPaymentStatus)) {
+        const payHeaders = [["Payment Category", "Processed Count", "Total Disbursed (Rs.)", "Status"]];
+        const validPayRows = payrollPaymentStatus
+          .map(t => [t.category || '', t.count || '', t.amount ? `Rs. ${t.amount}` : '', t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validPayRows.length > 0) {
+          drawSectionHeader("6. PAYROLL & PAYMENT STATUS");
+          autoTable(doc, {
+            head: payHeaders,
+            body: validPayRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 60 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 47, halign: 'right' },
+              3: { width: 40, halign: 'center' }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 7. EXPENSE TRACKING
+      if (!hiddenSections.expenseTracking && Array.isArray(expenseTracking)) {
+        const expHeaders = [["Expense Category", "Budget (Rs.)", "Actual (Rs.)", "Variance / Remarks"]];
+        const validExpRows = expenseTracking
+          .map(t => [t.category || '', t.budget ? `Rs. ${t.budget}` : '', t.actual ? `Rs. ${t.actual}` : '', t.remarks || t.variance || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validExpRows.length > 0) {
+          drawSectionHeader("7. EXPENSE TRACKING");
+          autoTable(doc, {
+            head: expHeaders,
+            body: validExpRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 55 },
+              1: { width: 35, halign: 'right' },
+              2: { width: 35, halign: 'right' },
+              3: { width: 57 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 8. DOCUMENTATION & COMPLIANCE
+      if (!hiddenSections.documentationCompliance && Array.isArray(documentationCompliance)) {
+        const docHeaders = [["Compliance / Doc Item", "Status", "Remarks"]];
+        const validDocRows = documentationCompliance
+          .map(t => [t.item || t.activity || '', t.status || '', t.remarks || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validDocRows.length > 0) {
+          drawSectionHeader("8. DOCUMENTATION & COMPLIANCE");
+          autoTable(doc, {
+            head: docHeaders,
+            body: validDocRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 85 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 62 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 9. KPI TRACKING
+      if (!hiddenSections.kpiTracking && Array.isArray(kpiTracking)) {
+        const kpiHeaders = [["KPI", "Target", "Achieved", "Status"]];
+        const validKpiRows = kpiTracking
+          .map(t => [t.kpi || '', t.target || '', t.achieved || '', t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validKpiRows.length > 0) {
+          drawSectionHeader("9. KPI TRACKING");
+          autoTable(doc, {
+            head: kpiHeaders,
+            body: validKpiRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 75 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 35, halign: 'center' },
+              3: { width: 37, halign: 'center' }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 10. ISSUES / SUPPORT REQUIRED
+      if (!hiddenSections.issuesSupportRequired && Array.isArray(issuesSupportRequired)) {
+        const issueHeaders = [["Issue Description", "Impact Level", "Required Action"]];
+        const validIssueRows = issuesSupportRequired
+          .map(t => [t.issue || t.description || '', t.impact || t.priority || '', t.action || t.actionTaken || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validIssueRows.length > 0) {
+          drawSectionHeader("10. ISSUES / SUPPORT REQUIRED");
+          autoTable(doc, {
+            head: issueHeaders,
+            body: validIssueRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 75 },
+              1: { width: 35, halign: 'center' },
+              2: { width: 72 }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 11. NEXT DAY TASK PLAN
+      if (!hiddenSections.nextDayTaskPlan && Array.isArray(nextDayTaskPlan)) {
+        const validPlans = nextDayTaskPlan.filter(p => p && String(p).trim() !== '');
+        if (validPlans.length > 0) {
+          drawSectionHeader("11. NEXT DAY TASK PLAN");
+          checkHeightAndAddPage(20);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+          doc.setTextColor(0, 0, 0);
+          const formattedText = validPlans.map((plan, i) => `${i + 1}. ${plan}`).join('\n');
+          const splitText = doc.splitTextToSize(formattedText, 178);
+          doc.text(splitText, 16, currentY + 4);
+          currentY += (splitText.length * 4) + 6;
+        }
+      }
+
+      // 12. FINAL SHIFT HANDOVER
+      if (!hiddenSections.finalShiftHandover && Array.isArray(finalShiftHandover)) {
+        const handoverHeaders = [["Handover Item", "Status"]];
+        const validHandoverRows = finalShiftHandover
+          .map(t => [t.item || '', t.status || ''])
+          .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+        if (validHandoverRows.length > 0) {
+          drawSectionHeader("12. FINAL SHIFT HANDOVER");
+          autoTable(doc, {
+            head: handoverHeaders,
+            body: validHandoverRows,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+            columnStyles: {
+              0: { width: 110 },
+              1: { width: 72, halign: 'center' }
+            },
+            margin: { left: 14, right: 14 }
+          });
+          currentY = doc.lastAutoTable.finalY + 4;
+        }
+      }
+
+      // 13. ACCOUNTANT COMMENTS
+      if (!hiddenSections.accountantComments && accountantComments && String(accountantComments).trim() !== '') {
+        drawSectionHeader("13. ACCOUNTANT COMMENTS");
+        checkHeightAndAddPage(20);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        const splitText = doc.splitTextToSize(accountantComments, 178);
+        doc.text(splitText, 16, currentY + 4);
+        currentY += (splitText.length * 4) + 6;
+      }
+
+      // 14. APPROVAL SIGN-OFFS
+      if (!hiddenSections.approval) {
+        const approvalHeaders = [["Role", "Name", "Status", "Date"]];
+        const validApprovalRows = [
+          ["Accountant", approval?.accountantName || basicDetails.employeeName || '', approval?.accountantSignature ? 'Signed' : 'Pending', approval?.accountantDate || selectedDate],
+          ["Accounts Manager / HOD", approval?.managerName || '', approval?.managerSignature ? 'Signed' : 'Pending', approval?.managerDate || '']
+        ];
+
+        drawSectionHeader("14. APPROVAL SIGN-OFFS");
+        autoTable(doc, {
+          head: approvalHeaders,
+          body: validApprovalRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+          columnStyles: {
+            0: { width: 50, fontStyle: 'bold' },
+            1: { width: 60 },
+            2: { width: 35, halign: 'center' },
+            3: { width: 37, halign: 'center' }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // Page Numbers Footer
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text(`Accountant Shift Report — ${selectedDate}`, 14, 287);
+        doc.text(`Page ${i} of ${totalPages}`, 180, 287);
+      }
+
+      const filename = `Accountant_Shift_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      const pdfBlob = doc.output('blob');
+
+      // Auto upload to server
+      if (pdfBlob && selectedUserId) {
+        try {
+          await uploadCompiledPDFReport(selectedUserId, selectedDate, pdfBlob, filename, 'accountant', 'daily');
+        } catch (uploadErr) {
+          console.warn("PDF upload to server skipped:", uploadErr);
+        }
+      }
+
+      // Initiate download
+      doc.save(filename);
+      showToast("Accountant Shift PDF report downloaded successfully!", "success");
+    } catch (e) {
+      console.error("Accountant PDF Generation Error:", e);
+      showToast("Failed to generate Accountant PDF.", "error");
     }
-    return dates;
   };
-  const recentDates = getRecentDates();
+
+  // Generate months starting from April 2026 up to current month
+  const getRecentMonths = () => {
+    const months = [];
+    const now = new Date();
+    const startYear = 2026;
+    const startMonth = 3; // April (0-indexed)
+
+    let y = now.getFullYear();
+    let m = now.getMonth();
+
+    while (y > startYear || (y === startYear && m >= startMonth)) {
+      const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+      const d = new Date(y, m, 1);
+      const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const totalDays = new Date(y, m + 1, 0).getDate();
+      const dates = [];
+
+      for (let day = 1; day <= totalDays; day++) {
+        const dateObj = new Date(y, m, day);
+        const dateString = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        const displayDate = dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+        dates.push({ dateString, dayName, displayDate });
+      }
+
+      months.push({ monthKey, monthName, dates });
+
+      m--;
+      if (m < 0) {
+        m = 11;
+        y--;
+      }
+    }
+    return months;
+  };
+  const recentMonths = getRecentMonths();
+
+  const [expandedMonth, setExpandedMonth] = useState(() => {
+    const sel = selectedDate ? new Date(selectedDate) : new Date();
+    return `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  useEffect(() => {
+    if (selectedDate) {
+      const sel = new Date(selectedDate);
+      if (!isNaN(sel.getTime())) {
+        const mKey = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}`;
+        setExpandedMonth(mKey);
+      }
+    }
+  }, [selectedDate]);
 
   const handleInvoiceChange = (index, field, value) => {
     const updated = [...invoiceBillingReport];
@@ -2135,42 +2591,62 @@ const AccountantReportPage = () => {
 
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
           <Calendar size={14} className="text-indigo-500 dark:text-lime-400" />
-          Shift Report Log (14 Days)
+          Shift Report Log (Monthly)
         </h3>
 
-        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 scrollbar-none">
-          {recentDates.map(dateObj => {
-            const isSelected = selectedDate === dateObj.dateString;
-            const isSubmitted = submittedDates.includes(dateObj.dateString);
-            
+        <div className="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto pr-0.5 scrollbar-thin">
+          {recentMonths.map(m => {
+            const isExpanded = expandedMonth === m.monthKey;
             return (
-              <button
-                key={dateObj.dateString}
-                onClick={() => setSelectedDate(dateObj.dateString)}
-                className={`flex items-center justify-between w-52 lg:w-full shrink-0 px-4 py-3 rounded-2xl border text-left transition-all duration-300
-                  ${isSelected 
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/20' 
-                    : 'bg-slate-50/50 dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-950/60 text-slate-700 dark:text-slate-300'
+              <div key={m.monthKey} className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
+                <button
+                  type="button"
+                  onClick={() => setExpandedMonth(isExpanded ? null : m.monthKey)}
+                  className={`w-full px-3.5 py-2.5 flex items-center justify-between font-bold text-xs transition cursor-pointer ${
+                    isExpanded 
+                      ? 'bg-indigo-600 text-white shadow-xs' 
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-200'
                   }`}
-              >
-                <div className="flex flex-col">
-                  <span className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
-                    {dateObj.dayName}
-                  </span>
-                  <span className="text-sm font-bold mt-0.5">
-                    {dateObj.displayDate}
-                  </span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {isSubmitted ? (
-                    <CheckCircle size={16} className={isSelected ? 'text-lime-400' : 'text-emerald-500'} />
-                  ) : (
-                    <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-indigo-300' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                  )}
-                  <ChevronRight size={14} className="opacity-50" />
-                </div>
-              </button>
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar size={13} className={isExpanded ? 'text-white' : 'text-indigo-500'} />
+                    <span>{m.monthName}</span>
+                  </div>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isExpanded && (
+                  <div className="p-1.5 space-y-1 bg-white/70 dark:bg-slate-900/70 border-t border-slate-200/50 dark:border-slate-800/50 max-h-60 overflow-y-auto">
+                    {m.dates.map(dateObj => {
+                      const isSelected = selectedDate === dateObj.dateString;
+                      const isSubmitted = submittedDates.includes(dateObj.dateString);
+                      return (
+                        <button
+                          key={dateObj.dateString}
+                          onClick={() => setSelectedDate(dateObj.dateString)}
+                          className={`w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className={`text-[10px] ${isSelected ? 'text-indigo-200 font-semibold' : 'text-slate-400'}`}>
+                              {dateObj.dayName}
+                            </span>
+                            <span className="font-bold text-xs mt-0.5">
+                              {dateObj.displayDate}
+                            </span>
+                          </div>
+                          {isSubmitted && (
+                            <CheckCircle size={13} className={isSelected ? 'text-white' : 'text-emerald-500'} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

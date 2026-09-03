@@ -4,7 +4,7 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2, ExternalLink,
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, ChevronDown, Pencil, X, Maximize2, ExternalLink,
   MinusCircle, PlusCircle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
@@ -1062,20 +1062,57 @@ const VideographerReportPage = () => {
     }
   };;
 
-  // Generate last 14 days list
-  const getRecentDates = () => {
-    const dates = [];
-    for (let i = 0; i < 14; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateString = d.toISOString().split('T')[0];
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-      const displayDate = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-      dates.push({ dateString, dayName, displayDate });
+  // Generate months starting from April 2026 up to current month
+  const getRecentMonths = () => {
+    const months = [];
+    const now = new Date();
+    const startYear = 2026;
+    const startMonth = 3; // April (0-indexed)
+
+    let y = now.getFullYear();
+    let m = now.getMonth();
+
+    while (y > startYear || (y === startYear && m >= startMonth)) {
+      const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+      const d = new Date(y, m, 1);
+      const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const totalDays = new Date(y, m + 1, 0).getDate();
+      const dates = [];
+
+      for (let day = 1; day <= totalDays; day++) {
+        const dateObj = new Date(y, m, day);
+        const dateString = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        const displayDate = dateObj.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+        dates.push({ dateString, dayName, displayDate });
+      }
+
+      months.push({ monthKey, monthName, dates });
+
+      m--;
+      if (m < 0) {
+        m = 11;
+        y--;
+      }
     }
-    return dates;
+    return months;
   };
-  const recentDates = getRecentDates();
+  const recentMonths = getRecentMonths();
+
+  const [expandedMonth, setExpandedMonth] = useState(() => {
+    const sel = selectedDate ? new Date(selectedDate) : new Date();
+    return `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  useEffect(() => {
+    if (selectedDate) {
+      const sel = new Date(selectedDate);
+      if (!isNaN(sel.getTime())) {
+        const mKey = `${sel.getFullYear()}-${String(sel.getMonth() + 1).padStart(2, '0')}`;
+        setExpandedMonth(mKey);
+      }
+    }
+  }, [selectedDate]);
 
   // Helper row handlers for dynamic tables
   const addTaskRow = () => {
@@ -1122,42 +1159,62 @@ const VideographerReportPage = () => {
 
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
           <Calendar size={14} className="text-indigo-500 dark:text-lime-400" />
-          Shift Report Log (14 Days)
+          Shift Report Log (Monthly)
         </h3>
 
-        <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 scrollbar-none">
-          {recentDates.map(dateObj => {
-            const isSelected = selectedDate === dateObj.dateString;
-            const isSubmitted = submittedDates.includes(dateObj.dateString);
-            
+        <div className="space-y-2 max-h-[calc(100vh-12rem)] overflow-y-auto pr-0.5 scrollbar-thin">
+          {recentMonths.map(m => {
+            const isExpanded = expandedMonth === m.monthKey;
             return (
-              <button
-                key={dateObj.dateString}
-                onClick={() => setSelectedDate(dateObj.dateString)}
-                className={`flex items-center justify-between w-52 lg:w-full shrink-0 px-4 py-3 rounded-2xl border text-left transition-all duration-300
-                  ${isSelected 
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-600/20' 
-                    : 'bg-slate-50/50 dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-950/60 text-slate-700 dark:text-slate-300'
+              <div key={m.monthKey} className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 overflow-hidden bg-slate-50/50 dark:bg-slate-950/40">
+                <button
+                  type="button"
+                  onClick={() => setExpandedMonth(isExpanded ? null : m.monthKey)}
+                  className={`w-full px-3.5 py-2.5 flex items-center justify-between font-bold text-xs transition cursor-pointer ${
+                    isExpanded 
+                      ? 'bg-indigo-600 text-white shadow-xs' 
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-200'
                   }`}
-              >
-                <div className="flex flex-col">
-                  <span className={`text-xs font-semibold ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
-                    {dateObj.dayName}
-                  </span>
-                  <span className="text-sm font-bold mt-0.5">
-                    {dateObj.displayDate}
-                  </span>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {isSubmitted ? (
-                    <CheckCircle size={16} className={isSelected ? 'text-lime-400' : 'text-emerald-500'} />
-                  ) : (
-                    <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-indigo-300' : 'bg-slate-300 dark:bg-slate-700'}`} />
-                  )}
-                  <ChevronRight size={14} className="opacity-50" />
-                </div>
-              </button>
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar size={13} className={isExpanded ? 'text-white' : 'text-indigo-500'} />
+                    <span>{m.monthName}</span>
+                  </div>
+                  <ChevronDown size={14} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isExpanded && (
+                  <div className="p-1.5 space-y-1 bg-white/70 dark:bg-slate-900/70 border-t border-slate-200/50 dark:border-slate-800/50 max-h-60 overflow-y-auto">
+                    {m.dates.map(dateObj => {
+                      const isSelected = selectedDate === dateObj.dateString;
+                      const isSubmitted = submittedDates.includes(dateObj.dateString);
+                      return (
+                        <button
+                          key={dateObj.dateString}
+                          onClick={() => setSelectedDate(dateObj.dateString)}
+                          className={`w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <div className="flex flex-col">
+                            <span className={`text-[10px] ${isSelected ? 'text-indigo-200 font-semibold' : 'text-slate-400'}`}>
+                              {dateObj.dayName}
+                            </span>
+                            <span className="font-bold text-xs mt-0.5">
+                              {dateObj.displayDate}
+                            </span>
+                          </div>
+                          {isSubmitted && (
+                            <CheckCircle size={13} className={isSelected ? 'text-white' : 'text-emerald-500'} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
