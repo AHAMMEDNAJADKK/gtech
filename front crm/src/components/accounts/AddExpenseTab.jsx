@@ -309,17 +309,16 @@ const AddExpenseTab = () => {
     return count;
   }, [filterCategory, filterMode, filterStatus, startDate, endDate, sortBy, sortOrder]);
 
-  // Sort & Filter Expenses Client-Side
   const sortedAndFilteredExpenses = React.useMemo(() => {
-    let result = expenses.filter(e => {
-      // Salary expenses MUST only appear in expense ledger after MD approval!
-      const isSalaryExp = e.type === 'Salary' || e.salaryPaymentId || (e.categoryName || '').toLowerCase() === 'salary';
-      if (isSalaryExp) {
-        const salStatus = String(e.status || e.salaryPaymentId?.status || 'PENDING').toUpperCase();
-        if (salStatus !== 'APPROVED') return false;
-      }
-      return true;
-    });
+    let result = [...expenses];
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(e => 
+        (e.paidTo || '').toLowerCase().includes(term) ||
+        (e.description || '').toLowerCase().includes(term) ||
+        (e.categoryName || e.category?.name || '').toLowerCase().includes(term)
+      );
+    }
     if (startDate) {
       result = result.filter(e => {
         const d = e.date ? new Date(e.date).toISOString().split('T')[0] : '';
@@ -355,7 +354,7 @@ const AddExpenseTab = () => {
     });
 
     return result;
-  }, [expenses, startDate, endDate, sortBy, sortOrder]);
+  }, [expenses, searchTerm, startDate, endDate, sortBy, sortOrder]);
 
   // View Attachment Modal
   const [previewFile, setPreviewFile] = useState(null);
@@ -392,11 +391,15 @@ const AddExpenseTab = () => {
 
   useEffect(() => {
     loadData();
-  }, [filterCategory, filterMode, filterStatus]);
+  }, [filterCategory, filterMode, filterStatus, searchTerm]);
 
   const totalCategoryOb = useMemo(() => {
     return categories.reduce((sum, c) => sum + (Number(c.openingBalance) || 0), 0);
   }, [categories]);
+
+  const pendingCount = useMemo(() => {
+    return expenses.filter(e => (e.status || 'APPROVED').toUpperCase() === 'PENDING').length;
+  }, [expenses]);
 
   const handleExpenseAction = async (id, action) => {
     let rejectionReason = '';
@@ -575,6 +578,23 @@ const AddExpenseTab = () => {
               <span>Categories OB: ₹{totalCategoryOb.toLocaleString('en-IN')}</span>
             </div>
           )}
+
+          {/* Pending Expenses Badge Toggle */}
+          {pendingCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilterStatus(prev => prev === 'PENDING' ? '' : 'PENDING')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 cursor-pointer transition border ${
+                filterStatus === 'PENDING'
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                  : 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
+              }`}
+              title="Click to filter showing only Pending Expenses"
+            >
+              <UserCheck size={13} />
+              <span>⏳ {pendingCount} Pending Approval{pendingCount > 1 ? 's' : ''}</span>
+            </button>
+          )}
         </div>
 
         {/* Right Search, Filters & Action Button */}
@@ -681,9 +701,21 @@ const AddExpenseTab = () => {
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col gap-0.5">
-                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] w-fit">
-                            {exp.categoryName || exp.category?.name || 'Expense'}
-                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] w-fit">
+                              {exp.categoryName || exp.category?.name || 'Expense'}
+                            </span>
+                            {exp.type === 'Salary' && (exp.categoryName || exp.category?.name || '').toLowerCase() !== 'salary' && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 font-extrabold text-[9px]">
+                                Salary
+                              </span>
+                            )}
+                            {exp.isPurchase && !(exp.categoryName || exp.category?.name || '').toLowerCase().includes('purchase') && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 font-extrabold text-[9px]">
+                                Purchase
+                              </span>
+                            )}
+                          </div>
                           {exp.category?.openingBalance > 0 && (
                             <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium pl-0.5">
                               OB: ₹{Number(exp.category.openingBalance).toLocaleString('en-IN')}

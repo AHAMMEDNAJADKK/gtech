@@ -103,88 +103,56 @@ const ClientDetailsPage = () => {
     }
   };
 
-  const loadClientActivities = (clientId) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const pastStr = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
+  const getStorageKeys = (clientIdOverride) => {
+    const mainId = id || clientIdOverride || data?.client?._id || data?.client?.clientId || 'default';
+    return {
+      meetingsKey: `crm_meetings_${mainId}`,
+      followupsKey: `crm_followups_${mainId}`
+    };
+  };
 
-    // Load from localStorage or initialize defaults
-    const savedMeetings = localStorage.getItem(`crm_meetings_${clientId}`);
+  const loadClientActivities = (clientId) => {
+    const { meetingsKey, followupsKey } = getStorageKeys(clientId);
+
+    // Try primary key, fallback to URL id key if different
+    const savedMeetings = localStorage.getItem(meetingsKey) || (id ? localStorage.getItem(`crm_meetings_${id}`) : null);
     if (savedMeetings) {
-      try { setMeetings(JSON.parse(savedMeetings)); } catch(e) {}
+      try {
+        setMeetings(JSON.parse(savedMeetings));
+      } catch (e) {
+        setMeetings([]);
+      }
     } else {
-      const initM = [
-        {
-          id: 'm_1',
-          title: 'Project Kickoff & Requirements Review',
-          date: todayStr,
-          time: '11:00 AM',
-          type: 'Online (Google Meet)',
-          status: 'Scheduled',
-          attendees: 'Client Tech Lead, Account Manager',
-          notes: 'Review project scope, deliverable timelines, and API keys.'
-        },
-        {
-          id: 'm_2',
-          title: 'Quarterly Commercial Strategy Discussion',
-          date: tomorrowStr,
-          time: '02:30 PM',
-          type: 'In-Person (Head Office)',
-          status: 'Scheduled',
-          attendees: 'Executive Director, VP Sales',
-          notes: 'Discuss renewal contract terms and additional SLA upgrades.'
-        },
-        {
-          id: 'm_3',
-          title: 'Initial Discovery & Onboarding Sync',
-          date: pastStr,
-          time: '10:00 AM',
-          type: 'Phone Call',
-          status: 'Completed',
-          attendees: 'Account Manager, Lead Analyst',
-          notes: 'Completed initial client setup and verified contact parameters.'
-        }
-      ];
-      setMeetings(initM);
-      localStorage.setItem(`crm_meetings_${clientId}`, JSON.stringify(initM));
+      setMeetings([]);
     }
 
-    const savedFollowups = localStorage.getItem(`crm_followups_${clientId}`);
+    const savedFollowups = localStorage.getItem(followupsKey) || (id ? localStorage.getItem(`crm_followups_${id}`) : null);
     if (savedFollowups) {
-      try { setFollowups(JSON.parse(savedFollowups)); } catch(e) {}
+      try {
+        setFollowups(JSON.parse(savedFollowups));
+      } catch (e) {
+        setFollowups([]);
+      }
     } else {
-      const initF = [
-        {
-          id: 'f_1',
-          title: 'Send Revised Proposal Document & Quote',
-          dueDate: todayStr,
-          dueTime: '04:00 PM',
-          priority: 'High',
-          status: 'Pending',
-          notes: 'Attach updated pricing schedule and SLA terms PDF.'
-        },
-        {
-          id: 'f_2',
-          title: 'Confirm Technical Team Allocation',
-          dueDate: tomorrowStr,
-          dueTime: '11:30 AM',
-          priority: 'Medium',
-          status: 'Pending',
-          notes: 'Check availability of senior UI developers.'
-        },
-        {
-          id: 'f_3',
-          title: 'Collect Signed NDA Document',
-          dueDate: yesterdayStr,
-          dueTime: '05:00 PM',
-          priority: 'High',
-          status: 'Pending',
-          notes: 'Reminder email sent regarding digital signature.'
-        }
-      ];
-      setFollowups(initF);
-      localStorage.setItem(`crm_followups_${clientId}`, JSON.stringify(initF));
+      setFollowups([]);
+    }
+  };
+
+  const persistMeetings = (updatedMeetings, clientIdOverride) => {
+    setMeetings(updatedMeetings);
+    const { meetingsKey } = getStorageKeys(clientIdOverride);
+    localStorage.setItem(meetingsKey, JSON.stringify(updatedMeetings));
+    if (id && `crm_meetings_${id}` !== meetingsKey) {
+      localStorage.setItem(`crm_meetings_${id}`, JSON.stringify(updatedMeetings));
+    }
+  };
+
+  const persistFollowups = (updatedFollowups, clientIdOverride) => {
+    setFollowups(updatedFollowups);
+    const { followupsKey } = getStorageKeys(clientIdOverride);
+    localStorage.setItem(followupsKey, JSON.stringify(updatedFollowups));
+    if (id && `crm_followups_${id}` !== followupsKey) {
+      localStorage.setItem(`crm_followups_${id}`, JSON.stringify(updatedFollowups));
     }
   };
 
@@ -228,10 +196,8 @@ const ClientDetailsPage = () => {
       setIsPostponeModalOpen(true);
       return;
     }
-    const clientId = data?.client?._id || id;
     const updated = meetings.map(item => item.id === m.id ? { ...item, status: nextStatus } : item);
-    setMeetings(updated);
-    localStorage.setItem(`crm_meetings_${clientId}`, JSON.stringify(updated));
+    persistMeetings(updated);
     showToast(`Meeting status updated to ${nextStatus}`, 'success');
   };
 
@@ -242,7 +208,6 @@ const ClientDetailsPage = () => {
       showToast('Please select a new date for the postponed meeting', 'warning');
       return;
     }
-    const clientId = data?.client?._id || id;
     const updated = meetings.map(m => {
       if (m.id === postponingMeeting.id) {
         const reasonTag = postponeForm.reason.trim() ? `[Postponed: ${postponeForm.reason.trim()}]` : '';
@@ -256,8 +221,7 @@ const ClientDetailsPage = () => {
       }
       return m;
     });
-    setMeetings(updated);
-    localStorage.setItem(`crm_meetings_${clientId}`, JSON.stringify(updated));
+    persistMeetings(updated);
     showToast(`Meeting postponed & rescheduled to ${postponeForm.newDate} at ${postponeForm.newTime}`, 'success');
     setIsPostponeModalOpen(false);
     setPostponingMeeting(null);
@@ -265,10 +229,8 @@ const ClientDetailsPage = () => {
 
   const handleDeleteMeeting = (mId) => {
     if (window.confirm('Are you sure you want to delete this meeting?')) {
-      const clientId = data?.client?._id || id;
       const updated = meetings.filter(m => m.id !== mId);
-      setMeetings(updated);
-      localStorage.setItem(`crm_meetings_${clientId}`, JSON.stringify(updated));
+      persistMeetings(updated);
       showToast('Meeting deleted successfully', 'info');
     }
   };
@@ -290,7 +252,6 @@ const ClientDetailsPage = () => {
       setIsPostponeModalOpen(true);
       return;
     }
-    const clientId = data?.client?._id || id;
     if (editingMeeting) {
       const updated = meetings.map(m => m.id === editingMeeting.id ? {
         ...m,
@@ -302,8 +263,7 @@ const ClientDetailsPage = () => {
         attendees: meetingForm.attendees.trim() || 'Account Manager',
         notes: meetingForm.notes.trim() || 'No additional notes provided.'
       } : m);
-      setMeetings(updated);
-      localStorage.setItem(`crm_meetings_${clientId}`, JSON.stringify(updated));
+      persistMeetings(updated);
       showToast('Meeting updated successfully!', 'success');
     } else {
       const newM = {
@@ -317,8 +277,7 @@ const ClientDetailsPage = () => {
         notes: meetingForm.notes.trim() || 'No additional notes provided.'
       };
       const updated = [newM, ...meetings];
-      setMeetings(updated);
-      localStorage.setItem(`crm_meetings_${clientId}`, JSON.stringify(updated));
+      persistMeetings(updated);
       showToast('Meeting scheduled successfully!', 'success');
     }
     setIsAddMeetingOpen(false);
@@ -354,10 +313,8 @@ const ClientDetailsPage = () => {
 
   const handleDeleteFollowUp = (fId) => {
     if (window.confirm('Are you sure you want to delete this follow-up task?')) {
-      const clientId = data?.client?._id || id;
       const updated = followups.filter(f => f.id !== fId);
-      setFollowups(updated);
-      localStorage.setItem(`crm_followups_${clientId}`, JSON.stringify(updated));
+      persistFollowups(updated);
       showToast('Follow-up task deleted successfully', 'info');
     }
   };
@@ -368,7 +325,6 @@ const ClientDetailsPage = () => {
       showToast('Please enter a follow-up title', 'warning');
       return;
     }
-    const clientId = data?.client?._id || id;
     if (editingFollowup) {
       const updated = followups.map(f => f.id === editingFollowup.id ? {
         ...f,
@@ -378,8 +334,7 @@ const ClientDetailsPage = () => {
         priority: followUpForm.priority,
         notes: followUpForm.notes.trim() || 'Follow-up task updated.'
       } : f);
-      setFollowups(updated);
-      localStorage.setItem(`crm_followups_${clientId}`, JSON.stringify(updated));
+      persistFollowups(updated);
       showToast('Follow-up task updated successfully!', 'success');
     } else {
       const newF = {
@@ -392,8 +347,7 @@ const ClientDetailsPage = () => {
         notes: followUpForm.notes.trim() || 'Follow-up task scheduled.'
       };
       const updated = [newF, ...followups];
-      setFollowups(updated);
-      localStorage.setItem(`crm_followups_${clientId}`, JSON.stringify(updated));
+      persistFollowups(updated);
       showToast('Follow-up task added successfully!', 'success');
     }
     setIsAddFollowUpOpen(false);
@@ -401,7 +355,6 @@ const ClientDetailsPage = () => {
   };
 
   const toggleFollowUpStatus = (fId) => {
-    const clientId = data?.client?._id || id;
     const updated = followups.map(f => {
       if (f.id === fId) {
         const nextStatus = f.status === 'Completed' ? 'Pending' : 'Completed';
@@ -409,8 +362,7 @@ const ClientDetailsPage = () => {
       }
       return f;
     });
-    setFollowups(updated);
-    localStorage.setItem(`crm_followups_${clientId}`, JSON.stringify(updated));
+    persistFollowups(updated);
     showToast('Follow-up status updated!', 'info');
   };
 

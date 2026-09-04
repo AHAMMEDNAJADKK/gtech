@@ -2430,10 +2430,10 @@ const AccountantReportPage = () => {
 
       // 14. APPROVAL SIGN-OFFS
       if (!hiddenSections.approval) {
-        const approvalHeaders = [["Role", "Name", "Status", "Date"]];
+        const approvalHeaders = [["Role", "Name", "Date"]];
         const validApprovalRows = [
-          ["Accountant", approval?.accountantName || basicDetails.employeeName || '', approval?.accountantSignature ? 'Signed' : 'Pending', approval?.accountantDate || selectedDate],
-          ["Accounts Manager / HOD", approval?.managerName || '', approval?.managerSignature ? 'Signed' : 'Pending', approval?.managerDate || '']
+          ["Accountant", approval?.accountantName || basicDetails.employeeName || '', approval?.accountantDate || selectedDate],
+          ["Accounts Manager / HOD", approval?.managerName || '', approval?.managerDate || '']
         ];
 
         drawSectionHeader("14. APPROVAL SIGN-OFFS");
@@ -2445,10 +2445,9 @@ const AccountantReportPage = () => {
           headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
           styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
           columnStyles: {
-            0: { width: 50, fontStyle: 'bold' },
-            1: { width: 60 },
-            2: { width: 35, halign: 'center' },
-            3: { width: 37, halign: 'center' }
+            0: { width: 70, fontStyle: 'bold' },
+            1: { width: 72 },
+            2: { width: 40, halign: 'center' }
           },
           margin: { left: 14, right: 14 }
         });

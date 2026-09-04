@@ -18,21 +18,6 @@ const calendarWorkSchema = new mongoose.Schema(
 
     contentType: {
       type: String,
-      enum: [
-        'instagram_post',
-        'instagram_story',
-        'facebook_post',
-        'facebook_story',
-        'blog_post',
-        'youtube_video',
-        'newsletter',
-        'twitter_post',
-        'tiktok_video',
-        'email_campaign',
-        'web_banner',
-        'linkedin_post',
-        'other'
-      ],
       default: 'other'
     },
 

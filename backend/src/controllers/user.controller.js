@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import User from '../models/user.model.js';
 import Designation from '../models/designation.model.js';
 import mongoose from 'mongoose';
@@ -37,29 +39,52 @@ const uploadToCloudinary = (fileBuffer) => {
 };
 
 const processProfileImageFile = async (req, fallbackUrl = null) => {
-  const file = req.file || (req.files && Array.isArray(req.files) ? (req.files.find(f => ['profileImage', 'avatar', 'profile_image', 'file'].includes(f.fieldname)) || req.files[0]) : null);
-  if (!file || !file.buffer) return fallbackUrl;
+  const file = req.file || (req.files && Array.isArray(req.files) ? (req.files.find(f => ['profileImage', 'avatar', 'profile_image', 'file', 'image'].includes(f.fieldname)) || req.files[0]) : null);
 
+  const bodyUrl = req.body?.profile_image || req.body?.avatar || req.body?.profileImage || req.body?.image;
+  const initialFallback = (bodyUrl && typeof bodyUrl === 'string' && bodyUrl.trim()) ? bodyUrl.trim() : fallbackUrl;
+
+  if (!file) return initialFallback;
+
+  // 1. Cloudinary upload if configured
   try {
     if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
-      const uploadResult = await uploadToCloudinary(file.buffer);
-      if (uploadResult && uploadResult.secure_url) {
-        return uploadResult.secure_url;
+      let fileBuf = file.buffer;
+      if (!fileBuf && file.path && fs.existsSync(file.path)) {
+        fileBuf = fs.readFileSync(file.path);
+      }
+      if (fileBuf) {
+        const uploadResult = await uploadToCloudinary(fileBuf);
+        if (uploadResult && uploadResult.secure_url) {
+          return uploadResult.secure_url;
+        }
       }
     }
   } catch (uploadError) {
-    console.warn("Cloudinary profile image upload failed, utilizing Base64 fallback:", uploadError?.message || uploadError);
+    console.warn("Cloudinary profile image upload failed, utilizing fallback:", uploadError?.message || uploadError);
   }
 
-  try {
-    const mime = file.mimetype || 'image/jpeg';
-    const base64 = file.buffer.toString('base64');
-    return `data:${mime};base64,${base64}`;
-  } catch (e) {
-    console.error("Base64 conversion failed:", e);
+  // 2. Disk storage fallback (Multer diskStorage creates file.path or file.filename)
+  if (file.filename || file.path) {
+    if (file.path) {
+      const relPath = path.relative(process.cwd(), file.path).replace(/\\/g, '/');
+      return relPath.startsWith('/') ? relPath : `/${relPath}`;
+    }
+    return `/uploads/tasks/general/${file.filename}`;
   }
 
-  return fallbackUrl;
+  // 3. Memory storage fallback (Base64 data URL)
+  if (file.buffer) {
+    try {
+      const mime = file.mimetype || 'image/jpeg';
+      const base64 = file.buffer.toString('base64');
+      return `data:${mime};base64,${base64}`;
+    } catch (e) {
+      console.error("Base64 conversion failed:", e);
+    }
+  }
+
+  return initialFallback;
 };
 
 const findDesignationById = async (designationVal) => {
@@ -431,6 +456,7 @@ export const userController = {
         employeeId,
         avatar,
         profile_image,
+        profileImage,
         password,
         joining_date,
         salary,
@@ -476,7 +502,7 @@ export const userController = {
       const passwordHash =
         await hashPassword(tempPass);
 
-      let fileUrl = avatar || profile_image || null;
+      let fileUrl = avatar || profile_image || profileImage || null;
       fileUrl = await processProfileImageFile(req, fileUrl);
 
       const selectedDesignation = await findDesignationById(designation);
@@ -541,6 +567,9 @@ export const userController = {
           email: newUser.email,
           role: newUser.role,
           employeeId: newUser.employeeId,
+          avatar: newUser.avatar || newUser.profile_image || null,
+          profile_image: newUser.profile_image || newUser.avatar || null,
+          profileImage: newUser.avatar || newUser.profile_image || null,
           status: newUser.status
         }
       });
@@ -570,6 +599,7 @@ export const userController = {
         status,
         avatar,
         profile_image,
+        profileImage,
         isActive,
         joining_date,
         salary,
@@ -599,8 +629,8 @@ export const userController = {
         );
       }
 
-      let fileUrl = undefined;
-      fileUrl = await processProfileImageFile(req, undefined);
+      let fileUrl = avatar || profile_image || profileImage || existingUser.avatar || existingUser.profile_image || null;
+      fileUrl = await processProfileImageFile(req, fileUrl);
 
       const selectedDesignation = await findDesignationById(designation);
 
@@ -659,9 +689,9 @@ export const userController = {
       if (fileUrl) {
         updateFields.avatar = fileUrl;
         updateFields.profile_image = fileUrl;
-      } else if (avatar || profile_image) {
-        updateFields.avatar = avatar || profile_image;
-        updateFields.profile_image = profile_image || avatar;
+      } else if (avatar || profile_image || profileImage) {
+        updateFields.avatar = avatar || profile_image || profileImage;
+        updateFields.profile_image = profile_image || avatar || profileImage;
       }
 
       if (role) {

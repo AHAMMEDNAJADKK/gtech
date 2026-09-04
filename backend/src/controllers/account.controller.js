@@ -243,8 +243,9 @@ export const getExpenses = async (req, res) => {
       query.paymentMode = paymentMode;
     }
 
-    if (status && status !== 'ALL') {
-      query.status = status;
+    // Do not filter by status so all expense records (APPROVED, PENDING, REJECTED) are always returned
+    if (status && ['PENDING', 'APPROVED', 'REJECTED'].includes(String(status).toUpperCase())) {
+      query.status = String(status).toUpperCase();
     }
 
     if (startDate || endDate) {
@@ -268,17 +269,6 @@ export const getExpenses = async (req, res) => {
       .sort({ date: -1, createdAt: -1 });
 
     const normalizedExpenses = expenses
-      .filter(exp => {
-        // Salary expenses MUST only appear in expenses after MD approval!
-        const isSalaryExp = exp.type === 'Salary' || exp.salaryPaymentId || (exp.categoryName || '').toLowerCase() === 'salary';
-        if (isSalaryExp) {
-          const salStatus = String(exp.status || exp.salaryPaymentId?.status || 'PENDING').toUpperCase();
-          if (salStatus !== 'APPROVED') {
-            return false;
-          }
-        }
-        return true;
-      })
       .map(exp => {
         const expObj = exp.toObject();
         if (expObj.salaryPaymentId && typeof expObj.salaryPaymentId === 'object') {
@@ -286,6 +276,12 @@ export const getExpenses = async (req, res) => {
           const netPaid = sp.paidAmount !== undefined ? sp.paidAmount : (sp.customNetPay !== undefined ? sp.customNetPay : expObj.amount);
           expObj.amount = netPaid;
           expObj.totalAmount = netPaid;
+          if (sp.status) {
+            expObj.status = sp.status;
+          }
+        }
+        if (!expObj.status) {
+          expObj.status = 'APPROVED';
         }
         return expObj;
       });
@@ -376,7 +372,7 @@ export const createExpense = async (req, res) => {
     const isSalary = resolvedCategoryName.toLowerCase() === 'salary';
     const isPur = isPurchase === true || resolvedCategoryName.toLowerCase().includes('purchase') || resolvedCategoryName.toLowerCase().includes('inventory') || resolvedCategoryName.toLowerCase().includes('vendor');
 
-    let initialStatus = expAmount > 1000 ? 'PENDING' : 'APPROVED';
+    let initialStatus = (isSalary || expAmount > 1000) ? 'PENDING' : 'APPROVED';
     if (req.body.status && isMdUser) {
       initialStatus = req.body.status;
     }

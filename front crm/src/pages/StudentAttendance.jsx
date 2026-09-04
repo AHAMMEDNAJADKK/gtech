@@ -871,6 +871,7 @@ const StudentAttendance = () => {
           setIsProfileModalOpen(false);
           setSelectedProfileStudentId(null);
         }}
+        onEditStudent={handleOpenEditModal}
         getHeaders={getHeaders}
       />
 
