@@ -110,6 +110,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       specialAllowance:   Number(rec.specialAllowance || 0),
       transportAllowance: Number(rec.transportAllowance || 0),
       otherAllowance:     Number(rec.otherAllowance || 0),
+      otherAllowanceRemark: rec.otherAllowanceRemark || '',
       integrityAward:     Number(rec.integrityAward || 0),
       bonus:              Number(rec.bonus || 0),
       pf:                 Number(rec.pf || 0),
@@ -118,6 +119,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       unpaidLeave:        Number(rec.unpaidLeave || 0),
       advanceSalary:      Number(rec.advanceSalary || 0),
       otherDeductions:    Number(rec.otherDeductions || 0),
+      otherDeductionsRemark: rec.otherDeductionsRemark || '',
       companyName:        rec.companyName || 'KODBRAND SOLUTIONS',
       companyAddressLine1: rec.companyAddressLine1 || '3rd Floor, Aranyakam Building',
       companyAddressLine2: rec.companyAddressLine2 || 'thamarauzhi road, up hill',
@@ -220,7 +222,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     setDownloading(true);
     const filename = `Payslip_${edited.empName?.replace(/\s+/g, '_')}_${edited.month?.replace(/\s+/g, '_')}.pdf`;
     try {
-      const element = payslipRef.current;
+      const element = payslipRef.current.querySelector('[data-payslip-inner="true"]') || payslipRef.current;
       const canvas = await html2canvas(element, {
         scale: 3,
         useCORS: true,
@@ -228,6 +230,17 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
         logging: false,
         backgroundColor: '#ffffff',
         onclone: (clonedDoc) => {
+          const innerBox = clonedDoc.querySelector('[data-payslip-inner="true"]');
+          if (innerBox) {
+            innerBox.style.width = '794px';
+            innerBox.style.maxWidth = '794px';
+            innerBox.style.minWidth = '794px';
+            innerBox.style.height = 'auto';
+            innerBox.style.margin = '0 auto';
+            innerBox.style.boxSizing = 'border-box';
+            innerBox.style.backgroundColor = '#ffffff';
+          }
+
           const styleElements = clonedDoc.querySelectorAll('style');
           styleElements.forEach((style) => {
             try {
@@ -288,24 +301,40 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
-      const margin = 5; // 5mm margin
-      const printableWidth = pdfWidth - (margin * 2); // 200mm
-      const imgHeight = (canvas.height * printableWidth) / canvas.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
-      pdf.addImage(imgData, 'PNG', margin, margin, printableWidth, imgHeight);
+      const marginX = 8;  // 8mm side margins
+      const marginY = 12; // 12mm top/bottom margins
+      const maxW = pdfWidth - (marginX * 2);  // 194mm
+      const maxH = pdfHeight - (marginY * 2); // 273mm
+
+      // Scale to fit within A4 printable boundaries
+      let renderW = maxW;
+      let renderH = (canvas.height * renderW) / canvas.width;
+
+      if (renderH > maxH) {
+        renderH = maxH;
+        renderW = (canvas.width * renderH) / canvas.height;
+      }
+
+      const posX = (pdfWidth - renderW) / 2;
+      const posY = marginY; // Top aligned at marginY (no vertical centering)
+
+      pdf.addImage(imgData, 'PNG', posX, posY, renderW, renderH);
       pdf.save(filename);
       if (showToast) showToast(`Downloaded ${filename} to your system!`, 'success');
     } catch (err) {
       console.error('Direct PDF export failed, trying fallback:', err);
       try {
         const opt = {
-          margin: [5, 5, 5, 5],
+          margin: [12, 8, 12, 8],
           filename,
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
-        await html2pdf().set(opt).from(payslipRef.current).save();
+        await html2pdf().set(opt).from(payslipRef.current.querySelector('[data-payslip-inner="true"]') || payslipRef.current).save();
       } catch (fallbackErr) {
         console.error('All PDF generation failed:', fallbackErr);
         if (showToast) showToast('Error generating PDF.', 'error');
@@ -389,7 +418,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className={`bg-white text-slate-900 rounded-2xl shadow-2xl my-auto flex flex-col max-h-[94vh] w-full overflow-hidden border border-slate-300 ${
+          className={`bg-white text-slate-900 rounded-2xl shadow-2xl my-auto flex flex-col h-[90vh] sm:h-[92vh] max-h-[96vh] w-full overflow-hidden border border-slate-300 ${
             isSmall ? 'sm:w-[540px] max-w-[540px]' : 'max-w-3xl lg:max-w-4xl'
           }`}
         >
@@ -494,8 +523,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           )}
 
           {/* ── Printable Payslip Body ───────────────────────── */}
-          <div className="p-2 sm:p-3 overflow-y-auto flex-1 bg-white" ref={payslipRef} data-payslip-ref="true">
-            <div className="border border-[#94a3b8] p-2 space-y-1.5 font-sans bg-white text-[#0f172a] text-[10px]">
+          <div className="p-2 sm:p-3 overflow-y-auto custom-scrollbar flex-1 bg-white" ref={payslipRef} data-payslip-ref="true">
+            <div className="border border-[#94a3b8] p-2 sm:p-2.5 space-y-1.5 font-sans bg-white text-[#0f172a] text-[10px]" data-payslip-inner="true">
 
               {/* Header: Logo + Banner */}
               <div className="flex flex-row justify-between items-stretch gap-2 pb-0.5">
@@ -508,8 +537,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                   />
                 </div>
 
-                <div className="bg-[#0D1E4A] text-white px-4 py-1 text-right flex flex-col justify-center border-b-2 border-[#65B32E]">
-                  <h2 className="text-base sm:text-lg font-black tracking-wider uppercase leading-none">PAYSLIP</h2>
+                <div className="bg-[#0D1E4A] text-white px-3 py-1 text-right flex flex-col justify-center border-b-2 border-[#65B32E]">
+                  <h2 className="text-sm sm:text-base font-black tracking-wider uppercase leading-none">PAYSLIP</h2>
                   <span className="text-[8px] font-bold tracking-widest text-[#cbd5e1] uppercase block mt-0.5">FOR THE MONTH OF:</span>
                   {editMode ? (
                     <input
@@ -526,8 +555,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
               {/* Employee + Pay Period Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <div className="border border-[#94a3b8]">
-                  <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">EMPLOYEE DETAILS</div>
-                  <table className="w-full text-[10px] leading-normal">
+                  <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[9.5px]">EMPLOYEE DETAILS</div>
+                  <table className="w-full text-[9.5px] leading-tight">
                     <tbody className="divide-y divide-[#cbd5e1]">
                       {[
                         ['empId', 'Employee ID'],
@@ -546,8 +575,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 </div>
 
                 <div className="border border-[#94a3b8]">
-                  <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">PAY PERIOD DETAILS</div>
-                  <table className="w-full text-[10px] leading-normal">
+                  <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[9.5px]">PAY PERIOD DETAILS</div>
+                  <table className="w-full text-[9.5px] leading-tight">
                     <tbody className="divide-y divide-[#cbd5e1]">
                       <tr>
                         <td className="py-1 px-2 italic font-semibold text-[#334155] w-2/5 border-r border-[#cbd5e1]">Pay period</td>
@@ -571,7 +600,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                                 type="number" min="0"
                                 value={edited[field] ?? 0}
                                 onChange={e => set(field, Number(e.target.value))}
-                                className="w-16 bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-900 outline-none rounded shadow-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-14 bg-amber-50/90 border border-amber-400 focus:border-indigo-600 focus:bg-white px-1 py-0.5 text-[9px] font-bold text-slate-900 outline-none rounded shadow-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             ) : (
                               <span className="font-semibold text-[#0f172a]">{edited[field]} Days</span>
@@ -589,8 +618,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 {/* Earnings */}
                 <div className="border border-[#94a3b8] flex flex-col justify-between">
                   <div>
-                    <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">EARNINGS</div>
-                    <table className="w-full text-[10px] leading-normal">
+                    <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[9.5px]">EARNINGS</div>
+                    <table className="w-full text-[9.5px] leading-tight">
                       <thead className="bg-[#EAEFE6] border-b border-[#94a3b8] font-extrabold text-[9px] italic">
                         <tr>
                           <th className="py-1 px-2 text-left border-r border-[#94a3b8]">PARTICULARS</th>
@@ -609,7 +638,23 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                           ['bonus', 'Bonus'],
                         ].map(([field, label]) => (
                           <tr key={field}>
-                            <td className="py-1 px-2 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
+                            <td className="py-1 px-2 italic text-[#1e293b] border-r border-[#cbd5e1]">
+                              {label}
+                              {field === 'otherAllowance' && edited.otherAllowanceRemark && !editMode && (
+                                <span className="block text-[8px] font-semibold text-amber-800 dark:text-amber-400 not-italic leading-none mt-0.5">
+                                  ({edited.otherAllowanceRemark})
+                                </span>
+                              )}
+                              {field === 'otherAllowance' && editMode && (Number(edited.otherAllowance || 0) > 0 || edited.otherAllowanceRemark) && (
+                                <input
+                                  type="text"
+                                  placeholder="Remark / Reason"
+                                  value={edited.otherAllowanceRemark || ''}
+                                  onChange={e => set('otherAllowanceRemark', e.target.value)}
+                                  className="w-full mt-0.5 bg-amber-50 border border-amber-300 px-1 py-0.5 text-[8px] font-bold text-slate-800 rounded outline-none shadow-xs"
+                                />
+                              )}
+                            </td>
                             <td className="py-1 px-2 text-right font-medium">{renderEditNumCell(field)}</td>
                           </tr>
                         ))}
@@ -625,8 +670,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                 {/* Deductions */}
                 <div className="border border-[#94a3b8] flex flex-col justify-between">
                   <div>
-                    <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[10px]">DEDUCTIONS</div>
-                    <table className="w-full text-[10px] leading-normal">
+                    <div className="bg-[#0D1E4A] text-white py-1 px-2 text-center font-extrabold italic uppercase tracking-wider text-[9.5px]">DEDUCTIONS</div>
+                    <table className="w-full text-[9.5px] leading-tight">
                       <thead className="bg-[#EAEFE6] border-b border-[#94a3b8] font-extrabold text-[9px] italic">
                         <tr>
                           <th className="py-1 px-2 text-left border-r border-[#94a3b8]">PARTICULARS</th>
@@ -643,14 +688,30 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                           ['otherDeductions', 'Other Deductions'],
                         ].map(([field, label]) => (
                           <tr key={field}>
-                            <td className="py-1 px-2 italic text-[#1e293b] border-r border-[#cbd5e1]">{label}</td>
+                            <td className="py-1 px-2 italic text-[#1e293b] border-r border-[#cbd5e1]">
+                              {label}
+                              {field === 'otherDeductions' && edited.otherDeductionsRemark && !editMode && (
+                                <span className="block text-[8px] font-semibold text-rose-800 dark:text-rose-400 not-italic leading-none mt-0.5">
+                                  ({edited.otherDeductionsRemark})
+                                </span>
+                              )}
+                              {field === 'otherDeductions' && editMode && (Number(edited.otherDeductions || 0) > 0 || edited.otherDeductionsRemark) && (
+                                <input
+                                  type="text"
+                                  placeholder="Remark / Reason"
+                                  value={edited.otherDeductionsRemark || ''}
+                                  onChange={e => set('otherDeductionsRemark', e.target.value)}
+                                  className="w-full mt-0.5 bg-rose-50 border border-rose-300 px-1 py-0.5 text-[8px] font-bold text-slate-800 rounded outline-none shadow-xs"
+                                />
+                              )}
+                            </td>
                             <td className="py-1 px-2 text-right font-medium">{renderEditNumCell(field)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="bg-[#FFF4E6] border-t border-[#94a3b8] py-1 px-2 flex justify-between font-extrabold text-[#0D1E4A] text-[9px]">
+                  <div className="bg-[#FFF4E6] border-t border-[#94a3b8] py-1 px-2 flex justify-between font-extrabold text-[#0D1E4A] text-[10px]">
                     <span>TOTAL DEDUCTIONS</span>
                     <span>{totalDeductions.toLocaleString('en-IN')}</span>
                   </div>
@@ -658,14 +719,14 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
               </div>
 
               {/* Footer: Address, Net Pay, Signature */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-1.5 pt-0.5">
-                <div className="text-[8px] leading-tight text-[#1e293b] font-bold space-y-0.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 pt-1">
+                <div className="text-[8.5px] leading-tight text-[#1e293b] font-bold space-y-0.5">
                   {editMode ? (
                     <div className="space-y-0.5">
-                      <input value={edited.companyName ?? ''} onChange={e => set('companyName', e.target.value)} className="w-full text-[8px] font-black text-[#0D1E4A] border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Company Name" />
-                      <input value={edited.companyAddressLine1 ?? ''} onChange={e => set('companyAddressLine1', e.target.value)} className="w-full text-[8px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 1" />
-                      <input value={edited.companyAddressLine2 ?? ''} onChange={e => set('companyAddressLine2', e.target.value)} className="w-full text-[8px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 2" />
-                      <input value={edited.companyAddressLine3 ?? ''} onChange={e => set('companyAddressLine3', e.target.value)} className="w-full text-[8px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 3" />
+                      <input value={edited.companyName ?? ''} onChange={e => set('companyName', e.target.value)} className="w-full text-[8.5px] font-black text-[#0D1E4A] border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Company Name" />
+                      <input value={edited.companyAddressLine1 ?? ''} onChange={e => set('companyAddressLine1', e.target.value)} className="w-full text-[8.5px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 1" />
+                      <input value={edited.companyAddressLine2 ?? ''} onChange={e => set('companyAddressLine2', e.target.value)} className="w-full text-[8.5px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 2" />
+                      <input value={edited.companyAddressLine3 ?? ''} onChange={e => set('companyAddressLine3', e.target.value)} className="w-full text-[8.5px] font-bold border-b border-indigo-400 bg-indigo-50 px-1 focus:outline-none rounded-xs" placeholder="Address Line 3" />
                     </div>
                   ) : (
                     <>
@@ -677,7 +738,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                   )}
                 </div>
 
-                <div className="border border-[#0D1E4A] rounded-md p-1 text-center bg-white shadow-xs">
+                <div className="border border-[#0D1E4A] rounded-md p-1.5 text-center bg-white shadow-xs">
                   <span className="text-[10px] font-black text-[#0D1E4A] uppercase tracking-wider block leading-none">NET PAY (₹)</span>
                   <div className="flex items-center justify-center gap-1 my-0.5">
                     {[0,1,2].map(i => <span key={i} className="w-1 h-1 rounded-full bg-[#65B32E]"></span>)}
@@ -687,15 +748,15 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                       type="number"
                       value={edited.customNetPay ?? netPay}
                       onChange={e => set('customNetPay', Number(e.target.value))}
-                      className="text-base font-black text-[#0D1E4A] tracking-tight leading-none text-center w-full border-b border-indigo-400 bg-indigo-50 focus:outline-none rounded-xs"
+                      className="text-lg font-black text-[#0D1E4A] tracking-tight leading-none text-center w-full border-b border-indigo-400 bg-indigo-50 focus:outline-none rounded-xs"
                     />
                   ) : (
-                    <p className="text-base font-black text-[#0D1E4A] tracking-tight leading-none">₹{netPay.toLocaleString('en-IN')}</p>
+                    <p className="text-lg font-black text-[#0D1E4A] tracking-tight leading-none">₹{netPay.toLocaleString('en-IN')}</p>
                   )}
                 </div>
 
                 <div className="flex flex-col items-center sm:items-end justify-center">
-                  <div className="h-6 flex items-center justify-center font-serif text-sm italic font-extrabold text-[#0D1E4A] tracking-widest border-b border-[#94a3b8] px-2">
+                  <div className="h-7 flex items-center justify-center font-serif text-sm italic font-extrabold text-[#0D1E4A] tracking-widest border-b border-[#94a3b8] px-2">
                     {editMode ? (
                       <input
                         value={edited.signatoryName ?? ''}
@@ -711,11 +772,11 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                     <input
                       value={edited.signatoryTitle ?? ''}
                       onChange={e => set('signatoryTitle', e.target.value)}
-                      className="text-[7.5px] font-bold text-[#64748b] border-b border-indigo-400 bg-indigo-50 px-1 text-center focus:outline-none uppercase rounded-xs"
+                      className="text-[8px] font-bold text-[#64748b] border-b border-indigo-400 bg-indigo-50 px-1 text-center focus:outline-none uppercase rounded-xs"
                       placeholder="Signatory Title"
                     />
                   ) : (
-                    <span className="text-[7.5px] font-bold text-[#64748b] mt-0.5 uppercase">{edited.signatoryTitle || 'Authorized Signature'}</span>
+                    <span className="text-[8px] font-bold text-[#64748b] mt-0.5 uppercase">{edited.signatoryTitle || 'Authorized Signature'}</span>
                   )}
                 </div>
               </div>
