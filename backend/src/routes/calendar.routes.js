@@ -45,6 +45,22 @@ const handleImageUpload = (req, res, next) => {
 
 router.use(verifyJWT);
 
+import {
+  getContentTypes,
+  createContentType,
+  updateContentType,
+  deleteContentType
+} from '../controllers/contentType.controller.js';
+
+// ============================================================
+// DYNAMIC CONTENT TYPES (Defined at top to avoid route collision)
+// ============================================================
+
+router.get('/content-types', getContentTypes);
+router.post('/content-types', createContentType);
+router.put('/content-types/:id', updateContentType);
+router.delete('/content-types/:id', deleteContentType);
+
 // ============================================================
 // CREATE CALENDAR WORK
 // POST /api/calendar-work

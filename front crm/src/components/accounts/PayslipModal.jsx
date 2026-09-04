@@ -318,13 +318,19 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
   const handleSendEmail = async (emailToUse) => {
     const finalEmail = emailToUse || targetEmail;
     if (!salaryRecord?._id) {
-      showToast('Salary payment record ID missing.', 'error');
+      if (showToast) showToast('Salary payment record ID missing.', 'error');
       return;
     }
     if (!finalEmail || !finalEmail.trim()) {
-      showToast('Please provide a valid recipient email address.', 'error');
+      if (showToast) showToast('Please provide a valid recipient email address.', 'error');
       return;
     }
+
+    // Auto-close email prompt modal & main View Payslip modal immediately
+    setShowEmailModal(false);
+    if (onClose) onClose();
+    if (showToast) showToast(`Sending payslip email to ${finalEmail.trim()}...`, 'info');
+
     setSendingEmail(true);
     try {
       const payload = {
@@ -335,14 +341,13 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       };
       const res = await sendSalaryPayslipEmail(salaryRecord._id, payload);
       if (res?.success !== false) {
-        showToast(`Payslip email sent successfully to ${finalEmail.trim()}!`, 'success');
-        setShowEmailModal(false);
+        if (showToast) showToast(`Payslip email sent successfully to ${finalEmail.trim()}!`, 'success');
       } else {
-        showToast(res?.message || 'Failed to send email.', 'error');
+        if (showToast) showToast(res?.message || 'Failed to send email.', 'error');
       }
     } catch (err) {
       console.error('Error sending payslip email:', err);
-      showToast(err?.response?.data?.message || 'Error sending payslip email.', 'error');
+      if (showToast) showToast(err?.response?.data?.message || 'Error sending payslip email.', 'error');
     } finally {
       setSendingEmail(false);
     }

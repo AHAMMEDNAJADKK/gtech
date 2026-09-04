@@ -113,11 +113,10 @@ export const createCalendarWorkSchema = z.object({
 
   contentType: preprocessSingleString(
     z.string()
+      .trim()
+      .max(100, { message: 'Content type cannot exceed 100 characters' })
       .optional()
-      .refine(
-        (val) => !val || CONTENT_TYPES.includes(val),
-        { message: `Invalid content type. Must be one of: ${CONTENT_TYPES.join(', ')}` }
-      )
+      .or(z.literal(''))
   ),
 
   assignedTo: objectIdSchema('assignedTo'),
@@ -228,11 +227,10 @@ export const updateCalendarWorkSchema = z.object({
 
   contentType: preprocessSingleString(
     z.string()
+      .trim()
+      .max(100, { message: 'Content type cannot exceed 100 characters' })
       .optional()
-      .refine(
-        (val) => !val || CONTENT_TYPES.includes(val),
-        { message: `Invalid content type` }
-      )
+      .or(z.literal(''))
   ),
 
   assignedTo: objectIdSchema('assignedTo').optional(),

@@ -1,22 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { AlertCircle, ImagePlus, Trash2 } from "lucide-react";
+import { AlertCircle, ImagePlus, Trash2, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { resolveCalendarImageUrl } from "../../services/calendarService";
+import { resolveCalendarImageUrl, fetchContentTypes } from "../../services/calendarService";
+import ManageContentTypesModal from "./ManageContentTypesModal";
 
-const CONTENT_TYPES = [
-  { value: "instagram_post", label: "Instagram Post" },
-  { value: "instagram_story", label: "Instagram Story" },
-  { value: "facebook_post", label: "Facebook Post" },
-  { value: "facebook_story", label: "Facebook Story" },
-  { value: "blog_post", label: "Blog Post" },
-  { value: "youtube_video", label: "YouTube Video" },
-  { value: "newsletter", label: "Newsletter" },
-  { value: "twitter_post", label: "Twitter/X Post" },
-  { value: "tiktok_video", label: "TikTok Video" },
-  { value: "email_campaign", label: "Email Campaign" },
-  { value: "web_banner", label: "Web Banner" },
-  { value: "linkedin_post", label: "LinkedIn Post" },
-  { value: "other", label: "Other" },
+const DEFAULT_CONTENT_TYPES = [
+  { value: "instagram_post", name: "Instagram Post" },
+  { value: "instagram_story", name: "Instagram Story" },
+  { value: "facebook_post", name: "Facebook Post" },
+  { value: "facebook_story", name: "Facebook Story" },
+  { value: "blog_post", name: "Blog Post" },
+  { value: "youtube_video", name: "YouTube Video" },
+  { value: "newsletter", name: "Newsletter" },
+  { value: "twitter_post", name: "Twitter/X Post" },
+  { value: "tiktok_video", name: "TikTok Video" },
+  { value: "email_campaign", name: "Email Campaign" },
+  { value: "web_banner", name: "Web Banner" },
+  { value: "linkedin_post", name: "LinkedIn Post" },
+  { value: "other", name: "Other" },
 ];
 
 const emptyForm = {
@@ -63,6 +64,25 @@ const CalendarWorkForm = ({
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [removeImage, setRemoveImage] = useState(false);
+
+  // Dynamic Content Types State & Modal Toggle
+  const [contentTypes, setContentTypes] = useState(DEFAULT_CONTENT_TYPES);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+
+  const loadContentTypes = async () => {
+    try {
+      const res = await fetchContentTypes();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setContentTypes(res.data);
+      }
+    } catch (err) {
+      console.warn("Error fetching content types:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadContentTypes();
+  }, []);
 
   useEffect(() => {
     if (initialData) {
@@ -235,7 +255,8 @@ const CalendarWorkForm = ({
     }`;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       {error && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -284,9 +305,20 @@ const CalendarWorkForm = ({
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-            Content Type <span className="text-rose-500">*</span>
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              Content Type <span className="text-rose-500">*</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => setIsManageModalOpen(true)}
+              className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] flex items-center gap-1 transition cursor-pointer"
+              title="Manage Content Types (Add, Edit, Delete)"
+            >
+              <Plus size={12} />
+              <span>Add / Edit</span>
+            </button>
+          </div>
           <select
             name="contentType"
             value={formData.contentType}
@@ -294,11 +326,15 @@ const CalendarWorkForm = ({
             className={fieldClass(validationErrors.contentType)}
           >
             <option value="">Select type...</option>
-            {CONTENT_TYPES.map((ct) => (
-              <option key={ct.value} value={ct.value}>
-                {ct.label}
-              </option>
-            ))}
+            {contentTypes.map((ct) => {
+              const val = ct.value || ct._id || ct.name;
+              const lbl = ct.name || ct.label || ct.value;
+              return (
+                <option key={ct._id || val} value={val}>
+                  {lbl}
+                </option>
+              );
+            })}
           </select>
           {validationErrors.contentType && (
             <p className="text-xs text-rose-600 dark:text-rose-400 mt-1">
@@ -475,20 +511,36 @@ const CalendarWorkForm = ({
         </div>
       </div>
 
-      <motion.button
-        type="submit"
-        disabled={loading}
-        whileHover={{ scale: loading ? 1 : 1.02 }}
-        whileTap={{ scale: loading ? 1 : 0.98 }}
-        className="w-full py-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading
-          ? "Saving..."
-          : initialData?._id || initialData?.id
-            ? "Update Work"
-            : "Create Work"}
-      </motion.button>
-    </form>
+        <motion.button
+          type="submit"
+          disabled={loading}
+          whileHover={{ scale: loading ? 1 : 1.02 }}
+          whileTap={{ scale: loading ? 1 : 0.98 }}
+          className="w-full py-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading
+            ? "Saving..."
+            : initialData?._id || initialData?.id
+              ? "Update Work"
+              : "Create Work"}
+        </motion.button>
+      </form>
+
+      {/* Modal to Add, Edit & Delete Content Types (Rendered outside form to avoid DOM nesting warnings) */}
+      <ManageContentTypesModal
+        isOpen={isManageModalOpen}
+        onClose={() => setIsManageModalOpen(false)}
+        onContentTypesUpdated={(updatedList, newlyAddedValue) => {
+          setContentTypes(updatedList);
+          if (newlyAddedValue) {
+            setFormData((prev) => ({ ...prev, contentType: newlyAddedValue }));
+            if (validationErrors.contentType) {
+              setValidationErrors((prev) => ({ ...prev, contentType: null }));
+            }
+          }
+        }}
+      />
+    </>
   );
 };
 

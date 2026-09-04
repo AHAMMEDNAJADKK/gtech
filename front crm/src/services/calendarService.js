@@ -221,6 +221,30 @@ export const deleteCalendarWork = (id) => {
   });
 };
 
+export const fetchContentTypes = () => {
+  return request('content-types', { method: 'GET' });
+};
+
+export const createContentTypeApi = (data) => {
+  return request('content-types', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+};
+
+export const updateContentTypeApi = (id, data) => {
+  return request(`content-types/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+};
+
+export const deleteContentTypeApi = (id) => {
+  return request(`content-types/${id}`, {
+    method: 'DELETE'
+  });
+};
+
 export default {
   getCalendarWorks,
   getMyCalendarWork,
@@ -230,6 +254,10 @@ export default {
   updateWorkStatus,
   updatePostingStatus,
   deleteCalendarWork,
+  fetchContentTypes,
+  createContentTypeApi,
+  updateContentTypeApi,
+  deleteContentTypeApi,
   resolveCalendarImageUrl,
   toCalendarWorkFormData
 };
