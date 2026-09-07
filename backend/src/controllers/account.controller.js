@@ -1741,7 +1741,7 @@ const generateInvoiceNumber = async (dateInput = new Date()) => {
   });
 
   if (maxSeq === 0) {
-    const totalCount = await Income.countDocuments({});
+    const totalCount = await Income.countDocuments({ status: { $ne: 'Proforma' } });
     maxSeq = totalCount;
   }
 
@@ -1781,6 +1781,33 @@ const generateReceiptNumber = async (dateInput = new Date()) => {
   let candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
 
   while (await Income.findOne({ receiptNo: candidate })) {
+    nextSeq++;
+    candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  }
+  return candidate;
+};
+
+// Generate Proforma Invoice Number in PRO/26-27/0001 format
+const generateProformaNumber = async (dateInput = new Date()) => {
+  const fyStr = getFinancialYearStr(dateInput);
+  const prefix = `PRO/${fyStr}/`;
+
+  const regex = new RegExp(`^PRO\\/${fyStr}\\/(\\d+)$`, 'i');
+  const matchingRecords = await Income.find({ referenceNo: { $regex: regex } }).select('referenceNo').lean();
+
+  let maxSeq = 0;
+  matchingRecords.forEach(r => {
+    const match = r.referenceNo && r.referenceNo.match(regex);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+  });
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+
+  while (await Income.findOne({ referenceNo: candidate })) {
     nextSeq++;
     candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
   }
@@ -1838,6 +1865,9 @@ export const createIncome = async (req, res) => {
       }
     }
 
+    const inputStatus = req.body.status || 'Pending';
+    const isDirectReceipt = req.body.isDirectReceipt === true;
+
     let finalReferenceNo = referenceNo ? referenceNo.trim() : '';
     if (finalReferenceNo) {
       const existingRef = await Income.findOne({ referenceNo: finalReferenceNo });
@@ -1847,11 +1877,13 @@ export const createIncome = async (req, res) => {
           message: `Invoice No. '${finalReferenceNo}' already exists (in active or inactive records). Invoice numbers cannot be repeated.`
         });
       }
+    } else if (inputStatus === 'Proforma') {
+      finalReferenceNo = await generateProformaNumber(date ? new Date(date) : new Date());
+    } else if (isDirectReceipt) {
+      finalReferenceNo = '';
     } else {
       finalReferenceNo = await generateInvoiceNumber(date ? new Date(date) : new Date());
     }
-
-    const inputStatus = req.body.status || 'Pending';
 
     let finalReceiptNo = req.body.receiptNo ? req.body.receiptNo.trim() : '';
     if (finalReceiptNo) {
@@ -1975,18 +2007,35 @@ export const updateIncome = async (req, res) => {
     if (department !== undefined) income.department = department.trim();
     if (paymentMethod !== undefined) income.paymentMethod = paymentMethod;
     if (date !== undefined) income.date = new Date(date);
+    const wasProforma = income.status === 'Proforma';
+    const isNowProforma = req.body.status === 'Proforma';
+
     if (referenceNo !== undefined) {
       const trimmedRef = referenceNo.trim();
-      if (trimmedRef && trimmedRef !== income.referenceNo) {
-        const existingRef = await Income.findOne({ referenceNo: trimmedRef, _id: { $ne: id } });
-        if (existingRef) {
-          return res.status(400).json({
-            success: false,
-            message: `Invoice No. '${trimmedRef}' already exists (in active or inactive records). Invoice numbers cannot be repeated.`
-          });
+      if (wasProforma && !isNowProforma && (trimmedRef.startsWith('PRO/') || !trimmedRef)) {
+        const newInvoiceNo = await generateInvoiceNumber(date ? new Date(date) : (income.date || new Date()));
+        if (!income.orderNumber && income.referenceNo) {
+          income.orderNumber = `Proforma Ref: ${income.referenceNo}`;
         }
+        income.referenceNo = newInvoiceNo;
+      } else {
+        if (trimmedRef && trimmedRef !== income.referenceNo) {
+          const existingRef = await Income.findOne({ referenceNo: trimmedRef, _id: { $ne: id } });
+          if (existingRef) {
+            return res.status(400).json({
+              success: false,
+              message: `Invoice No. '${trimmedRef}' already exists (in active or inactive records). Invoice numbers cannot be repeated.`
+            });
+          }
+        }
+        income.referenceNo = trimmedRef;
       }
-      income.referenceNo = trimmedRef;
+    } else if (wasProforma && !isNowProforma) {
+      const newInvoiceNo = await generateInvoiceNumber(date ? new Date(date) : (income.date || new Date()));
+      if (!income.orderNumber && income.referenceNo) {
+        income.orderNumber = `Proforma Ref: ${income.referenceNo}`;
+      }
+      income.referenceNo = newInvoiceNo;
     }
     if (description !== undefined) income.description = description.trim();
     if (sourceType !== undefined) income.sourceType = sourceType;
@@ -2073,7 +2122,10 @@ export const updateIncome = async (req, res) => {
     income.receiptAmount = totalCollectedLogs;
     const balanceDueLogs = Math.max(0, finalTotAmt - totalCollectedLogs);
 
-    if (req.body.status === 'Paid') {
+    if (income.status === 'Proforma' || req.body.status === 'Proforma') {
+      income.status = 'Proforma';
+      income.receiptAmount = 0;
+    } else if (req.body.status === 'Paid') {
       income.status = 'Paid';
       income.receiptAmount = finalTotAmt;
       if (!income.receiptNo) {
@@ -2180,6 +2232,49 @@ export const restoreIncome = async (req, res) => {
     });
   } catch (error) {
     console.error('restoreIncome Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const convertProformaToInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income/proforma ID.' });
+    }
+
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Proforma record not found.' });
+    }
+
+    if (income.status !== 'Proforma') {
+      return res.status(400).json({ success: false, message: 'This record is not a Proforma invoice or has already been converted.' });
+    }
+
+    // Generate official Tax Invoice Number
+    const newInvoiceNo = await generateInvoiceNumber(new Date());
+
+    // Save legacy proforma reference number into orderNumber if orderNumber is empty
+    if (!income.orderNumber && income.referenceNo) {
+      income.orderNumber = `Proforma Ref: ${income.referenceNo}`;
+    }
+
+    income.referenceNo = newInvoiceNo;
+    income.status = 'Pending';
+    income.date = new Date();
+
+    await income.save();
+
+    const populatedDoc = await Income.findById(income._id).populate('client');
+
+    return res.status(200).json({
+      success: true,
+      message: `Proforma Invoice converted to Tax Invoice ${newInvoiceNo} successfully!`,
+      data: populatedDoc || income
+    });
+  } catch (error) {
+    console.error('convertProformaToInvoice Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

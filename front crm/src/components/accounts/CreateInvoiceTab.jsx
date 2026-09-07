@@ -31,9 +31,14 @@ const CreateInvoiceTab = () => {
   const editRecordFromState = location.state?.editIncome;
   const [editingId, setEditingId] = useState(editRecordFromState?._id || editIdFromParam || null);
 
+  const isProformaRecord = editRecordFromState?.status === 'Proforma';
+  const isProforma = searchParams.get('type') === 'proforma' || location.state?.isProforma || searchParams.get('status') === 'proforma' || isProformaRecord;
+
   // Primary Invoice Category & Status
   const [sourceType, setSourceType] = useState('Client'); // 'Client', 'Academy', 'General'
-  const [status, setStatus] = useState('Pending'); // 'Pending', 'Paid', 'Draft'
+  const [status, setStatus] = useState(() => (isProforma || isProformaRecord) ? 'Proforma' : 'Pending'); // 'Pending', 'Paid', 'Draft', 'Proforma'
+
+  const returnPath = (isProforma || status === 'Proforma' || isProformaRecord) ? '/accounts/proforma' : '/accounts/sales';
 
   // Header & Client Details
   const [clients, setClients] = useState([]);
@@ -485,18 +490,23 @@ const CreateInvoiceTab = () => {
     let targetStatus = overrideStatus || status;
     let finalRecAmt = parseFloat(receiptAmount || 0);
 
-    if (targetStatus === 'Paid') {
-      finalRecAmt = grandTotal;
-    } else if (targetStatus === 'Pending') {
+    if (targetStatus === 'Proforma' || status === 'Proforma' || isProforma) {
+      targetStatus = 'Proforma';
       finalRecAmt = 0;
-    }
-
-    if (finalRecAmt <= 0) {
-      targetStatus = 'Pending';
-    } else if (finalRecAmt >= (grandTotal - 0.01) && grandTotal > 0) {
-      targetStatus = 'Paid';
     } else {
-      targetStatus = 'Partially Paid';
+      if (targetStatus === 'Paid') {
+        finalRecAmt = grandTotal;
+      } else if (targetStatus === 'Pending') {
+        finalRecAmt = 0;
+      }
+
+      if (finalRecAmt <= 0) {
+        targetStatus = 'Pending';
+      } else if (finalRecAmt >= (grandTotal - 0.01) && grandTotal > 0) {
+        targetStatus = 'Paid';
+      } else {
+        targetStatus = 'Partially Paid';
+      }
     }
     const finalAmountToRecord = grandTotal > 0 ? grandTotal : (subtotalBase > 0 ? subtotalBase : 0);
 
@@ -568,10 +578,11 @@ const CreateInvoiceTab = () => {
         showToast(
           targetStatus === 'Paid'
             ? `Invoice ${data.data?.referenceNo || referenceNo || ''} marked as Paid! Payment Receipt generated.`
-            : `Invoice ${data.data?.referenceNo || referenceNo || 'record'} ${editingId ? 'updated' : 'saved'} successfully!`,
+            : `${targetStatus === 'Proforma' ? 'Proforma Invoice' : 'Invoice'} ${data.data?.referenceNo || referenceNo || 'record'} ${editingId ? 'updated' : 'saved'} successfully!`,
           'success'
         );
-        navigate('/accounts/sales');
+        const finalTarget = (targetStatus === 'Proforma' || status === 'Proforma' || isProforma) ? '/accounts/proforma' : '/accounts/sales';
+        navigate(finalTarget);
       } else {
         showToast(data.message || `Failed to ${editingId ? 'update' : 'create'} invoice.`, 'error');
       }
@@ -590,15 +601,15 @@ const CreateInvoiceTab = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate('/accounts/sales')}
+            onClick={() => navigate(returnPath)}
             className="p-1 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-            title="Back to Sales List"
+            title={isProforma || status === 'Proforma' ? "Back to Proforma List" : "Back to Sales List"}
           >
             <ArrowLeft size={14} />
           </button>
           <div>
             <h2 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-              {editingId ? `Edit Invoice (${referenceNo || 'Record'})` : 'New Invoice'}
+              {editingId ? (isProforma || status === 'Proforma' ? `Edit Proforma Invoice (${referenceNo || 'Record'})` : `Edit Invoice (${referenceNo || 'Record'})`) : (isProforma || status === 'Proforma' ? 'New Proforma Invoice' : 'New Invoice')}
               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold uppercase bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
                 {sourceType}
               </span>
@@ -609,7 +620,7 @@ const CreateInvoiceTab = () => {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => navigate('/accounts/sales')}
+            onClick={() => navigate(returnPath)}
             className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 transition cursor-pointer text-[11px]"
           >
             Cancel
@@ -674,6 +685,7 @@ const CreateInvoiceTab = () => {
               onChange={(e) => setStatus(e.target.value)}
               className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 text-[11px] font-bold cursor-pointer"
             >
+              <option value="Proforma">Proforma Invoice</option>
               <option value="Paid">Paid (Generates Receipt)</option>
               <option value="Pending">Pending</option>
               <option value="Draft">Draft</option>

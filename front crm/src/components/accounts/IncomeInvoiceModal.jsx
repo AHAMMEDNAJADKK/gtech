@@ -30,7 +30,13 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     setLocalRecord(incomeRecord);
     setSelectedSettlement(null);
     setShowWhatsAppMenu(false);
-  }, [incomeRecord]);
+    const refStr = (incomeRecord?.referenceNo || '').trim();
+    if (!refStr || refStr === '-') {
+      setViewMode('receipt');
+    } else {
+      setViewMode(initialMode);
+    }
+  }, [incomeRecord, initialMode]);
 
   const currentRecord = localRecord || incomeRecord;
 
@@ -222,14 +228,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
   // Auto-generate display reference number if blank
   const getInvoiceNumber = () => {
     if (referenceNo && referenceNo.trim()) return referenceNo.trim();
-    const dateObj = new Date(date || Date.now());
-    const year = isNaN(dateObj.getTime()) ? new Date().getFullYear() : dateObj.getFullYear();
-    const month = isNaN(dateObj.getTime()) ? new Date().getMonth() : dateObj.getMonth();
-    const startYear = month >= 3 ? year : year - 1;
-    const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
-    const rawId = String(incomeRecord._id || '').replace(/\D/g, '');
-    const mongoIdNum = rawId ? rawId.slice(-4).padStart(4, '0') : '0001';
-    return `KB/${fyStr}/${mongoIdNum}`;
+    return '-';
   };
 
   const invoiceNo = getInvoiceNumber();
@@ -1050,18 +1049,20 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
         <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 shrink-0 gap-2 print:hidden">
           {/* Mode Switcher Buttons */}
           <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setViewMode('invoice')}
-              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'invoice'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <FileText size={13} />
-              <span>Invoice</span>
-            </button>
+            {Boolean(referenceNo && referenceNo.trim() && referenceNo.trim() !== '-') && (
+              <button
+                type="button"
+                onClick={() => setViewMode('invoice')}
+                className={`px-3 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'invoice'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText size={13} />
+                <span>Invoice</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setViewMode('receipt')}
@@ -1271,8 +1272,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <div>
                     <img src="/logo3.png" alt="Logo" className="h-11 w-auto object-contain mb-1" />
                     <h2 className="text-xs font-extrabold uppercase tracking-wide" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</h2>
-                    <p className="text-[11px]" style={{ color: '#64748b' }}>Finance & Accounts Division</p>
-                    <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5</p>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>Aranyakam Building ,Thamarakuzhi Rd <br/>Uphill ,Malappuram</p>
+                    {/* <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5</p> */}
                   </div>
 
                   <div className="sm:text-right space-y-1">
@@ -1289,17 +1290,21 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                 {/* Payer & Payment Info Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-3.5 rounded-xl border space-y-1" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
-                    <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
-                      {resolvedSourceType === 'Academy' ? (
-                        <>
-                          <GraduationCap size={12} style={{ color: '#64748b' }} /> Payment Received From (Student)
-                        </>
-                      ) : (
-                        <>
-                          <Building2 size={12} style={{ color: '#64748b' }} /> Payment Received From
-                        </>
-                      )}
-                    </h4>
+                    <div className="border-b pb-2.5 mb-2" style={{ borderColor: '#e2e8f0' }}>
+                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-2 leading-none" style={{ color: '#475569' }}>
+                        {resolvedSourceType === 'Academy' ? (
+                          <>
+                            <GraduationCap size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} />
+                            <span>Payment Received From (Student)</span>
+                          </>
+                        ) : (
+                          <>
+                            {/* <Building2 size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} /> */}
+                            <span>Payment Received From</span>
+                          </>
+                        )}
+                      </h4>
+                    </div>
                     <p className="font-bold text-sm" style={{ color: '#0f172a' }}>{finalClientName}</p>
                     <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{particularPaymentMethod}</strong></p>
                     <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</strong></p>
@@ -1378,16 +1383,16 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <div>
                     <img src="/logo3.png" alt="Logo" className="h-12 w-auto object-contain mb-1" />
                     <h2 className="text-xs font-extrabold uppercase tracking-wide" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</h2>
-                    <p className="text-[11px]" style={{ color: '#64748b' }}>Enterprise Software & CRM Solutions</p>
-                    <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5 | HSN/SAC: 998314</p>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>Aranyakam Building ,Thamarakuzhi Rd <br/>Uphill ,Malappuram</p>
+                    {/* <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5 | HSN/SAC: 998314</p> */}
                   </div>
 
                   <div className="sm:text-right space-y-1">
                     <span className="inline-block px-3 py-1 text-[11px] font-bold uppercase rounded tracking-widest border" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
-                      INVOICE
+                      {incomeRecord?.status === 'Proforma' ? 'PROFORMA INVOICE' : 'INVOICE'}
                     </span>
                     <div className="pt-1.5 text-xs space-y-0.5">
-                      <p className="font-semibold" style={{ color: '#0f172a' }}>Invoice No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</span></p>
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>{incomeRecord?.status === 'Proforma' ? 'Proforma No:' : 'Invoice No:'} <span className="font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</span></p>
                       <p className="text-[11px]" style={{ color: '#64748b' }}>Issue Date: <strong style={{ color: '#0f172a' }}>{formattedDate}</strong></p>
                       {incomeRecord.dueDate && (
                         <p className="text-[11px]" style={{ color: '#64748b' }}>Due Date: <strong style={{ color: '#0f172a' }}>{new Date(incomeRecord.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>
@@ -1399,19 +1404,22 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                 {/* Billed To Card */}
                 <div className="text-xs">
                   <div className="p-3.5 rounded-xl border space-y-1.5 max-w-lg" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
-                    <div className="border-b pb-1" style={{ borderColor: '#e2e8f0' }}>
-                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
+                    <div className="border-b pb-2.5 mb-2" style={{ borderColor: '#e2e8f0' }}>
+                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-2 leading-none" style={{ color: '#475569' }}>
                         {resolvedSourceType === 'Academy' ? (
                           <>
-                            <GraduationCap size={12} style={{ color: '#64748b' }} /> Billed To (Student)
+                            <GraduationCap size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} />
+                            <span>Billed To (Student)</span>
                           </>
                         ) : resolvedSourceType === 'General' ? (
                           <>
-                            <User size={12} style={{ color: '#64748b' }} /> Billed To (Payer / Customer)
+                            <User size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} />
+                            <span>Billed To (Payer / Customer)</span>
                           </>
                         ) : (
                           <>
-                            <Building2 size={12} style={{ color: '#64748b' }} /> Billed To (Client / Customer)
+                            {/* <Building2 size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} /> */}
+                            <span>Billed To (Client / Customer)</span>
                           </>
                         )}
                       </h4>
@@ -1457,7 +1465,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <table className="w-full text-xs text-left border-collapse">
                     <thead className="font-bold uppercase text-[10px] tracking-wider border-b" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', borderColor: '#cbd5e1' }}>
                       <tr>
-                        <th className="py-2.5 px-3 text-center w-10" style={{ color: '#0f172a' }}>#</th>
+                        <th className="py-2.5 px-3 text-center w-10" style={{ color: '#0f172a' }}>Sl no.</th>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>{resolvedSourceType === 'Academy' ? 'Course / Fee Description' : 'Item / Service Description'}</th>
                         {resolvedSourceType !== 'Academy' && (
                           <th className="py-2.5 px-3 text-center w-16" style={{ color: '#0f172a' }}>Qty</th>
@@ -1529,7 +1537,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                     )}
 
                     <div className="flex justify-between border-t pt-2 text-xs font-bold items-center gap-2" style={{ borderColor: '#cbd5e1' }}>
-                      <span className="uppercase text-[10px] tracking-wider shrink-0" style={{ color: '#475569' }}>Total Payable (Incl. GST):</span>
+                      <span className="uppercase text-[10px] tracking-wider shrink-0" style={{ color: '#475569' }}>Total Payable :</span>
                       <span className="text-base font-extrabold font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
                     </div>
                   </div>

@@ -28,6 +28,7 @@ import {
   updateIncome,
   deleteIncome,
   restoreIncome,
+  convertProformaToInvoice,
   permanentDeleteIncome,
   recordPaymentSettlement,
   updatePaymentSettlement,
@@ -90,6 +91,7 @@ router.put('/income/:id/payment', recordPaymentSettlement);
 
 // Other sub-routes
 router.put('/income/:id/restore', restoreIncome);
+router.put('/income/:id/convert-proforma', convertProformaToInvoice);
 router.delete('/income/:id/permanent', permanentDeleteIncome);
 
 // Generic /income/:id routes
