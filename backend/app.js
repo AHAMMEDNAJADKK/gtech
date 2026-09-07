@@ -29,6 +29,7 @@ import academyRoutes from './src/routes/academy.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
 import leaveRoutes from './src/routes/leave.routes.js';
 import recruitmentRoutes from './src/routes/recruitment.routes.js';
+import { servePublicPdf } from './src/controllers/account.controller.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
 const app = express();
@@ -77,7 +78,15 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 3. Specific/Dedicated API Routers
+// 3. Public PDF Download Route (Unauthenticated for WhatsApp Link Customers & Rich Cards)
+app.get('/api/v1/public/pdf/:token/raw', servePublicPdf);
+app.get('/api/v1/public/pdf/:token', servePublicPdf);
+app.get('/api/public/pdf/:token/raw', servePublicPdf);
+app.get('/api/public/pdf/:token', servePublicPdf);
+app.get('/public/pdf/:token/raw', servePublicPdf);
+app.get('/public/pdf/:token', servePublicPdf);
+
+// 4. Specific/Dedicated API Routers
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/v1/auth', authRoutes);

@@ -29,6 +29,7 @@ const incomeSchema = new mongoose.Schema({
   salesperson: { type: String, default: '' },
   subject: { type: String, default: '' },
   discountRate: { type: Number, default: 0 },
+  discountType: { type: String, default: 'percent' },
   discountAmount: { type: Number, default: 0 },
   tdsAmount: { type: Number, default: 0 },
   tcsAmount: { type: Number, default: 0 },

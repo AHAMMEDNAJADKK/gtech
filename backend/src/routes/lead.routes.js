@@ -76,18 +76,8 @@ const authorizeLeadsAccess = async (req, res, next) => {
   next();
 };
 
-// Middleware to restrict edit/delete/mutation operations for Admin on Telecaller leads
+// Middleware for mutation operations
 const restrictAdminMutations = (req, res, next) => {
-  const userRole = String(req.user?.role || req.user?.role_id || req.user?.roleId || '').toLowerCase().trim();
-  const isAdmin = ['1', '2', 'admin', 'superadmin'].includes(userRole);
-
-  if (isAdmin) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. Admins have view-only access to telecaller leads and cannot edit or delete leads.'
-    });
-  }
-
   next();
 };
 

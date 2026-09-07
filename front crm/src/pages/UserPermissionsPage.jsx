@@ -54,7 +54,7 @@ const ALL_SIDEBAR_ITEMS = [
   // Leads & Sales
   { label: 'Leads Directory', path: '/leads', category: 'Leads', desc: 'Full leads directory & sales pipeline' },
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline & inquiries' },
-  { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
+  { label: 'Student Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
   { label: 'Lead Counselor', path: '/lead-counselor', category: 'Leads', desc: 'Academic counselor lead assignments' },
 
   // LMS / Academy

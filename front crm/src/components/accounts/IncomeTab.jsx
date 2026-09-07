@@ -28,7 +28,8 @@ import {
   SlidersHorizontal,
   Filter,
   ArrowUpDown,
-  Calendar
+  Calendar,
+  MessageCircle
 } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 import { getClients } from '../../services/clientService';
@@ -315,10 +316,12 @@ const IncomeTab = ({ mode = 'sales' }) => {
 
     const totalBeforeDisc = rawBase + gstAmt;
 
+    const isFlatDisc = ['amount', 'flat', 'rs'].includes(inc.discountType) || (parseFloat(inc.discountAmount || 0) > 0 && parseFloat(inc.discountAmount || 0) === parseFloat(inc.discountRate || 0));
+
     const discAmt = parseFloat(inc.discountAmount || 0) > 0
       ? parseFloat(inc.discountAmount)
       : (parseFloat(inc.discountRate || 0) > 0
-        ? (inc.discountType === 'amount' ? parseFloat(inc.discountRate) : (totalBeforeDisc * parseFloat(inc.discountRate)) / 100)
+        ? (isFlatDisc ? parseFloat(inc.discountRate) : (totalBeforeDisc * parseFloat(inc.discountRate)) / 100)
         : 0);
 
     const calculatedNetPayable = Math.max(0, totalBeforeDisc - discAmt);
@@ -401,10 +404,13 @@ const IncomeTab = ({ mode = 'sales' }) => {
     const receiptsList = [];
 
     sortedAndFilteredIncomes.forEach((inc) => {
-      const mongoIdNum = String(inc._id || '').slice(-4).toUpperCase() || '1001';
-      const resolvedSType = inc.sourceType || 'General';
-      const defaultRecNo = inc.receiptNo || (resolvedSType === 'Client' ? `REC-KB-C${mongoIdNum}` : resolvedSType === 'Academy' ? `REC-KB-A${mongoIdNum}` : `REC-KB-G${mongoIdNum}`);
-      const defaultInvNo = inc.referenceNo || (resolvedSType === 'Client' ? `INV-KB-C${mongoIdNum}` : resolvedSType === 'Academy' ? `INV-KB-A${mongoIdNum}` : `INV-KB-G${mongoIdNum}`);
+      const mongoIdNum = String(inc._id || '').slice(-4).padStart(4, '0') || '0001';
+      const dObj = new Date(inc.date || inc.createdAt || Date.now());
+      const y = isNaN(dObj.getTime()) ? new Date().getFullYear() : dObj.getFullYear();
+      const m = isNaN(dObj.getTime()) ? new Date().getMonth() : dObj.getMonth();
+      const fyStr = `${String(m >= 3 ? y : y - 1).slice(-2)}-${String((m >= 3 ? y : y - 1) + 1).slice(-2)}`;
+      const defaultRecNo = inc.receiptNo || `KBR/${fyStr}/${mongoIdNum}`;
+      const defaultInvNo = inc.referenceNo || `KB/${fyStr}/${mongoIdNum}`;
 
       const companyStr = (
         inc.clientName ||
@@ -828,6 +834,38 @@ const IncomeTab = ({ mode = 'sales' }) => {
     });
   };
 
+  const handleSendWhatsAppDirect = (inc) => {
+    const clientObj = (typeof inc.client === 'object' && inc.client !== null) ? inc.client : {};
+    let targetPhone = clientObj.phone || clientObj.primaryContact?.phone || clientObj.alternativePhone || inc.phone || inc.clientPhone || '';
+    let digits = String(targetPhone || '').replace(/\D/g, '');
+
+    if (!digits) {
+      const inputPhone = prompt(`Enter WhatsApp / Phone Number for ${inc.clientName || inc.title || 'Client'}:`);
+      if (!inputPhone) return;
+      digits = inputPhone.replace(/\D/g, '');
+    }
+
+    if (digits.length === 10) {
+      digits = `91${digits}`;
+    }
+
+    if (digits.length < 10) {
+      showToast('Invalid phone number for WhatsApp.', 'error');
+      return;
+    }
+
+    const refNo = inc.referenceNo || `INV-KB-${String(inc._id || '').slice(-4).toUpperCase()}`;
+    const netPayable = inc.totalAmount || inc.amount || 0;
+    const paidAmt = inc.receiptAmount || 0;
+    const balDue = Math.max(0, netPayable - paidAmt);
+    const clientNameStr = clientObj.clientName || inc.clientName || inc.title || 'Customer';
+
+    const text = `Hello *${clientNameStr}*,\n\nInvoice & Payment Status for *${refNo}*:\n📅 Date: ${new Date(inc.date || inc.createdAt).toLocaleDateString('en-IN')}\n💰 Total Amount: ₹${Math.round(netPayable).toLocaleString('en-IN')}\n💵 Paid Amount: ₹${Math.round(paidAmt).toLocaleString('en-IN')}\n⚠️ Balance Due: ₹${Math.round(balDue).toLocaleString('en-IN')}\nStatus: *${inc.status || 'Pending'}*\n\nThank you for your business!`;
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="space-y-4">
       {/* Sleek 1-Row Compact Header Toolbar */}
@@ -1113,7 +1151,13 @@ const IncomeTab = ({ mode = 'sales' }) => {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300 text-[11px]">
-                      {inc.referenceNo || (inc.sourceType === 'Client' ? `INV-KB-C${String(inc._id).slice(-4).toUpperCase()}` : inc.sourceType === 'Academy' ? `INV-KB-A${String(inc._id).slice(-4).toUpperCase()}` : `INV-KB-G${String(inc._id).slice(-4).toUpperCase()}`)}
+                      {inc.referenceNo || (() => {
+                        const dObj = new Date(inc.date || inc.createdAt || Date.now());
+                        const y = isNaN(dObj.getTime()) ? new Date().getFullYear() : dObj.getFullYear();
+                        const m = isNaN(dObj.getTime()) ? new Date().getMonth() : dObj.getMonth();
+                        const fyStr = `${String(m >= 3 ? y : y - 1).slice(-2)}-${String((m >= 3 ? y : y - 1) + 1).slice(-2)}`;
+                        return `KB/${fyStr}/${String(inc._id || '').slice(-4).padStart(4, '0')}`;
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {(() => {
@@ -1733,10 +1777,14 @@ const IncomeTab = ({ mode = 'sales' }) => {
                       const newStatus = e.target.value;
                       const updated = { ...editingIncome, status: newStatus };
                       if (newStatus === 'Paid' && !updated.receiptNo) {
-                        const sType = updated.sourceType || 'General';
-                        const prefix = sType === 'Client' ? 'REC-KB-C' : sType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-                        const mongoIdNum = String(updated._id || '').slice(-4).toUpperCase() || '1001';
-                        updated.receiptNo = `${prefix}${mongoIdNum}`;
+                        const dateObj = new Date(updated.date || Date.now());
+                        const year = isNaN(dateObj.getTime()) ? new Date().getFullYear() : dateObj.getFullYear();
+                        const month = isNaN(dateObj.getTime()) ? new Date().getMonth() : dateObj.getMonth();
+                        const startYear = month >= 3 ? year : year - 1;
+                        const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+                        const numDigits = String(updated._id || '').replace(/\D/g, '');
+                        const seqStr = numDigits ? numDigits.slice(-4).padStart(4, '0') : '0001';
+                        updated.receiptNo = `KBR/${fyStr}/${seqStr}`;
                         updated.receiptDate = new Date().toISOString().split('T')[0];
                       }
                       setEditingIncome(updated);
@@ -1757,7 +1805,7 @@ const IncomeTab = ({ mode = 'sales' }) => {
                     type="text"
                     value={editingIncome.receiptNo || ''}
                     onChange={(e) => setEditingIncome({ ...editingIncome, receiptNo: e.target.value })}
-                    placeholder="e.g. REC-KB-C1001"
+                    placeholder="e.g. KBR/26-27/0001"
                     className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
                   />
                 </div>

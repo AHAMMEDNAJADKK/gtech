@@ -263,19 +263,15 @@ const [activePriority, setActivePriority] = useState('all');
     const isHrUser = roleId === 'hr' || designation.includes('hr') || deptName.includes('hr');
 
     return isAdminUser || isHrUser;
-
-    return isAdminUser || isHrUser;
   }, [currentUser]);
 
   const canEditLead = useMemo(() => {
-    if (isAdmin) return false;
     return true;
-  }, [isAdmin]);
+  }, []);
 
   const canDeleteLead = useMemo(() => {
-    if (isAdmin) return false;
     return true;
-  }, [isAdmin]);
+  }, []);
 
   const isOperationManager = useMemo(() => {
     if (!currentUser) return false;
@@ -298,9 +294,8 @@ const [activePriority, setActivePriority] = useState('all');
 
   const canEditAssignedTo = useMemo(() => {
     if (!currentUser) return false;
-    if (isAdmin) return false;
     if (isAcademicCounselor) return false;
-    return isOperationManager;
+    return isOperationManager || isAdmin;
   }, [isAdmin, isAcademicCounselor, isOperationManager]);
 
   const departmentStaff = useMemo(() => {
@@ -447,10 +442,6 @@ const [activePriority, setActivePriority] = useState('all');
   };
 
   const handleInlineUpdate = async (leadId, fieldName, value) => {
-    if (isAdmin) {
-      showToast('Admins are not permitted to edit telecaller leads (view-only access).', 'error');
-      return;
-    }
     // Optimistic state update: change dropdown color instantly on selection
     const extraFields = fieldName === 'interestedService' ? { courseIntrests: value, courseInterests: value } : {};
     setLeads(prevLeads => prevLeads.map(l => {
@@ -624,18 +615,10 @@ const [activePriority, setActivePriority] = useState('all');
   }, [activeTab, searchQuery, cityFilter, dateFrom, dateTo, sortOrder, staffFilter]);
 
   const handleDeleteLead = (id, name) => {
-    if (isAdmin) {
-      showToast('Admins are not permitted to delete telecaller leads (view-only access).', 'error');
-      return;
-    }
     setDeleteConfirm({ isOpen: true, id, name });
   };
 
   const handleConfirmDelete = async () => {
-    if (isAdmin) {
-      showToast('Admins are not permitted to delete telecaller leads (view-only access).', 'error');
-      return;
-    }
     const { id, name } = deleteConfirm;
     setDeleteConfirm({ isOpen: false, id: null, name: '' });
     try {
@@ -678,7 +661,7 @@ const [activePriority, setActivePriority] = useState('all');
       'Status': l.status || 'New',
       'Priority': l.priority || 'Medium',
       'City / Place': l.city || 'N/A',
-      'Client Meeting Fixed': l.clientMeetingFixed || 'Pending',
+      'Meeting Fixed': l.clientMeetingFixed || 'Pending',
       'Admission Status': l.admissionYesNo || 'Pending',
       'Leads Received Date': l.leadsReceivedDate ? new Date(l.leadsReceivedDate).toLocaleDateString() : 'N/A',
       '1st Follow Up Date': l.followUpDate1 ? new Date(l.followUpDate1).toLocaleDateString() : 'N/A',
@@ -795,15 +778,13 @@ const [activePriority, setActivePriority] = useState('all');
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {!isAdmin && (
-              <button
-                onClick={() => setIsImportOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl transition-all duration-300 cursor-pointer"
-              >
-                <FileSpreadsheet size={16} />
-                Import Excel
-              </button>
-            )}
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl transition-all duration-300 cursor-pointer"
+            >
+              <FileSpreadsheet size={16} />
+              Import Excel
+            </button>
             <button
               onClick={handleExportExcel}
               className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-xs rounded-xl transition-all duration-300 cursor-pointer"
@@ -818,15 +799,13 @@ const [activePriority, setActivePriority] = useState('all');
               <FileText size={16} />
               Export PDF
             </button>
-            {!isAdmin && (
-              <button
-                onClick={() => setIsCreateOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-300 cursor-pointer"
-              >
-                <Plus size={16} />
-                Add Lead
-              </button>
-            )}
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-300 cursor-pointer"
+            >
+              <Plus size={16} />
+              Add Lead
+            </button>
           </div>
         </div>
 
@@ -1442,7 +1421,7 @@ const [activePriority, setActivePriority] = useState('all');
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">4th Followup</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">5th Followup</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Remarks</th>
-                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Client Meeting</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Meeting Fixed</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Admission</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Created</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Actions</th>
@@ -1650,7 +1629,7 @@ const [activePriority, setActivePriority] = useState('all');
                           {lead.remarks || '—'}
                         </td>
 
-                        {/* Client Meeting Fixed */}
+                        {/* Meeting Fixed */}
                         <td className="px-6 py-4.5 text-xs">
                           <select
                             value={lead.clientMeetingFixed || ''}
@@ -2023,16 +2002,6 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, departmentStaff = staf
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Company Name</label>
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition"
-                placeholder="e.g. Acme Corp"
-              />
-            </div>
-            <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Phone Number *</label>
               <input
                 type="tel"
@@ -2127,7 +2096,7 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, departmentStaff = staf
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Client Meeting Fixed</label>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Meeting Fixed</label>
               <select
                 value={formData.clientMeetingFixed}
                 onChange={e => setFormData({ ...formData, clientMeetingFixed: e.target.value })}
@@ -2506,7 +2475,7 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, departmentStaff = 
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Client Meeting Fixed</label>
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Meeting Fixed</label>
               <select
                 value={formData.clientMeetingFixed}
                 onChange={e => setFormData({ ...formData, clientMeetingFixed: e.target.value })}
@@ -2706,7 +2675,7 @@ const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{lead.city || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block font-semibold uppercase">Client Meeting Fixed</span>
+                <span className="text-[10px] text-slate-400 block font-semibold uppercase">Meeting Fixed</span>
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{lead.clientMeetingFixed || 'Pending'}</span>
               </div>
               <div>
@@ -3464,9 +3433,9 @@ const ImportModal = ({ isOpen, onClose, onImported, getAuthHeaders, showToast })
                     </select>
                   </div>
 
-                  {/* Client Meeting Fixed */}
+                  {/* Meeting Fixed */}
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Client Meeting Fixed</label>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Meeting Fixed</label>
                     <select
                       value={mapping.clientMeetingFixed}
                       onChange={e => setMapping({ ...mapping, clientMeetingFixed: e.target.value })}

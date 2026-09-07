@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import ExpenseCategory from '../models/expenseCategory.model.js';
 import Expense from '../models/expense.model.js';
 import SalaryPayment from '../models/salaryPayment.model.js';
@@ -1710,6 +1713,80 @@ export const getIncomeById = async (req, res) => {
   }
 };
 
+// Financial Year helper: returns "26-27" for 2026/2027
+const getFinancialYearStr = (dateInput = new Date()) => {
+  const d = new Date(dateInput);
+  const year = isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+  const month = isNaN(d.getTime()) ? new Date().getMonth() : d.getMonth();
+  const startYear = month >= 3 ? year : year - 1;
+  const endYear = startYear + 1;
+  return `${String(startYear).slice(-2)}-${String(endYear).slice(-2)}`;
+};
+
+// Generate Invoice Number in KB/26-27/0001 format
+const generateInvoiceNumber = async (dateInput = new Date()) => {
+  const fyStr = getFinancialYearStr(dateInput);
+  const prefix = `KB/${fyStr}/`;
+  
+  const regex = new RegExp(`^KB\\/${fyStr}\\/(\\d+)$`, 'i');
+  const matchingRecords = await Income.find({ referenceNo: { $regex: regex } }).select('referenceNo').lean();
+  
+  let maxSeq = 0;
+  matchingRecords.forEach(r => {
+    const match = r.referenceNo && r.referenceNo.match(regex);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+  });
+
+  if (maxSeq === 0) {
+    const totalCount = await Income.countDocuments({});
+    maxSeq = totalCount;
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  
+  while (await Income.findOne({ referenceNo: candidate })) {
+    nextSeq++;
+    candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  }
+  return candidate;
+};
+
+// Generate Receipt Voucher Number in KBR/26-27/0001 format
+const generateReceiptNumber = async (dateInput = new Date()) => {
+  const fyStr = getFinancialYearStr(dateInput);
+  const prefix = `KBR/${fyStr}/`;
+
+  const regex = new RegExp(`^KBR\\/${fyStr}\\/(\\d+)$`, 'i');
+  const matchingRecords = await Income.find({ receiptNo: { $regex: regex } }).select('receiptNo').lean();
+
+  let maxSeq = 0;
+  matchingRecords.forEach(r => {
+    const match = r.receiptNo && r.receiptNo.match(regex);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+  });
+
+  if (maxSeq === 0) {
+    const rCount = await Income.countDocuments({ receiptNo: { $ne: '' } });
+    maxSeq = rCount;
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+
+  while (await Income.findOne({ receiptNo: candidate })) {
+    nextSeq++;
+    candidate = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  }
+  return candidate;
+};
+
 export const createIncome = async (req, res) => {
   try {
     const { 
@@ -1730,16 +1807,17 @@ export const createIncome = async (req, res) => {
       cgstAmount,
       sgstAmount,
       igstAmount,
-      totalAmount
+      totalAmount,
+      lineItems
     } = req.body;
 
     if (!title || !title.trim()) {
-      return res.status(400).json({ success: false, message: 'Income title / source is required.' });
+      return res.status(400).json({ success: false, message: 'Income title/description is required.' });
     }
 
     const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({ success: false, message: 'Valid positive income amount is required.' });
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ success: false, message: 'Valid non-negative income amount is required.' });
     }
 
     if (!department || !department.trim()) {
@@ -1750,8 +1828,8 @@ export const createIncome = async (req, res) => {
     const creatorName = req.user?.name || 'Accountant';
 
     let finalSourceType = sourceType;
-    if (!finalSourceType || !['Academy', 'Client', 'General'].includes(finalSourceType)) {
-      if (client || (clientName && clientName.trim())) {
+    if (!finalSourceType) {
+      if (client && mongoose.Types.ObjectId.isValid(String(client))) {
         finalSourceType = 'Client';
       } else if (department && department.trim() === 'Academy & LMS') {
         finalSourceType = 'Academy';
@@ -1762,7 +1840,6 @@ export const createIncome = async (req, res) => {
 
     let finalReferenceNo = referenceNo ? referenceNo.trim() : '';
     if (finalReferenceNo) {
-      // Ensure referenceNo is unique across ALL records (both active and inactive)
       const existingRef = await Income.findOne({ referenceNo: finalReferenceNo });
       if (existingRef) {
         return res.status(400).json({
@@ -1771,14 +1848,7 @@ export const createIncome = async (req, res) => {
         });
       }
     } else {
-      const prefix = finalSourceType === 'Client' ? 'INV-KB-C' : finalSourceType === 'Academy' ? 'INV-KB-A' : 'INV-KB-G';
-      const totalCount = await Income.countDocuments({});
-      let nextNum = 1001 + totalCount;
-      finalReferenceNo = `${prefix}${nextNum}`;
-      while (await Income.findOne({ referenceNo: finalReferenceNo })) {
-        nextNum++;
-        finalReferenceNo = `${prefix}${nextNum}`;
-      }
+      finalReferenceNo = await generateInvoiceNumber(date ? new Date(date) : new Date());
     }
 
     const inputStatus = req.body.status || 'Pending';
@@ -1793,14 +1863,7 @@ export const createIncome = async (req, res) => {
         });
       }
     } else if (inputStatus === 'Paid') {
-      const recPrefix = finalSourceType === 'Client' ? 'REC-KB-C' : finalSourceType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-      const rCount = await Income.countDocuments({ receiptNo: { $ne: '' } });
-      let nextRecNum = 1001 + rCount;
-      finalReceiptNo = `${recPrefix}${nextRecNum}`;
-      while (await Income.findOne({ receiptNo: finalReceiptNo })) {
-        nextRecNum++;
-        finalReceiptNo = `${recPrefix}${nextRecNum}`;
-      }
+      finalReceiptNo = await generateReceiptNumber(date ? new Date(date) : new Date());
     }
 
     const income = new Income({
@@ -1830,6 +1893,7 @@ export const createIncome = async (req, res) => {
       salesperson: req.body.salesperson ? req.body.salesperson.trim() : '',
       subject: req.body.subject ? req.body.subject.trim() : '',
       discountRate: parseFloat(req.body.discountRate || 0),
+      discountType: req.body.discountType || 'percent',
       discountAmount: parseFloat(req.body.discountAmount || 0),
       tdsAmount: parseFloat(req.body.tdsAmount || 0),
       tcsAmount: parseFloat(req.body.tcsAmount || 0),
@@ -1936,10 +2000,7 @@ export const updateIncome = async (req, res) => {
     if (req.body.status !== undefined) {
       income.status = req.body.status;
       if ((req.body.status === 'Paid' || req.body.status === 'Partially Paid') && !income.receiptNo) {
-        const sType = income.sourceType || 'General';
-        const recPrefix = sType === 'Client' ? 'REC-KB-C' : sType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-        const rCount = await Income.countDocuments({ receiptNo: { $ne: '' } });
-        income.receiptNo = `${recPrefix}${1001 + rCount}`;
+        income.receiptNo = await generateReceiptNumber(income.date || new Date());
         income.receiptDate = new Date();
       }
     }
@@ -1950,6 +2011,7 @@ export const updateIncome = async (req, res) => {
     if (req.body.salesperson !== undefined) income.salesperson = req.body.salesperson.trim();
     if (req.body.subject !== undefined) income.subject = req.body.subject.trim();
     if (req.body.discountRate !== undefined) income.discountRate = parseFloat(req.body.discountRate || 0);
+    if (req.body.discountType !== undefined) income.discountType = req.body.discountType;
     if (req.body.discountAmount !== undefined) income.discountAmount = parseFloat(req.body.discountAmount || 0);
     if (req.body.tdsAmount !== undefined) income.tdsAmount = parseFloat(req.body.tdsAmount || 0);
     if (req.body.tcsAmount !== undefined) income.tcsAmount = parseFloat(req.body.tcsAmount || 0);
@@ -2014,9 +2076,12 @@ export const updateIncome = async (req, res) => {
     if (req.body.status === 'Paid') {
       income.status = 'Paid';
       income.receiptAmount = finalTotAmt;
+      if (!income.receiptNo) {
+        income.receiptNo = await generateReceiptNumber(income.date || new Date());
+      }
       if (!income.payments || income.payments.length === 0) {
         income.payments = [{
-          receiptNo: income.receiptNo || 'REC-KB-1001',
+          receiptNo: income.receiptNo,
           receiptDate: income.receiptDate || new Date(),
           amount: finalTotAmt,
           paymentMethod: income.paymentMethod || 'Bank Transfer',
@@ -2163,11 +2228,7 @@ export const recordPaymentSettlement = async (req, res) => {
 
     let finalRecNo = receiptNo && receiptNo.trim() ? receiptNo.trim() : income.receiptNo;
     if (!finalRecNo) {
-      const sType = income.sourceType || 'General';
-      const recPrefix = sType === 'Client' ? 'REC-KB-C' : sType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-      const count = income.payments.length + 1;
-      const mongoIdNum = String(income._id).slice(-4).toUpperCase();
-      finalRecNo = `${recPrefix}${mongoIdNum}-${count}`;
+      finalRecNo = await generateReceiptNumber(receiptDate ? new Date(receiptDate) : new Date());
     }
 
     const newPaymentEntry = {
@@ -2563,6 +2624,160 @@ export const deleteOperation = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ==========================================
+// PUBLIC PDF UPLOAD & SERVING CONTROLLERS (FOR WHATSAPP LINK SHARING)
+// ==========================================
+
+const PUBLIC_PDF_DIR = path.resolve(process.cwd(), 'uploads', 'public_pdfs');
+
+export const uploadPublicPdf = async (req, res) => {
+  try {
+    if (!fs.existsSync(PUBLIC_PDF_DIR)) {
+      fs.mkdirSync(PUBLIC_PDF_DIR, { recursive: true });
+    }
+
+    let pdfBuffer = null;
+
+    if (req.file) {
+      if (req.file.buffer) {
+        pdfBuffer = req.file.buffer;
+      } else if (req.file.path && fs.existsSync(req.file.path)) {
+        pdfBuffer = fs.readFileSync(req.file.path);
+      }
+    } else if (req.body.pdfBase64) {
+      const cleanBase64 = String(req.body.pdfBase64).replace(/^data:application\/pdf;base64,/, '').trim();
+      pdfBuffer = Buffer.from(cleanBase64, 'base64');
+    }
+
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid PDF data or file provided.' });
+    }
+
+    // Cryptographically secure random token (32-character hex)
+    const token = `pdf_${crypto.randomBytes(16).toString('hex')}`;
+    const filePath = path.join(PUBLIC_PDF_DIR, `${token}.pdf`);
+    const metaPath = path.join(PUBLIC_PDF_DIR, `${token}.json`);
+
+    const docTitle = req.body.docTitle || req.body.title || req.body.filename || 'Invoice PDF';
+    const referenceNo = req.body.referenceNo || '';
+    const amount = req.body.amount || '';
+    const filename = req.body.filename || 'Document.pdf';
+
+    fs.writeFileSync(filePath, pdfBuffer);
+    fs.writeFileSync(metaPath, JSON.stringify({
+      docTitle,
+      referenceNo,
+      amount,
+      filename,
+      createdAt: new Date().toISOString()
+    }, null, 2));
+
+    const relativeUrl = `/api/v1/public/pdf/${token}`;
+    const host = req.get('host') || 'localhost:5000';
+    const protocol = req.protocol || 'http';
+    const fullUrl = `${protocol}://${host}${relativeUrl}`;
+
+    return res.status(200).json({
+      success: true,
+      token,
+      pdfUrl: relativeUrl,
+      fullUrl,
+      message: 'PDF uploaded successfully for WhatsApp sharing.'
+    });
+  } catch (error) {
+    console.error('uploadPublicPdf Error:', error);
+    return res.status(500).json({ success: false, message: 'Unable to prepare the invoice PDF. Please try again.' });
+  }
+};
+
+export const servePublicPdf = async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token || !/^[a-zA-Z0-9_-]+$/.test(token)) {
+      return res.status(400).json({ success: false, message: 'Invalid PDF token.' });
+    }
+
+    const filePath = path.join(PUBLIC_PDF_DIR, `${token}.pdf`);
+    const metaPath = path.join(PUBLIC_PDF_DIR, `${token}.json`);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).send('Invoice / Receipt PDF not found or link expired.');
+    }
+
+    // Serve raw PDF if explicitly requested or if route ends in /raw or query ?raw=true
+    const isRaw = req.path.endsWith('/raw') || req.query.raw === 'true';
+
+    if (isRaw) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="Document.pdf"');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      const stream = fs.createReadStream(filePath);
+      return stream.pipe(res);
+    }
+
+    // Otherwise serve HTML Page with Open Graph Meta Tags for WhatsApp Rich Link Preview Card
+    let meta = { docTitle: 'Invoice / Receipt PDF', filename: 'Document.pdf' };
+    if (fs.existsSync(metaPath)) {
+      try {
+        meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      } catch (e) {}
+    }
+
+    const host = req.get('host') || 'localhost:5000';
+    const protocol = req.protocol || 'http';
+    const currentFullUrl = `${protocol}://${host}${req.originalUrl}`;
+    const rawPdfUrl = `/api/v1/public/pdf/${token}/raw`;
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📄 ${meta.docTitle} — Kod Brand</title>
+  <meta property="og:title" content="📄 ${meta.docTitle} — Kod Brand" />
+  <meta property="og:description" content="Official Billing Document. Tap to view or download PDF." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="${currentFullUrl}" />
+  <meta property="og:site_name" content="Kod Brand CRM" />
+  <style>
+    * { box-sizing: border-box; }
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .toolbar { height: 52px; background: #1e293b; border-bottom: 1px solid #334155; color: white; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+    .toolbar-title { font-size: 14px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
+    .download-btn { background: #10b981; color: white; text-decoration: none; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .download-btn:hover { background: #059669; }
+    .pdf-container { width: 100%; height: calc(100% - 52px); background: #334155; }
+    iframe, object, embed { width: 100%; height: 100%; border: none; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="toolbar-title">
+      <span>📄</span>
+      <span>${meta.docTitle}</span>
+    </div>
+    <a href="${rawPdfUrl}" download="${meta.filename || 'Document.pdf'}" class="download-btn">
+      <span>⬇️</span> Download PDF
+    </a>
+  </div>
+  <div class="pdf-container">
+    <object data="${rawPdfUrl}" type="application/pdf" width="100%" height="100%">
+      <embed src="${rawPdfUrl}" type="application/pdf" />
+    </object>
+  </div>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.status(200).send(htmlContent);
+  } catch (error) {
+    console.error('servePublicPdf Error:', error);
+    return res.status(500).send('Error serving PDF document.');
+  }
+};
+
 
 
 

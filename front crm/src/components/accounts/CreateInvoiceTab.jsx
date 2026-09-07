@@ -246,6 +246,12 @@ const CreateInvoiceTab = () => {
       setGstCategory(rec.gstCategory || 'CGST_SGST');
       setGstRate(rec.gstRate !== undefined ? rec.gstRate : 18);
       setDiscountRate(rec.discountRate || 0);
+      const loadedDiscType = (rec.discountType && ['amount', 'flat', 'rs'].includes(rec.discountType))
+        ? 'amount'
+        : ((rec.discountType && ['percent', '%'].includes(rec.discountType))
+          ? 'percent'
+          : (parseFloat(rec.discountAmount || 0) > 0 && parseFloat(rec.discountAmount || 0) === parseFloat(rec.discountRate || 0) ? 'amount' : 'percent'));
+      setDiscountType(loadedDiscType);
 
       const numGst = parseFloat(rec.gstRate || 0);
       const isExclusive = (rec.taxOption || 'Exclusive GST') === 'Exclusive GST';
@@ -316,9 +322,14 @@ const CreateInvoiceTab = () => {
     setStatus('Paid');
     let autoRecNo = receiptNo;
     if (!autoRecNo) {
-      const prefix = sourceType === 'Client' ? 'REC-KB-C' : sourceType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-      const idSuffix = editingId ? String(editingId).slice(-4).toUpperCase() : '1001';
-      autoRecNo = `${prefix}${idSuffix}`;
+      const dateObj = new Date();
+      const y = dateObj.getFullYear();
+      const m = dateObj.getMonth();
+      const sY = m >= 3 ? y : y - 1;
+      const fyStr = `${String(sY).slice(-2)}-${String(sY + 1).slice(-2)}`;
+      const numDigits = editingId ? String(editingId).replace(/\D/g, '') : '';
+      const idSuffix = numDigits ? numDigits.slice(-4).padStart(4, '0') : '0001';
+      autoRecNo = `KBR/${fyStr}/${idSuffix}`;
       setReceiptNo(autoRecNo);
     }
     if (!receiptDate) {
@@ -345,9 +356,14 @@ const CreateInvoiceTab = () => {
 
     let autoRecNo = receiptNo;
     if (!autoRecNo) {
-      const prefix = sourceType === 'Client' ? 'REC-KB-C' : sourceType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-      const idSuffix = editingId ? String(editingId).slice(-4).toUpperCase() : `${1001 + Math.floor(Math.random() * 900)}`;
-      autoRecNo = `${prefix}${idSuffix}`;
+      const dateObj = new Date();
+      const y = dateObj.getFullYear();
+      const m = dateObj.getMonth();
+      const sY = m >= 3 ? y : y - 1;
+      const fyStr = `${String(sY).slice(-2)}-${String(sY + 1).slice(-2)}`;
+      const numDigits = editingId ? String(editingId).replace(/\D/g, '') : '';
+      const idSuffix = numDigits ? numDigits.slice(-4).padStart(4, '0') : '0001';
+      autoRecNo = `KBR/${fyStr}/${idSuffix}`;
       setReceiptNo(autoRecNo);
     }
 
@@ -555,7 +571,7 @@ const CreateInvoiceTab = () => {
             : `Invoice ${data.data?.referenceNo || referenceNo || 'record'} ${editingId ? 'updated' : 'saved'} successfully!`,
           'success'
         );
-        navigate('/accounts/income');
+        navigate('/accounts/sales');
       } else {
         showToast(data.message || `Failed to ${editingId ? 'update' : 'create'} invoice.`, 'error');
       }
@@ -574,9 +590,9 @@ const CreateInvoiceTab = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => navigate('/accounts/income')}
+            onClick={() => navigate('/accounts/sales')}
             className="p-1 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-            title="Back to Income List"
+            title="Back to Sales List"
           >
             <ArrowLeft size={14} />
           </button>
@@ -593,7 +609,7 @@ const CreateInvoiceTab = () => {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => navigate('/accounts/income')}
+            onClick={() => navigate('/accounts/sales')}
             className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 transition cursor-pointer text-[11px]"
           >
             Cancel
@@ -1066,9 +1082,9 @@ const CreateInvoiceTab = () => {
                 </label>
                 <input
                   type="text"
-                  value={receiptNo || (sourceType === 'Client' ? 'REC-KB-C1001' : sourceType === 'Academy' ? 'REC-KB-A1001' : 'REC-KB-G1001')}
+                  value={receiptNo}
                   onChange={(e) => setReceiptNo(e.target.value)}
-                  placeholder="e.g. REC-KB-C1001"
+                  placeholder="e.g. KBR/26-27/0001"
                   className="w-full bg-white dark:bg-slate-950 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1 text-[11px] font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   required
                 />
@@ -1134,7 +1150,7 @@ const CreateInvoiceTab = () => {
         <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => navigate('/accounts/income')}
+            onClick={() => navigate('/accounts/sales')}
             className="px-3.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 transition cursor-pointer text-[11px]"
           >
             Cancel
@@ -1179,7 +1195,7 @@ const CreateInvoiceTab = () => {
             totalAmount: grandTotal,
             receiptAmount: receiptAmount > 0 ? receiptAmount : grandTotal,
             status: (receiptAmount > 0 && receiptAmount < grandTotal) ? 'Partially Paid' : 'Paid',
-            receiptNo: receiptNo || (sourceType === 'Client' ? 'REC-KB-C1001' : sourceType === 'Academy' ? 'REC-KB-A1001' : 'REC-KB-G1001'),
+            receiptNo: receiptNo || 'KBR/26-27/0001',
             receiptDate: receiptDate || date,
             lineItems,
             notes: receiptNotes || notes,
