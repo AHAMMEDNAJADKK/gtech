@@ -38,7 +38,11 @@ import {
   createCapital,
   updateCapital,
   deleteCapital,
-  addCapitalTopUp
+  addCapitalTopUp,
+  getOperations,
+  createOperation,
+  updateOperation,
+  deleteOperation
 } from '../controllers/account.controller.js';
 import protectRoute from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
@@ -108,6 +112,12 @@ router.delete('/salary-payments/:id', deleteSalaryPayment);
 
 // ── Cash Book Routes ──
 router.get('/cash-book', getCashBook);
+
+// ── Operation Accounts Routes ──
+router.get('/operations', getOperations);
+router.post('/operations', createOperation);
+router.put('/operations/:id', updateOperation);
+router.delete('/operations/:id', deleteOperation);
 
 // ── Reports Routes ──
 router.get('/reports/daily', getDailyReport);

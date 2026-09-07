@@ -683,7 +683,7 @@ const CashBookTab = () => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-              Profit & Loss / Cash Book (Income, Expense & Purchase)
+              Profit & Loss / Cash & Bank (Income, Expense & Purchase)
             </h3>
           </div>
         </div>

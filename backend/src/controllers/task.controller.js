@@ -39,6 +39,25 @@ const VALID_PRIORITIES = ["low", "medium", "high"];
    HELPERS
 ========================================================= */
 
+const parseDueDate = (dateVal) => {
+  if (!dateVal) return undefined;
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    if (!trimmed) return undefined;
+    // If sent as raw datetime-local string without timezone offset e.g. "2026-09-04T12:22" or "2026-09-04T12:22:00"
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+      const [datePart, timePart] = trimmed.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hour, minute, second] = timePart.split(':').map(Number);
+      return new Date(year, month - 1, day, hour, minute, second || 0);
+    }
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? undefined : d;
+  }
+  const d = new Date(dateVal);
+  return isNaN(d.getTime()) ? undefined : d;
+};
+
 const getAuthUserId = (req) => {
   return req.user?.id || req.user?._id || req.user?.userId;
 };
@@ -759,7 +778,7 @@ export const createTask = async (req, res, next) => {
 
       designation_id: designation_id || undefined,
 
-      dueDate: dueDate || undefined,
+      dueDate: parseDueDate(dueDate),
 
       client: clientId,
 
@@ -1408,7 +1427,7 @@ export const updateTask = async (req, res, next) => {
     /* Due date */
 
     if (dueDate !== undefined) {
-      task.dueDate = dueDate || null;
+      task.dueDate = parseDueDate(dueDate) || null;
     }
 
     /* Client */

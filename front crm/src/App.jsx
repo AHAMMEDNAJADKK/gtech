@@ -247,6 +247,7 @@ function App() {
         <Route path="/accounts/expenses" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/accounts/salary" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/accounts/cash-book" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/accounts/operation" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/accounts/reports" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
 
         {/* Client & Project Management Module Routes */}

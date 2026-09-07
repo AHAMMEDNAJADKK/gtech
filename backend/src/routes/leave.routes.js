@@ -7,7 +7,8 @@ import {
   getAllLeaveRequests,
   getLeaveHistory,
   approveOrRejectLeave,
-  cancelLeaveRequest
+  cancelLeaveRequest,
+  updateLeaveRequest
 } from '../controllers/leave.controller.js';
 
 const router = Router();
@@ -18,6 +19,7 @@ router.use(verifyJWT);
 router.post('/', createLeaveRequest);
 router.get('/my', getMyLeaveRequests);
 router.get('/history', getLeaveHistory);
+router.put('/:id', updateLeaveRequest);
 router.delete('/:id', cancelLeaveRequest);
 
 // Manager / Team Lead routes

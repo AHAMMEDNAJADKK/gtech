@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Building, Phone, Mail, MapPin, ChevronRight, MoreVertical, 
   Trash2, Edit, ExternalLink, ShieldCheck, UserCheck, Tag, Star
 } from 'lucide-react';
 
 const ClientGridView = ({ clients, onDelete }) => {
+  const navigate = useNavigate();
   const [activeMenuId, setActiveMenuId] = useState(null);
 
   const toggleMenu = (e, id) => {
@@ -41,7 +42,8 @@ const ClientGridView = ({ clients, onDelete }) => {
         return (
           <div
             key={id}
-            className="p-5 rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-md flex flex-col justify-between hover:shadow-xl hover:border-indigo-500/40 transition-all duration-200 group relative"
+            onClick={() => navigate(`/clients/${id}`)}
+            className="p-5 rounded-3xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-md flex flex-col justify-between hover:shadow-xl hover:border-indigo-500/40 transition-all duration-200 group relative cursor-pointer"
           >
             {/* Header Section */}
             <div>
@@ -59,11 +61,9 @@ const ClientGridView = ({ clients, onDelete }) => {
                     </div>
                   )}
                   <div className="overflow-hidden">
-                    <Link to={`/clients/${id}`} className="block">
-                      <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 transition-colors truncate">
-                        {client.companyName}
-                      </h3>
-                    </Link>
+                    <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 transition-colors truncate">
+                      {client.companyName}
+                    </h3>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
                         {client.clientId}
@@ -78,30 +78,41 @@ const ClientGridView = ({ clients, onDelete }) => {
                 </div>
 
                 {/* More Action Menu Dropdown */}
-                <div className="relative">
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     onClick={(e) => toggleMenu(e, id)}
-                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <MoreVertical className="w-4 h-4" />
                   </button>
 
                   {activeMenuId === id && (
                     <div 
+                      onClick={(e) => e.stopPropagation()}
                       onMouseLeave={() => setActiveMenuId(null)}
                       className="absolute right-0 top-8 w-44 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-30 flex flex-col gap-0.5"
                     >
-                      <Link
-                        to={`/clients/${id}`}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 rounded-xl transition-colors"
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuId(null);
+                          navigate(`/clients/${id}`);
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 rounded-xl transition-colors w-full text-left cursor-pointer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         View Profile
-                      </Link>
+                      </button>
                       <button
-                        onClick={() => { setActiveMenuId(null); onDelete?.(id); }}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors w-full text-left"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuId(null);
+                          onDelete?.(id);
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors w-full text-left cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Delete Client
@@ -129,10 +140,10 @@ const ClientGridView = ({ clients, onDelete }) => {
               {/* Contact Information */}
               <div className="flex flex-col gap-1.5 my-3 text-xs text-slate-600 dark:text-slate-400">
                 {client.clientName && (
-                  <Link to={`/clients/${id}`} className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
+                  <div className="flex items-center gap-2">
                     <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="font-semibold text-slate-700 dark:text-slate-300 truncate hover:text-indigo-600">{client.clientName}</span>
-                  </Link>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{client.clientName}</span>
+                  </div>
                 )}
                 <div className="flex items-center gap-2">
                   <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -180,13 +191,12 @@ const ClientGridView = ({ clients, onDelete }) => {
                 </span>
               </div>
 
-              <Link
-                to={`/clients/${id}`}
-                className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-500 group-hover:translate-x-0.5 transition-all"
+              <div
+                className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all"
               >
                 View Profile
                 <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
+              </div>
             </div>
           </div>
         );

@@ -7,10 +7,19 @@ import {
   Video, PhoneCall, CheckCircle2, AlertCircle, CalendarDays, BarChart3, Search, CheckSquare,
   ChevronLeft, X, Trash2, Tag, Check, Pencil, CalendarClock, Layers, Eye, Activity
 } from 'lucide-react';
-import { getClientById } from '../services/clientService';
+import { 
+  getClientById,
+  createClientMeeting,
+  updateClientMeeting,
+  deleteClientMeeting,
+  createClientFollowup,
+  updateClientFollowup,
+  deleteClientFollowup
+} from '../services/clientService';
 import { useToast } from '../components/ToastProvider';
 import { formatApiError } from '../utils/errorUtils';
 import EditClientModal from '../components/clients/EditClientModal';
+import ConfirmModal from '../components/ConfirmModal';
 
 const ClientDetailsPage = () => {
   const { id } = useParams();
@@ -20,6 +29,13 @@ const ClientDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [editOpen, setEditOpen] = useState(false);
+
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null
+  });
 
   // Sub-tabs states
   const [meetingsSubTab, setMeetingsSubTab] = useState('today'); // 'today' | 'upcoming' | 'history'
@@ -91,7 +107,62 @@ const ClientDetailsPage = () => {
       if (res && res.success) {
         setData(res.data);
         setClientProjects(res.data?.projects || []);
-        loadClientActivities(res.data?.client?._id || res.data?.client?.clientId || id);
+
+        let initialMeetings = res.data?.meetings || [];
+        let initialFollowups = res.data?.followups || [];
+
+        // Migrate any legacy localStorage items once, then clear localStorage
+        const mainId = res.data?.client?._id || id;
+        const legacyM = localStorage.getItem(`crm_meetings_${mainId}`) || localStorage.getItem(`crm_meetings_${id}`);
+        const legacyF = localStorage.getItem(`crm_followups_${mainId}`) || localStorage.getItem(`crm_followups_${id}`);
+
+        if (legacyM) {
+          try {
+            const parsedM = JSON.parse(legacyM);
+            if (Array.isArray(parsedM) && parsedM.length > 0 && initialMeetings.length === 0) {
+              for (const m of parsedM) {
+                await createClientMeeting(mainId, {
+                  title: m.title,
+                  date: m.date,
+                  time: m.time,
+                  type: m.type,
+                  status: m.status,
+                  attendees: m.attendees,
+                  notes: m.notes
+                });
+              }
+              const refreshed = await getClientById(id);
+              if (refreshed?.data?.meetings) initialMeetings = refreshed.data.meetings;
+            }
+          } catch (e) {}
+          localStorage.removeItem(`crm_meetings_${mainId}`);
+          localStorage.removeItem(`crm_meetings_${id}`);
+        }
+
+        if (legacyF) {
+          try {
+            const parsedF = JSON.parse(legacyF);
+            if (Array.isArray(parsedF) && parsedF.length > 0 && initialFollowups.length === 0) {
+              for (const f of parsedF) {
+                await createClientFollowup(mainId, {
+                  title: f.title,
+                  dueDate: f.dueDate,
+                  dueTime: f.dueTime,
+                  priority: f.priority,
+                  status: f.status,
+                  notes: f.notes
+                });
+              }
+              const refreshed = await getClientById(id);
+              if (refreshed?.data?.followups) initialFollowups = refreshed.data.followups;
+            }
+          } catch (e) {}
+          localStorage.removeItem(`crm_followups_${mainId}`);
+          localStorage.removeItem(`crm_followups_${id}`);
+        }
+
+        setMeetings(initialMeetings);
+        setFollowups(initialFollowups);
       } else {
         showToast(formatApiError(res, "Failed to load client details"), "error");
       }
@@ -100,59 +171,6 @@ const ClientDetailsPage = () => {
       showToast(formatApiError(err, "Server error fetching client details"), "error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getStorageKeys = (clientIdOverride) => {
-    const mainId = id || clientIdOverride || data?.client?._id || data?.client?.clientId || 'default';
-    return {
-      meetingsKey: `crm_meetings_${mainId}`,
-      followupsKey: `crm_followups_${mainId}`
-    };
-  };
-
-  const loadClientActivities = (clientId) => {
-    const { meetingsKey, followupsKey } = getStorageKeys(clientId);
-
-    // Try primary key, fallback to URL id key if different
-    const savedMeetings = localStorage.getItem(meetingsKey) || (id ? localStorage.getItem(`crm_meetings_${id}`) : null);
-    if (savedMeetings) {
-      try {
-        setMeetings(JSON.parse(savedMeetings));
-      } catch (e) {
-        setMeetings([]);
-      }
-    } else {
-      setMeetings([]);
-    }
-
-    const savedFollowups = localStorage.getItem(followupsKey) || (id ? localStorage.getItem(`crm_followups_${id}`) : null);
-    if (savedFollowups) {
-      try {
-        setFollowups(JSON.parse(savedFollowups));
-      } catch (e) {
-        setFollowups([]);
-      }
-    } else {
-      setFollowups([]);
-    }
-  };
-
-  const persistMeetings = (updatedMeetings, clientIdOverride) => {
-    setMeetings(updatedMeetings);
-    const { meetingsKey } = getStorageKeys(clientIdOverride);
-    localStorage.setItem(meetingsKey, JSON.stringify(updatedMeetings));
-    if (id && `crm_meetings_${id}` !== meetingsKey) {
-      localStorage.setItem(`crm_meetings_${id}`, JSON.stringify(updatedMeetings));
-    }
-  };
-
-  const persistFollowups = (updatedFollowups, clientIdOverride) => {
-    setFollowups(updatedFollowups);
-    const { followupsKey } = getStorageKeys(clientIdOverride);
-    localStorage.setItem(followupsKey, JSON.stringify(updatedFollowups));
-    if (id && `crm_followups_${id}` !== followupsKey) {
-      localStorage.setItem(`crm_followups_${id}`, JSON.stringify(updatedFollowups));
     }
   };
 
@@ -185,7 +203,7 @@ const ClientDetailsPage = () => {
     setIsAddMeetingOpen(true);
   };
 
-  const handleSelectMeetingStatus = (m, nextStatus) => {
+  const handleSelectMeetingStatus = async (m, nextStatus) => {
     if (nextStatus === 'Postponed') {
       setPostponingMeeting(m);
       setPostponeForm({
@@ -196,53 +214,92 @@ const ClientDetailsPage = () => {
       setIsPostponeModalOpen(true);
       return;
     }
-    const updated = meetings.map(item => item.id === m.id ? { ...item, status: nextStatus } : item);
-    persistMeetings(updated);
-    showToast(`Meeting status updated to ${nextStatus}`, 'success');
+    const meetingId = m._id || m.id;
+    const clientId = data?.client?._id || id;
+    try {
+      const res = await updateClientMeeting(clientId, meetingId, { status: nextStatus });
+      if (res && res.success) {
+        setMeetings(prev => prev.map(item => (item._id === meetingId || item.id === meetingId) ? { ...item, status: nextStatus } : item));
+        showToast(`Meeting status updated to ${nextStatus}`, 'success');
+      } else {
+        showToast(res?.message || 'Failed to update meeting status', 'error');
+      }
+    } catch (err) {
+      showToast(formatApiError(err, 'Failed to update meeting status'), 'error');
+    }
   };
 
-  const handleConfirmPostpone = (e) => {
+  const handleConfirmPostpone = async (e) => {
     e.preventDefault();
     if (!postponingMeeting) return;
     if (!postponeForm.newDate) {
       showToast('Please select a new date for the postponed meeting', 'warning');
       return;
     }
-    const updated = meetings.map(m => {
-      if (m.id === postponingMeeting.id) {
-        const reasonTag = postponeForm.reason.trim() ? `[Postponed: ${postponeForm.reason.trim()}]` : '';
-        return {
+    const meetingId = postponingMeeting._id || postponingMeeting.id;
+    const clientId = data?.client?._id || id;
+    const reasonTag = postponeForm.reason.trim() ? `[Postponed: ${postponeForm.reason.trim()}]` : '';
+    const updatedNotes = postponingMeeting.notes ? `${postponingMeeting.notes} ${reasonTag}`.trim() : reasonTag;
+    
+    try {
+      const res = await updateClientMeeting(clientId, meetingId, {
+        date: postponeForm.newDate,
+        time: postponeForm.newTime || postponingMeeting.time,
+        status: 'Postponed',
+        notes: updatedNotes
+      });
+      if (res && res.success) {
+        setMeetings(prev => prev.map(m => (m._id === meetingId || m.id === meetingId) ? {
           ...m,
           date: postponeForm.newDate,
           time: postponeForm.newTime || m.time,
           status: 'Postponed',
-          notes: m.notes ? `${m.notes} ${reasonTag}`.trim() : reasonTag
-        };
+          notes: updatedNotes
+        } : m));
+        showToast(`Meeting postponed & rescheduled to ${postponeForm.newDate} at ${postponeForm.newTime}`, 'success');
+      } else {
+        showToast(res?.message || 'Failed to postpone meeting', 'error');
       }
-      return m;
-    });
-    persistMeetings(updated);
-    showToast(`Meeting postponed & rescheduled to ${postponeForm.newDate} at ${postponeForm.newTime}`, 'success');
-    setIsPostponeModalOpen(false);
-    setPostponingMeeting(null);
-  };
-
-  const handleDeleteMeeting = (mId) => {
-    if (window.confirm('Are you sure you want to delete this meeting?')) {
-      const updated = meetings.filter(m => m.id !== mId);
-      persistMeetings(updated);
-      showToast('Meeting deleted successfully', 'info');
+    } catch (err) {
+      showToast(formatApiError(err, 'Failed to postpone meeting'), 'error');
+    } finally {
+      setIsPostponeModalOpen(false);
+      setPostponingMeeting(null);
     }
   };
 
-  const handleSaveMeeting = (e) => {
+  const handleDeleteMeeting = (mId) => {
+    setDeleteConfirm({
+      isOpen: true,
+      title: 'Delete Scheduled Meeting',
+      message: 'Are you sure you want to delete this meeting? This action cannot be undone.',
+      onConfirm: async () => {
+        const clientId = data?.client?._id || id;
+        try {
+          const res = await deleteClientMeeting(clientId, mId);
+          if (res && res.success) {
+            setMeetings(prev => prev.filter(m => (m._id || m.id) !== mId));
+            showToast('Meeting deleted successfully', 'info');
+          } else {
+            showToast(res?.message || 'Failed to delete meeting', 'error');
+          }
+        } catch (err) {
+          showToast(formatApiError(err, 'Failed to delete meeting'), 'error');
+        } finally {
+          setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
+  const handleSaveMeeting = async (e) => {
     e.preventDefault();
     if (!meetingForm.title.trim()) {
       showToast('Please enter a meeting title', 'warning');
       return;
     }
     if (meetingForm.status === 'Postponed' && !editingMeeting) {
-      setPostponingMeeting({ id: `m_${Date.now()}`, ...meetingForm });
+      setPostponingMeeting({ ...meetingForm });
       setPostponeForm({
         newDate: meetingForm.date,
         newTime: meetingForm.time,
@@ -252,36 +309,43 @@ const ClientDetailsPage = () => {
       setIsPostponeModalOpen(true);
       return;
     }
-    if (editingMeeting) {
-      const updated = meetings.map(m => m.id === editingMeeting.id ? {
-        ...m,
-        title: meetingForm.title.trim(),
-        date: meetingForm.date,
-        time: meetingForm.time,
-        type: meetingForm.type,
-        status: meetingForm.status || 'Scheduled',
-        attendees: meetingForm.attendees.trim() || 'Account Manager',
-        notes: meetingForm.notes.trim() || 'No additional notes provided.'
-      } : m);
-      persistMeetings(updated);
-      showToast('Meeting updated successfully!', 'success');
-    } else {
-      const newM = {
-        id: `m_${Date.now()}`,
-        title: meetingForm.title.trim(),
-        date: meetingForm.date,
-        time: meetingForm.time,
-        type: meetingForm.type,
-        status: meetingForm.status || 'Scheduled',
-        attendees: meetingForm.attendees.trim() || 'Account Manager',
-        notes: meetingForm.notes.trim() || 'No additional notes provided.'
-      };
-      const updated = [newM, ...meetings];
-      persistMeetings(updated);
-      showToast('Meeting scheduled successfully!', 'success');
+
+    const clientId = data?.client?._id || id;
+    const payload = {
+      title: meetingForm.title.trim(),
+      date: meetingForm.date,
+      time: meetingForm.time,
+      type: meetingForm.type,
+      status: meetingForm.status || 'Scheduled',
+      attendees: meetingForm.attendees.trim() || 'Account Manager',
+      notes: meetingForm.notes.trim() || 'No additional notes provided.'
+    };
+
+    try {
+      if (editingMeeting) {
+        const meetingId = editingMeeting._id || editingMeeting.id;
+        const res = await updateClientMeeting(clientId, meetingId, payload);
+        if (res && res.success) {
+          setMeetings(prev => prev.map(m => (m._id === meetingId || m.id === meetingId) ? (res.data || { ...m, ...payload }) : m));
+          showToast('Meeting updated successfully!', 'success');
+        } else {
+          showToast(res?.message || 'Failed to update meeting', 'error');
+        }
+      } else {
+        const res = await createClientMeeting(clientId, payload);
+        if (res && res.success) {
+          setMeetings(prev => [res.data, ...prev]);
+          showToast('Meeting scheduled successfully!', 'success');
+        } else {
+          showToast(res?.message || 'Failed to schedule meeting', 'error');
+        }
+      }
+    } catch (err) {
+      showToast(formatApiError(err, 'Failed to save meeting'), 'error');
+    } finally {
+      setIsAddMeetingOpen(false);
+      setEditingMeeting(null);
     }
-    setIsAddMeetingOpen(false);
-    setEditingMeeting(null);
   };
 
   // --- Follow-up Actions ---
@@ -312,66 +376,109 @@ const ClientDetailsPage = () => {
   };
 
   const handleDeleteFollowUp = (fId) => {
-    if (window.confirm('Are you sure you want to delete this follow-up task?')) {
-      const updated = followups.filter(f => f.id !== fId);
-      persistFollowups(updated);
-      showToast('Follow-up task deleted successfully', 'info');
-    }
+    setDeleteConfirm({
+      isOpen: true,
+      title: 'Delete Follow-up Task',
+      message: 'Are you sure you want to delete this follow-up task? This action cannot be undone.',
+      onConfirm: async () => {
+        const clientId = data?.client?._id || id;
+        try {
+          const res = await deleteClientFollowup(clientId, fId);
+          if (res && res.success) {
+            setFollowups(prev => prev.filter(f => (f._id || f.id) !== fId));
+            showToast('Follow-up task deleted successfully', 'info');
+          } else {
+            showToast(res?.message || 'Failed to delete follow-up', 'error');
+          }
+        } catch (err) {
+          showToast(formatApiError(err, 'Failed to delete follow-up'), 'error');
+        } finally {
+          setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
-  const handleSaveFollowUp = (e) => {
+  const handleSaveFollowUp = async (e) => {
     e.preventDefault();
     if (!followUpForm.title.trim()) {
       showToast('Please enter a follow-up title', 'warning');
       return;
     }
-    if (editingFollowup) {
-      const updated = followups.map(f => f.id === editingFollowup.id ? {
-        ...f,
-        title: followUpForm.title.trim(),
-        dueDate: followUpForm.dueDate,
-        dueTime: followUpForm.dueTime,
-        priority: followUpForm.priority,
-        notes: followUpForm.notes.trim() || 'Follow-up task updated.'
-      } : f);
-      persistFollowups(updated);
-      showToast('Follow-up task updated successfully!', 'success');
-    } else {
-      const newF = {
-        id: `f_${Date.now()}`,
-        title: followUpForm.title.trim(),
-        dueDate: followUpForm.dueDate,
-        dueTime: followUpForm.dueTime,
-        priority: followUpForm.priority,
-        status: 'Pending',
-        notes: followUpForm.notes.trim() || 'Follow-up task scheduled.'
-      };
-      const updated = [newF, ...followups];
-      persistFollowups(updated);
-      showToast('Follow-up task added successfully!', 'success');
+    const clientId = data?.client?._id || id;
+
+    try {
+      if (editingFollowup) {
+        const followupId = editingFollowup._id || editingFollowup.id;
+        const payload = {
+          title: followUpForm.title.trim(),
+          dueDate: followUpForm.dueDate,
+          dueTime: followUpForm.dueTime,
+          priority: followUpForm.priority,
+          notes: followUpForm.notes.trim() || 'Follow-up task updated.'
+        };
+        const res = await updateClientFollowup(clientId, followupId, payload);
+        if (res && res.success) {
+          setFollowups(prev => prev.map(f => (f._id === followupId || f.id === followupId) ? (res.data || { ...f, ...payload }) : f));
+          showToast('Follow-up task updated successfully!', 'success');
+        } else {
+          showToast(res?.message || 'Failed to update follow-up', 'error');
+        }
+      } else {
+        const payload = {
+          title: followUpForm.title.trim(),
+          dueDate: followUpForm.dueDate,
+          dueTime: followUpForm.dueTime,
+          priority: followUpForm.priority,
+          status: 'Pending',
+          notes: followUpForm.notes.trim() || 'Follow-up task scheduled.'
+        };
+        const res = await createClientFollowup(clientId, payload);
+        if (res && res.success) {
+          setFollowups(prev => [res.data, ...prev]);
+          showToast('Follow-up task added successfully!', 'success');
+        } else {
+          showToast(res?.message || 'Failed to add follow-up', 'error');
+        }
+      }
+    } catch (err) {
+      showToast(formatApiError(err, 'Failed to save follow-up'), 'error');
+    } finally {
+      setIsAddFollowUpOpen(false);
+      setEditingFollowup(null);
     }
-    setIsAddFollowUpOpen(false);
-    setEditingFollowup(null);
   };
 
-  const toggleFollowUpStatus = (fId) => {
-    const updated = followups.map(f => {
-      if (f.id === fId) {
-        const nextStatus = f.status === 'Completed' ? 'Pending' : 'Completed';
-        return { ...f, status: nextStatus };
+  const toggleFollowUpStatus = async (fId) => {
+    const target = followups.find(f => (f._id || f.id) === fId);
+    if (!target) return;
+    const nextStatus = target.status === 'Completed' ? 'Pending' : 'Completed';
+    const clientId = data?.client?._id || id;
+    try {
+      const res = await updateClientFollowup(clientId, fId, { status: nextStatus });
+      if (res && res.success) {
+        setFollowups(prev => prev.map(f => (f._id === fId || f.id === fId) ? { ...f, status: nextStatus } : f));
+        showToast(`Follow-up marked as ${nextStatus}`, 'success');
+      } else {
+        showToast(res?.message || 'Failed to update follow-up status', 'error');
       }
-      return f;
-    });
-    persistFollowups(updated);
-    showToast('Follow-up status updated!', 'info');
+    } catch (err) {
+      showToast(formatApiError(err, 'Failed to update follow-up status'), 'error');
+    }
   };
 
   // --- Project Actions ---
   const handleDeleteProjectCard = (pId) => {
-    if (window.confirm('Are you sure you want to remove this project from client view?')) {
-      setClientProjects(prev => prev.filter(p => (p._id || p.id) !== pId));
-      showToast('Project removed successfully', 'info');
-    }
+    setDeleteConfirm({
+      isOpen: true,
+      title: 'Remove Project Card',
+      message: 'Are you sure you want to remove this project from client view?',
+      onConfirm: () => {
+        setClientProjects(prev => prev.filter(p => (p._id || p.id) !== pId));
+        showToast('Project removed successfully', 'info');
+        setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   // --- Calendar Date Click Action ---
@@ -1695,6 +1802,16 @@ const ClientDetailsPage = () => {
         </div>,
         document.body
       )}
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={deleteConfirm.onConfirm}
+        title={deleteConfirm.title}
+        message={deleteConfirm.message}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 };

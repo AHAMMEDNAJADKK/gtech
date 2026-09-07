@@ -20,21 +20,7 @@ const getReportConfig = (user) => {
   }
   if (
     designation.includes('developer') ||
-    designation.includes('dev') ||
-    designation.includes('junior') ||
-    designation.includes('jr') ||
-    designation.includes('react') ||
-    designation.includes('node') ||
-    designation.includes('flutter') ||
-    designation.includes('python') ||
-    designation.includes('software') ||
-    designation.includes('engineer') ||
-    designation.includes('programmer') ||
-    designation.includes('coder') ||
-    designation.includes('fullstack') ||
-    designation.includes('frontend') ||
-    designation.includes('backend') ||
-    designation.includes('web') ||
+    
     role.includes('developer') ||
     role.includes('dev') ||
     role.includes('junior') ||

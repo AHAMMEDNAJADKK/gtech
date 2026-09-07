@@ -219,6 +219,27 @@ export const setOpeningBalance = async (data) => {
   return response.data;
 };
 
+// ── Operation Service ──
+export const getOperations = async (params = {}) => {
+  const response = await safeGet('/operations', params);
+  return response.data;
+};
+
+export const createOperation = async (data) => {
+  const response = await safePost('/operations', data);
+  return response.data;
+};
+
+export const updateOperation = async (id, data) => {
+  const response = await safePut(`/operations/${id}`, data);
+  return response.data;
+};
+
+export const deleteOperation = async (id) => {
+  const response = await safeDelete(`/operations/${id}`);
+  return response.data;
+};
+
 // ── Payment Settlement Logs Service ──
 export const updatePaymentSettlement = async (incomeId, paymentId, data) => {
   const response = await safePut(`/income/${incomeId}/payments/${paymentId}`, data);

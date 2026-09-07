@@ -36,4 +36,16 @@ router.delete(
   clientController.deleteClient
 );
 
+// Client Meetings Endpoints
+router.get('/:id/meetings', clientController.getClientMeetings);
+router.post('/:id/meetings', clientController.createClientMeeting);
+router.put('/:id/meetings/:meetingId', clientController.updateClientMeeting);
+router.delete('/:id/meetings/:meetingId', clientController.deleteClientMeeting);
+
+// Client Follow-ups Endpoints
+router.get('/:id/followups', clientController.getClientFollowups);
+router.post('/:id/followups', clientController.createClientFollowup);
+router.put('/:id/followups/:followupId', clientController.updateClientFollowup);
+router.delete('/:id/followups/:followupId', clientController.deleteClientFollowup);
+
 export default router;

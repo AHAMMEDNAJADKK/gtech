@@ -6,6 +6,7 @@ import User from '../models/user.model.js';
 import Income from '../models/income.model.js';
 import OpeningBalance from '../models/openingBalance.model.js';
 import Capital from '../models/capital.model.js';
+import OperationAccount from '../models/operationAccount.model.js';
 import { sendEmail } from '../services/emailService.js';
 
 const DEFAULT_CATEGORIES = [
@@ -516,8 +517,8 @@ export const createSalaryPayment = async (req, res) => {
     const {
       employeeId, month, basicSalary, paidAmount, paymentDate, paymentMode, remarks,
       kbEmployeeId, department, designation, location, payPeriod, payDateStr, workingDays, daysWorked, daysInLeave,
-      hra, medicalAllowance, specialAllowance, transportAllowance, otherAllowance, integrityAward, bonus, totalEarnings,
-      pf, professionalTax, incomeTax, unpaidLeave, advanceSalary, otherDeductions, totalDeductions
+      hra, medicalAllowance, specialAllowance, transportAllowance, otherAllowance, otherAllowanceRemark, integrityAward, bonus, totalEarnings,
+      pf, professionalTax, incomeTax, unpaidLeave, advanceSalary, otherDeductions, otherDeductionsRemark, totalDeductions
     } = req.body;
 
     if (!employeeId || !month || (paidAmount === undefined && totalEarnings === undefined) || !paymentMode) {
@@ -601,6 +602,7 @@ export const createSalaryPayment = async (req, res) => {
       specialAllowance: Number(specialAllowance || 0),
       transportAllowance: Number(transportAllowance || 0),
       otherAllowance: Number(otherAllowance || 0),
+      otherAllowanceRemark: otherAllowanceRemark ? String(otherAllowanceRemark).trim() : '',
       integrityAward: Number(integrityAward || 0),
       bonus: Number(bonus || 0),
       totalEarnings: computedTotalEarnings,
@@ -610,6 +612,7 @@ export const createSalaryPayment = async (req, res) => {
       unpaidLeave: Number(unpaidLeave || 0),
       advanceSalary: Number(advanceSalary || 0),
       otherDeductions: Number(otherDeductions || 0),
+      otherDeductionsRemark: otherDeductionsRemark ? String(otherDeductionsRemark).trim() : '',
       totalDeductions: computedTotalDeductions,
       addedBy: req.user?.id || null,
       addedByName
@@ -679,9 +682,9 @@ export const updateSalaryPayment = async (req, res) => {
       'kbEmployeeId', 'employeeName', 'designation', 'department',
       'workingDays', 'daysWorked', 'daysInLeave',
       'basicSalary', 'hra', 'medicalAllowance', 'specialAllowance',
-      'transportAllowance', 'otherAllowance', 'integrityAward', 'bonus',
+      'transportAllowance', 'otherAllowance', 'otherAllowanceRemark', 'integrityAward', 'bonus',
       'totalEarnings', 'pf', 'professionalTax', 'incomeTax',
-      'unpaidLeave', 'advanceSalary', 'otherDeductions', 'totalDeductions',
+      'unpaidLeave', 'advanceSalary', 'otherDeductions', 'otherDeductionsRemark', 'totalDeductions',
       'paidAmount', 'paymentMode', 'remarks',
       'companyName', 'companyAddressLine1', 'companyAddressLine2', 'companyAddressLine3',
       'signatoryName', 'signatoryTitle', 'customNetPay'
@@ -1543,7 +1546,7 @@ export const sendSalaryPayslipEmail = async (req, res) => {
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Medical Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${medicalAllowance}</td></tr>
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Special Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${specialAllowance}</td></tr>
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Transport Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${transportAllowance}</td></tr>
-                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Other Allowance</td><td style="padding: 6px 10px; text-align: right;">₹${otherAllowance}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Other Allowance${payment.otherAllowanceRemark ? `<br/><span style="font-size: 10px; color: #b45309; font-weight: 600;">(${payment.otherAllowanceRemark})</span>` : ''}</td><td style="padding: 6px 10px; text-align: right;">₹${otherAllowance}</td></tr>
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Integrity Award</td><td style="padding: 6px 10px; text-align: right;">₹${integrityAward}</td></tr>
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Bonus</td><td style="padding: 6px 10px; text-align: right;">₹${bonus}</td></tr>
                 <tr style="background-color: #FFF4E6; font-weight: bold; color: #0D1E4A;"><td style="padding: 8px 10px;">TOTAL EARNINGS</td><td style="padding: 8px 10px; text-align: right;">₹${totalEarnings}</td></tr>
@@ -1558,7 +1561,7 @@ export const sendSalaryPayslipEmail = async (req, res) => {
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Income Tax</td><td style="padding: 6px 10px; text-align: right;">₹${incomeTax}</td></tr>
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Unpaid Leave</td><td style="padding: 6px 10px; text-align: right;">₹${unpaidLeave}</td></tr>
                 <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Advance Salary</td><td style="padding: 6px 10px; text-align: right;">₹${advanceSalary}</td></tr>
-                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Other Deductions</td><td style="padding: 6px 10px; text-align: right;">₹${otherDeductions}</td></tr>
+                <tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 6px 10px; color: #475569;">Other Deductions${payment.otherDeductionsRemark ? `<br/><span style="font-size: 10px; color: #be123c; font-weight: 600;">(${payment.otherDeductionsRemark})</span>` : ''}</td><td style="padding: 6px 10px; text-align: right;">₹${otherDeductions}</td></tr>
                 <tr style="background-color: #FFF4E6; font-weight: bold; color: #0D1E4A;"><td style="padding: 8px 10px;">TOTAL DEDUCTIONS</td><td style="padding: 8px 10px; text-align: right;">₹${totalDeductions}</td></tr>
               </table>
             </div>
@@ -2442,5 +2445,124 @@ export const addCapitalTopUp = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ==========================================
+// ── Operation Accounts Controllers ──
+// ==========================================
+
+export const getOperations = async (req, res) => {
+  try {
+    const { search, startDate, endDate } = req.query;
+    const query = {};
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { particulars: searchRegex },
+        { givenBy: searchRegex },
+        { givenTo: searchRegex },
+        { remarks: searchRegex }
+      ];
+    }
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate + 'T23:59:59.999Z');
+    }
+
+    const operations = await OperationAccount.find(query)
+      .sort({ date: -1, createdAt: -1 });
+
+    return res.status(200).json({ success: true, data: operations });
+  } catch (error) {
+    console.error('getOperations Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createOperation = async (req, res) => {
+  try {
+    const { particulars, givenBy, givenTo, amount, date, remarks } = req.body;
+
+    if (!particulars || !givenBy || !givenTo || amount === undefined || amount === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Particulars, Who gave (givenBy), To whom (givenTo), and Amount are required.'
+      });
+    }
+
+    const newOperation = new OperationAccount({
+      particulars,
+      givenBy,
+      givenTo,
+      amount: Number(amount),
+      date: date ? new Date(date) : new Date(),
+      remarks: remarks || '',
+      createdBy: req.user?._id || null
+    });
+
+    await newOperation.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Operation entry created successfully',
+      data: newOperation
+    });
+  } catch (error) {
+    console.error('createOperation Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateOperation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { particulars, givenBy, givenTo, amount, date, remarks } = req.body;
+
+    const operation = await OperationAccount.findById(id);
+    if (!operation) {
+      return res.status(404).json({ success: false, message: 'Operation entry not found' });
+    }
+
+    if (particulars !== undefined) operation.particulars = particulars;
+    if (givenBy !== undefined) operation.givenBy = givenBy;
+    if (givenTo !== undefined) operation.givenTo = givenTo;
+    if (amount !== undefined) operation.amount = Number(amount);
+    if (date !== undefined) operation.date = new Date(date);
+    if (remarks !== undefined) operation.remarks = remarks;
+
+    await operation.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Operation entry updated successfully',
+      data: operation
+    });
+  } catch (error) {
+    console.error('updateOperation Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteOperation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const operation = await OperationAccount.findByIdAndDelete(id);
+
+    if (!operation) {
+      return res.status(404).json({ success: false, message: 'Operation entry not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Operation entry deleted successfully'
+    });
+  } catch (error) {
+    console.error('deleteOperation Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 
 

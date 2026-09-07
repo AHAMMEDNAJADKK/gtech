@@ -99,6 +99,16 @@ const leaveRequestSchema = new mongoose.Schema({
     type: String,
     enum: ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'],
     default: 'PENDING'
+  },
+
+  // HR & MD Approval Flags
+  isHrRequest: {
+    type: Boolean,
+    default: false
+  },
+  requiresMdApproval: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
