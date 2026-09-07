@@ -28,6 +28,7 @@ import {
   updateIncome,
   deleteIncome,
   restoreIncome,
+  convertProformaToInvoice,
   permanentDeleteIncome,
   recordPaymentSettlement,
   updatePaymentSettlement,
@@ -42,15 +43,25 @@ import {
   getOperations,
   createOperation,
   updateOperation,
-  deleteOperation
+  deleteOperation,
+  uploadPublicPdf,
+  servePublicPdf
 } from '../controllers/account.controller.js';
 import protectRoute from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
 
 const router = Router();
 
-// Protect all account routes
+// ── Public Unprotected PDF Endpoint (for WhatsApp Link Sharing & Rich Preview Cards) ──
+router.get('/public/pdf/:token/raw', servePublicPdf);
+router.get('/public/pdf/:token', servePublicPdf);
+
+// Protect all account routes below
 router.use(protectRoute);
+
+// PDF Upload Endpoint for WhatsApp sharing
+router.post('/upload-pdf', uploadPublicPdf);
+router.post('/income/upload-pdf', uploadPublicPdf);
 
 // ── Capital Accounts Routes ──
 router.get('/capital', getCapitals);
@@ -80,6 +91,7 @@ router.put('/income/:id/payment', recordPaymentSettlement);
 
 // Other sub-routes
 router.put('/income/:id/restore', restoreIncome);
+router.put('/income/:id/convert-proforma', convertProformaToInvoice);
 router.delete('/income/:id/permanent', permanentDeleteIncome);
 
 // Generic /income/:id routes

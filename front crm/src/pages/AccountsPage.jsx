@@ -12,6 +12,7 @@ import SalesTab from '../components/accounts/SalesTab';
 import PurchaseTab from '../components/accounts/PurchaseTab';
 import CapitalTab from '../components/accounts/CapitalTab';
 import OperationTab from '../components/accounts/OperationTab';
+import LedgerTab from '../components/accounts/LedgerTab';
 
 const AccountsPage = () => {
   const location = useLocation();
@@ -21,7 +22,9 @@ const AccountsPage = () => {
   const getTabFromPath = (path) => {
     if (path.includes('/accounts/create-invoice')) return 'create-invoice';
     if (path.includes('/accounts/income') || path === '/income') return 'income';
+    if (path.includes('/accounts/proforma')) return 'proforma';
     if (path.includes('/accounts/sales')) return 'sales';
+    if (path.includes('/accounts/ledger') || path === '/ledger') return 'ledger';
     if (path.includes('/accounts/capital') || path === '/capital') return 'capital';
     if (path.includes('/accounts/purchase')) return 'purchase';
     if (path.includes('/accounts/categories') || path.includes('/accounts/expenses')) return 'expenses';
@@ -83,6 +86,18 @@ const AccountsPage = () => {
           </button>
 
           <button
+            onClick={() => handleTabChange('proforma', '/accounts/proforma')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'proforma'
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <FileText size={14} />
+            <span>Proforma</span>
+          </button>
+
+          <button
             onClick={() => handleTabChange('income', '/accounts/income')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === 'income'
@@ -92,6 +107,18 @@ const AccountsPage = () => {
           >
             <ShoppingBag size={14} />
             <span>Income</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('ledger', '/accounts/ledger')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'ledger'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <BookOpen size={14} />
+            <span>Ledger</span>
           </button>
 
           <button
@@ -172,8 +199,10 @@ const AccountsPage = () => {
       <div className="transition-all duration-300">
         {activeTab === 'create-invoice' && <CreateInvoiceTab />}
         {activeTab === 'sales' && <IncomeTab mode="sales" />}
+        {activeTab === 'proforma' && <IncomeTab mode="proforma" />}
         {activeTab === 'capital' && <CapitalTab />}
         {activeTab === 'income' && <IncomeTab mode="income" />}
+        {activeTab === 'ledger' && <LedgerTab />}
         {activeTab === 'purchase' && <PurchaseTab />}
         {activeTab === 'expenses' && <AddExpenseTab />}
         {activeTab === 'salary' && <SalaryPaymentTab />}

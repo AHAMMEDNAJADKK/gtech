@@ -48,7 +48,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Clients', path: '/clients', category: 'Sales & CRM' },
   { label: 'Leads Directory', path: '/leads', category: 'Sales & CRM' },
   { label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM' },
-  { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Sales & CRM' },
+  { label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM' },
   { label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM' },
 
   // --- MARKETING & WORK ---

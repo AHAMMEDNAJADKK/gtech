@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus, User, Trash2, Check } from 'lucide-react';
+import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus, User, Trash2, Check, MessageCircle, ChevronDown } from 'lucide-react';
 import { updatePaymentSettlement, deletePaymentSettlement } from '../../services/accountsService';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
@@ -11,6 +11,8 @@ const PAYMENT_METHODS = ['Bank Transfer', 'Cash', 'UPI', 'Credit Card', 'Cheque'
 const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invoice', onUpdateSuccess, onSaveTransient, showToast }) => {
   const invoiceRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
+  const [isPreparingPdf, setIsPreparingPdf] = useState(false);
+  const [showWhatsAppMenu, setShowWhatsAppMenu] = useState(false);
   const [viewMode, setViewMode] = useState(initialMode); // 'invoice' or 'receipt'
   const [editReceiptNo, setEditReceiptNo] = useState('');
   const [editReceiptDate, setEditReceiptDate] = useState('');
@@ -27,7 +29,14 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
   useEffect(() => {
     setLocalRecord(incomeRecord);
     setSelectedSettlement(null);
-  }, [incomeRecord]);
+    setShowWhatsAppMenu(false);
+    const refStr = (incomeRecord?.referenceNo || '').trim();
+    if (!refStr || refStr === '-') {
+      setViewMode('receipt');
+    } else {
+      setViewMode(initialMode);
+    }
+  }, [incomeRecord, initialMode]);
 
   const currentRecord = localRecord || incomeRecord;
 
@@ -120,10 +129,16 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
         ? 'Academy'
         : 'General';
 
-      const mongoIdNum = String(incomeRecord._id || '').slice(-4).toUpperCase() || '1001';
+      const dateObj = new Date(incomeRecord.date || incomeRecord.createdAt || Date.now());
+      const year = isNaN(dateObj.getTime()) ? new Date().getFullYear() : dateObj.getFullYear();
+      const month = isNaN(dateObj.getTime()) ? new Date().getMonth() : dateObj.getMonth();
+      const startYear = month >= 3 ? year : year - 1;
+      const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+      const numDigits = String(incomeRecord._id || '').replace(/\D/g, '');
+      const seqStr = numDigits ? numDigits.slice(-4).padStart(4, '0') : '0001';
       const defaultRecNo = incomeRecord.receiptNo && incomeRecord.receiptNo.trim()
         ? incomeRecord.receiptNo.trim()
-        : (resolvedSourceType === 'Client' ? `REC-KB-C${mongoIdNum}` : resolvedSourceType === 'Academy' ? `REC-KB-A${mongoIdNum}` : `REC-KB-G${mongoIdNum}`);
+        : `KBR/${fyStr}/${seqStr}`;
 
       setEditReceiptNo(defaultRecNo);
       setEditReceiptDate(
@@ -213,17 +228,22 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
   // Auto-generate display reference number if blank
   const getInvoiceNumber = () => {
     if (referenceNo && referenceNo.trim()) return referenceNo.trim();
-    const mongoIdNum = String(incomeRecord._id || '').slice(-4).toUpperCase() || '1001';
-    if (resolvedSourceType === 'Client') return `INV-KB-C${mongoIdNum}`;
-    if (resolvedSourceType === 'Academy') return `INV-KB-A${mongoIdNum}`;
-    return `INV-KB-G${mongoIdNum}`;
+    return '-';
   };
 
   const invoiceNo = getInvoiceNumber();
-  const mongoIdNum = String(incomeRecord._id || '').slice(-4).toUpperCase() || '1001';
-  const defaultRecNo = receiptNo && receiptNo.trim()
-    ? receiptNo.trim()
-    : (resolvedSourceType === 'Client' ? `REC-KB-C${mongoIdNum}` : resolvedSourceType === 'Academy' ? `REC-KB-A${mongoIdNum}` : `REC-KB-G${mongoIdNum}`);
+  const getReceiptNumber = () => {
+    if (receiptNo && receiptNo.trim()) return receiptNo.trim();
+    const dateObj = new Date(date || Date.now());
+    const year = isNaN(dateObj.getTime()) ? new Date().getFullYear() : dateObj.getFullYear();
+    const month = isNaN(dateObj.getTime()) ? new Date().getMonth() : dateObj.getMonth();
+    const startYear = month >= 3 ? year : year - 1;
+    const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+    const rawId = String(incomeRecord._id || '').replace(/\D/g, '');
+    const mongoIdNum = rawId ? rawId.slice(-4).padStart(4, '0') : '0001';
+    return `KBR/${fyStr}/${mongoIdNum}`;
+  };
+  const defaultRecNo = getReceiptNumber();
   const recNo = editReceiptNo || defaultRecNo;
 
   const formattedDate = date ? new Date(date).toLocaleDateString('en-IN', {
@@ -237,6 +257,446 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     month: 'short',
     year: 'numeric'
   }) : formattedDate;
+
+  const generatePdfFile = async () => {
+    const filename = viewMode === 'receipt'
+      ? `receipt_${recNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`
+      : `invoice_${invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+
+    const element = invoiceRef.current;
+    if (!element) return null;
+
+    const sanitizeClonedDocStyles = (clonedDoc) => {
+      const replaceOklch = (str) => str.replace(/oklch\([^)]+\)/g, '#6366f1').replace(/oklab\([^)]+\)/g, '#6366f1');
+      const allElements = clonedDoc.querySelectorAll('*');
+      allElements.forEach((el) => {
+        try {
+          const inlineStyle = el.getAttribute('style');
+          if (inlineStyle && (inlineStyle.includes('oklab') || inlineStyle.includes('oklch') || inlineStyle.includes('color-mix'))) {
+            el.setAttribute('style', replaceOklch(inlineStyle));
+          }
+        } catch (e) {}
+      });
+    };
+
+    const scrollH = element.scrollHeight || element.offsetHeight || 1200;
+    const scrollW = element.scrollWidth || element.offsetWidth || 800;
+
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: scrollW,
+      windowHeight: scrollH,
+      width: scrollW,
+      height: scrollH,
+      onclone: sanitizeClonedDocStyles
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 5) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const pdfBlob = pdf.output('blob');
+    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+    return { file, pdfBlob, filename };
+  };
+
+  const generateInvoiceImageFile = async () => {
+    const filename = viewMode === 'receipt'
+      ? `receipt_${recNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.png`
+      : `invoice_${invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
+
+    const element = invoiceRef.current;
+    if (!element) return null;
+
+    const sanitizeClonedDocStyles = (clonedDoc) => {
+      const replaceOklch = (str) => str.replace(/oklch\([^)]+\)/g, '#6366f1').replace(/oklab\([^)]+\)/g, '#6366f1');
+      const allElements = clonedDoc.querySelectorAll('*');
+      allElements.forEach((el) => {
+        try {
+          const inlineStyle = el.getAttribute('style');
+          if (inlineStyle && (inlineStyle.includes('oklab') || inlineStyle.includes('oklch') || inlineStyle.includes('color-mix'))) {
+            el.setAttribute('style', replaceOklch(inlineStyle));
+          }
+        } catch (e) {}
+      });
+    };
+
+    const scrollH = element.scrollHeight || element.offsetHeight || 1200;
+    const scrollW = element.scrollWidth || element.offsetWidth || 800;
+
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: scrollW,
+      windowHeight: scrollH,
+      width: scrollW,
+      height: scrollH,
+      onclone: sanitizeClonedDocStyles
+    });
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.98));
+    if (!blob) return null;
+
+    const file = new File([blob], filename, { type: 'image/png' });
+    return { file, blob, filename };
+  };
+
+  const handleSendWhatsApp = async (customText = null, customPhone = null) => {
+    let targetPhone = customPhone || clientPhone || incomeRecord?.phone || incomeRecord?.clientPhone || clientObj?.phone || clientObj?.primaryContact?.phone || '';
+    let digits = String(targetPhone || '').replace(/\D/g, '');
+
+    if (!digits) {
+      const inputPhone = prompt(`Enter WhatsApp / Phone Number for ${customerName || finalClientName || 'Client'}:`);
+      if (!inputPhone) return;
+      digits = inputPhone.replace(/\D/g, '');
+    }
+
+    if (digits.length === 10) {
+      digits = `91${digits}`;
+    }
+
+    if (digits.length < 10) {
+      if (showToast) showToast('Invalid phone number for WhatsApp.', 'error');
+      else alert('Invalid phone number for WhatsApp.');
+      return;
+    }
+
+    if (showToast) showToast('Generating Invoice Picture for WhatsApp...', 'info');
+
+    let text = customText;
+    if (!text) {
+      text = `Hello *${customerName || finalClientName || 'Customer'}*,\n\nHere is your ${viewMode === 'receipt' ? 'Payment Receipt' : 'Invoice'} summary:\n🧾 Reference: *${invoiceNo}*\n📅 Date: ${formattedDate}\n💰 Total Amount: ₹${Math.round(calculatedTotalPayable).toLocaleString('en-IN')}\n💵 Amount Paid: ₹${Math.round(displayPaidAmt).toLocaleString('en-IN')}\n⚠️ Balance Due: ₹${Math.round(displayBalanceDue).toLocaleString('en-IN')}\nStatus: *${dynamicStatus}*\n\nThank you for your business!`;
+    }
+
+    let imgData = null;
+    try {
+      imgData = await generateInvoiceImageFile();
+    } catch (e) {
+      console.error('Error generating picture image for WhatsApp:', e);
+    }
+
+    // 1. Mobile & Modern Web Share API: Shares Picture Image file + Text directly to WhatsApp
+    if (imgData && navigator.canShare && navigator.canShare({ files: [imgData.file] })) {
+      try {
+        await navigator.share({
+          files: [imgData.file],
+          title: viewMode === 'receipt' ? `Receipt ${recNo}` : `Invoice ${invoiceNo}`,
+          text: text
+        });
+        if (showToast) showToast('Invoice Picture & text shared to WhatsApp!', 'success');
+        return;
+      } catch (shareError) {
+        if (shareError.name !== 'AbortError') {
+          console.warn('Web Share picture failed, using clipboard/web fallback:', shareError);
+        } else {
+          return;
+        }
+      }
+    }
+
+    // 2. Desktop: Copy Picture image to Clipboard so user can press Ctrl+V directly in WhatsApp Web
+    let copiedToClipboard = false;
+    if (imgData && navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': imgData.blob })
+        ]);
+        copiedToClipboard = true;
+      } catch (clipErr) {
+        console.warn('Clipboard write image failed:', clipErr);
+      }
+    }
+
+    // 3. Download the picture image file as backup
+    if (imgData) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(imgData.blob);
+      link.download = imgData.filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    // 4. Open WhatsApp Web / App with text pre-filled
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+
+    if (showToast) {
+      if (copiedToClipboard) {
+        showToast(`Invoice Picture copied to Clipboard! In WhatsApp, press Ctrl+V to paste the picture image.`, 'success');
+      } else {
+        showToast(`Invoice Picture '${imgData?.filename}' downloaded! Click 📎 in WhatsApp to attach the picture image.`, 'success');
+      }
+    }
+  };
+
+  // Helper: Generate clean PDF Blob for upload or download
+  const generatePdfBlob = async (targetFilename = null) => {
+    if (!invoiceRef.current) return null;
+    const filename = targetFilename || (viewMode === 'receipt' 
+      ? `${recNo || 'REC'}_Receipt_Voucher.pdf`
+      : `${invoiceNo || 'INV'}_${resolvedSourceType}_Invoice.pdf`);
+
+    const element = invoiceRef.current;
+
+    const replaceOklch = (cssText) => {
+      if (!cssText) return '';
+      return cssText
+        .replace(/oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)/gi, (match, lStr, cStr, hStr, aStr) => {
+          let l = parseFloat(lStr);
+          if (lStr.includes('%') || l > 1) l = l / 100;
+          let alpha = aStr !== undefined ? parseFloat(aStr) : 1;
+          if (l >= 0.85) return alpha < 0.5 ? 'rgba(248, 250, 252, 0.5)' : '#f8fafc';
+          if (l >= 0.7) return '#e2e8f0';
+          if (l <= 0.35) return '#0f172a';
+          if (l <= 0.5) return '#1e293b';
+          return '#475569';
+        })
+        .replace(/oklab\([^)]+\)/gi, '#0f172a')
+        .replace(/color-mix\([^)]+\)/gi, '#f8fafc');
+    };
+
+    const sanitizeClonedDocStyles = (clonedDoc) => {
+      try {
+        const targetContainer = clonedDoc.querySelector('[data-pdf-container="true"]') || clonedDoc.body;
+        if (targetContainer) {
+          targetContainer.style.height = 'auto';
+          targetContainer.style.maxHeight = 'none';
+          targetContainer.style.overflow = 'visible';
+          targetContainer.style.padding = '24px';
+        }
+
+        const styleElements = clonedDoc.querySelectorAll('style');
+        styleElements.forEach((style) => {
+          try {
+            if (style.textContent) style.textContent = replaceOklch(style.textContent);
+          } catch (e) {}
+        });
+
+        const linkElements = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+        linkElements.forEach((link) => {
+          try {
+            let cssText = '';
+            const sheet = Array.from(document.styleSheets).find(s => s.href === link.href || (s.ownerNode && s.ownerNode.href === link.href));
+            if (sheet && sheet.cssRules) {
+              cssText = Array.from(sheet.cssRules).map(r => r.cssText).join('\n');
+            }
+            if (cssText) {
+              const cleanCss = replaceOklch(cssText);
+              const newStyle = clonedDoc.createElement('style');
+              newStyle.textContent = cleanCss;
+              if (link.parentNode) link.parentNode.replaceChild(newStyle, link);
+            } else if (link.parentNode) {
+              link.parentNode.removeChild(link);
+            }
+          } catch (e) {
+            if (link.parentNode) link.parentNode.removeChild(link);
+          }
+        });
+
+        const allElements = clonedDoc.querySelectorAll('*');
+        allElements.forEach((el) => {
+          try {
+            const inlineStyle = el.getAttribute('style');
+            if (inlineStyle && (inlineStyle.includes('oklab') || inlineStyle.includes('oklch') || inlineStyle.includes('color-mix'))) {
+              el.setAttribute('style', replaceOklch(inlineStyle));
+            }
+          } catch (e) {}
+        });
+      } catch (e) {}
+    };
+
+    try {
+      const scrollH = element.scrollHeight || element.offsetHeight || 1200;
+      const scrollW = element.scrollWidth || element.offsetWidth || 800;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: scrollW,
+        windowHeight: scrollH,
+        width: scrollW,
+        height: scrollH,
+        onclone: sanitizeClonedDocStyles
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 5) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const pdfBlob = pdf.output('blob');
+      return { blob: pdfBlob, filename };
+    } catch (err) {
+      console.warn('jsPDF blob generation failed, trying html2pdf fallback:', err);
+      const opt = {
+        margin: [5, 5, 5, 5],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, onclone: sanitizeClonedDocStyles },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      const html2pdfFunc = typeof html2pdf === 'function' ? html2pdf : (html2pdf.default || window.html2pdf);
+      if (typeof html2pdfFunc === 'function') {
+        const worker = html2pdfFunc().set(opt).from(element);
+        const pdfBlob = await worker.outputPdf('blob');
+        return { blob: pdfBlob, filename };
+      }
+      throw err;
+    }
+  };
+
+  // WhatsApp Public PDF Link Sharing Function
+  const handleSendWhatsAppPdfLink = async (customPhone = null, customText = null, overrideMode = null, settlementObj = null) => {
+    setShowWhatsAppMenu(false);
+    const targetMode = overrideMode || viewMode;
+
+    let targetPhone = customPhone || clientPhone || incomeRecord?.phone || incomeRecord?.clientPhone || clientObj?.phone || clientObj?.primaryContact?.phone || '';
+    let digits = String(targetPhone || '').replace(/\D/g, '');
+
+    if (!digits) {
+      const inputPhone = prompt(`Enter WhatsApp / Phone Number for ${customerName || finalClientName || 'Client'}:`);
+      if (!inputPhone) return;
+      digits = inputPhone.replace(/\D/g, '');
+    }
+
+    if (digits.length === 10) {
+      digits = `91${digits}`;
+    }
+
+    if (digits.length < 10) {
+      if (showToast) showToast('Customer WhatsApp number is not available.', 'error');
+      else alert('Customer WhatsApp number is not available.');
+      return;
+    }
+
+    const docTypeLabel = targetMode === 'receipt' ? 'Receipt' : 'Invoice';
+    if (showToast) showToast(`Preparing ${docTypeLabel.toLowerCase()} PDF...`, 'info');
+    setIsPreparingPdf(true);
+
+    try {
+      const pdfRes = await generatePdfBlob(`${docTypeLabel}_${Date.now()}.pdf`);
+      if (!pdfRes || !pdfRes.blob) {
+        throw new Error('PDF Blob generation returned null.');
+      }
+
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(pdfRes.blob);
+      });
+
+      const rawToken = localStorage.getItem('token');
+      const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
+      };
+
+      const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+      const getApiEndpoint = (path) => {
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        if (API_BASE.endsWith('/v1')) return `${API_BASE}${cleanPath}`;
+        if (API_BASE.endsWith('/api')) return `${API_BASE}/v1${cleanPath}`;
+        return `${API_BASE}/api/v1${cleanPath}`;
+      };
+      const refName = targetMode === 'receipt' 
+        ? (settlementObj?.receiptNo || editReceiptNo || defaultRecNo || recNo)
+        : invoiceNo;
+      const totalAmtNum = targetMode === 'receipt' 
+        ? (settlementObj?.amount || displayPaidAmt || calculatedTotalPayable)
+        : calculatedTotalPayable;
+      const formattedAmtStr = Math.round(totalAmtNum).toLocaleString('en-IN');
+      const cardTitle = `${docTypeLabel} ${refName}`;
+
+      const uploadRes = await fetch(getApiEndpoint('/accounts/upload-pdf'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          pdfBase64: base64Data,
+          filename: pdfRes.filename,
+          docTitle: cardTitle,
+          referenceNo: refName,
+          amount: formattedAmtStr
+        })
+      });
+
+      const uploadData = await uploadRes.json();
+      if (!uploadData.success || !uploadData.pdfUrl) {
+        throw new Error(uploadData.message || 'Failed to upload PDF.');
+      }
+
+      const publicPdfUrl = uploadData.fullUrl || `${window.location.origin}${uploadData.pdfUrl}`;
+
+      let messageText = customText;
+      if (!messageText) {
+        const refName = targetMode === 'receipt' 
+          ? (settlementObj?.receiptNo || editReceiptNo || defaultRecNo || recNo)
+          : invoiceNo;
+        const totalAmtNum = targetMode === 'receipt' 
+          ? (settlementObj?.amount || displayPaidAmt || calculatedTotalPayable)
+          : calculatedTotalPayable;
+        const formattedAmtStr = Math.round(totalAmtNum).toLocaleString('en-IN');
+
+        if (targetMode === 'receipt') {
+          messageText = `Hello,\n\nPlease find your receipt ${refName}.\nReceipt Amount: ₹${formattedAmtStr}\n\n📄 Download Receipt:\n${publicPdfUrl}\n\nThank you!`;
+        } else {
+          messageText = `Hello,\n\nPlease find your invoice ${refName}.\nInvoice Amount: ₹${formattedAmtStr}\n\n📄 Download Invoice:\n${publicPdfUrl}\n\nThank you!`;
+        }
+      } else {
+        messageText = `${customText}\n\n📄 Download ${docTypeLabel}:\n${publicPdfUrl}`;
+      }
+
+      if (showToast) showToast('PDF ready. Opening WhatsApp...', 'success');
+
+      const whatsappUrl = `https://wa.me/${digits}?text=${encodeURIComponent(messageText)}`;
+      window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      console.error('Error sharing PDF link to WhatsApp:', err);
+      if (showToast) showToast('Unable to prepare the invoice PDF. Please try again.', 'error');
+    } finally {
+      setIsPreparingPdf(false);
+    }
+  };
 
   const lineItemsSum = Array.isArray(lineItems) && lineItems.length > 0
     ? lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || (parseFloat(item.quantity || 1) * parseFloat(item.unitPrice || 0)) || 0), 0)
@@ -255,10 +715,12 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
   const totalBeforeDiscount = rawBaseAmt + calcGstAmt;
 
+  const isFlatDiscount = ['amount', 'flat', 'rs'].includes(discountType) || (parseFloat(discountAmount || 0) > 0 && parseFloat(discountAmount || 0) === parseFloat(discountRate || 0));
+
   const calcDiscountAmt = parseFloat(discountAmount || 0) > 0
     ? parseFloat(discountAmount)
     : (parseFloat(discountRate || 0) > 0
-      ? (discountType === 'amount' ? parseFloat(discountRate) : (totalBeforeDiscount * parseFloat(discountRate)) / 100)
+      ? (isFlatDiscount ? parseFloat(discountRate) : (totalBeforeDiscount * parseFloat(discountRate)) / 100)
       : 0);
 
   const calculatedTotalPayable = Math.max(0, totalBeforeDiscount - calcDiscountAmt);
@@ -587,18 +1049,20 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
         <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 shrink-0 gap-2 print:hidden">
           {/* Mode Switcher Buttons */}
           <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setViewMode('invoice')}
-              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'invoice'
-                  ? 'bg-white text-indigo-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <FileText size={13} />
-              <span>Invoice</span>
-            </button>
+            {Boolean(referenceNo && referenceNo.trim() && referenceNo.trim() !== '-') && (
+              <button
+                type="button"
+                onClick={() => setViewMode('invoice')}
+                className={`px-3 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'invoice'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileText size={13} />
+                <span>Invoice</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setViewMode('receipt')}
@@ -668,6 +1132,16 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
             >
               <Download size={14} />
               <span>{downloading ? 'Exporting...' : 'Download PDF'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSendWhatsAppPdfLink()}
+              disabled={isPreparingPdf}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+              title="Share downloadable PDF link on WhatsApp"
+            >
+              {isPreparingPdf ? <Loader2 className="animate-spin" size={14} /> : <MessageCircle size={14} />}
+              <span className="hidden sm:inline">{isPreparingPdf ? 'Preparing...' : 'WhatsApp'}</span>
             </button>
             <button
               type="button"
@@ -798,8 +1272,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <div>
                     <img src="/logo3.png" alt="Logo" className="h-11 w-auto object-contain mb-1" />
                     <h2 className="text-xs font-extrabold uppercase tracking-wide" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</h2>
-                    <p className="text-[11px]" style={{ color: '#64748b' }}>Finance & Accounts Division</p>
-                    <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5</p>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>Aranyakam Building ,Thamarakuzhi Rd <br/>Uphill ,Malappuram</p>
+                    {/* <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5</p> */}
                   </div>
 
                   <div className="sm:text-right space-y-1">
@@ -807,7 +1281,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       RECEIPT VOUCHER
                     </span>
                     <div className="pt-1.5 text-xs space-y-0.5">
-                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{particularRecNo}</span></p>
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>{particularRecNo ? particularRecNo.replace(/^#+/, '') : ''}</span></p>
                       <p className="text-[11px]" style={{ color: '#64748b' }}>Payment Date: <strong style={{ color: '#0f172a' }}>{particularReceiptDate}</strong></p>
                     </div>
                   </div>
@@ -816,20 +1290,24 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                 {/* Payer & Payment Info Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-3.5 rounded-xl border space-y-1" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
-                    <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
-                      {resolvedSourceType === 'Academy' ? (
-                        <>
-                          <GraduationCap size={12} style={{ color: '#64748b' }} /> Payment Received From (Student)
-                        </>
-                      ) : (
-                        <>
-                          <Building2 size={12} style={{ color: '#64748b' }} /> Payment Received From
-                        </>
-                      )}
-                    </h4>
+                    <div className="border-b pb-2.5 mb-2" style={{ borderColor: '#e2e8f0' }}>
+                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-2 leading-none" style={{ color: '#475569' }}>
+                        {resolvedSourceType === 'Academy' ? (
+                          <>
+                            <GraduationCap size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} />
+                            <span>Payment Received From (Student)</span>
+                          </>
+                        ) : (
+                          <>
+                            {/* <Building2 size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} /> */}
+                            <span>Payment Received From</span>
+                          </>
+                        )}
+                      </h4>
+                    </div>
                     <p className="font-bold text-sm" style={{ color: '#0f172a' }}>{finalClientName}</p>
                     <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{particularPaymentMethod}</strong></p>
-                    <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo}</strong></p>
+                    <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</strong></p>
                     {particularNotes && (
                       <p className="text-[10.5px] italic pt-1 border-t mt-1" style={{ color: '#475569', borderColor: '#e2e8f0' }}>Notes: "{particularNotes}"</p>
                     )}
@@ -856,16 +1334,16 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       <tr>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Number</th>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Date</th>
-                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Net Payable Amount (₹)</th>
-                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Voucher Amount Paid (₹)</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a', textAlign: 'right' }}>Net Payable Amount (₹)</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a', textAlign: 'right' }}>Voucher Amount Paid (₹)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
                       <tr style={{ backgroundColor: '#ffffff' }}>
-                        <td className="py-3 px-3 font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo}</td>
+                        <td className="py-3 px-3 font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</td>
                         <td className="py-3 px-3" style={{ color: '#475569' }}>{formattedDate}</td>
-                        <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#047857' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#047857', textAlign: 'right' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -881,11 +1359,10 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                     <p className="text-[10px] font-normal" style={{ color: '#64748b' }}>Thank you for your business.</p>
                   </div>
                 </div>
-                <div className="text-right text-[10px]" style={{ color: '#64748b' }}>
-                  <div className="h-7 mb-0.5 flex items-end justify-end">
-                    <span className="font-serif italic font-bold text-xs border-b pb-0.5 px-3" style={{ color: '#0f172a', borderColor: '#cbd5e1' }}>{createdByName || 'Accounts Officer'}</span>
-                  </div>
-                  <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>Authorized Signatory</p>
+                <div className="text-right text-[10px] space-y-1">
+                  <p className="font-serif italic font-bold text-xs" style={{ color: '#0f172a' }}>{createdByName || 'Accountant'}</p>
+                  <div className="w-36 border-b my-1 border-slate-300 ml-auto" style={{ borderColor: '#cbd5e1' }} />
+                  <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>AUTHORIZED SIGNATORY</p>
                 </div>
               </div>
             </div>
@@ -906,16 +1383,16 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <div>
                     <img src="/logo3.png" alt="Logo" className="h-12 w-auto object-contain mb-1" />
                     <h2 className="text-xs font-extrabold uppercase tracking-wide" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</h2>
-                    <p className="text-[11px]" style={{ color: '#64748b' }}>Enterprise Software & CRM Solutions</p>
-                    <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5 | HSN/SAC: 998314</p>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>Aranyakam Building ,Thamarakuzhi Rd <br/>Uphill ,Malappuram</p>
+                    {/* <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5 | HSN/SAC: 998314</p> */}
                   </div>
 
                   <div className="sm:text-right space-y-1">
                     <span className="inline-block px-3 py-1 text-[11px] font-bold uppercase rounded tracking-widest border" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
-                      INVOICE
+                      {incomeRecord?.status === 'Proforma' ? 'PROFORMA INVOICE' : 'INVOICE'}
                     </span>
                     <div className="pt-1.5 text-xs space-y-0.5">
-                      <p className="font-semibold" style={{ color: '#0f172a' }}>Invoice No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{invoiceNo}</span></p>
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>{incomeRecord?.status === 'Proforma' ? 'Proforma No:' : 'Invoice No:'} <span className="font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</span></p>
                       <p className="text-[11px]" style={{ color: '#64748b' }}>Issue Date: <strong style={{ color: '#0f172a' }}>{formattedDate}</strong></p>
                       {incomeRecord.dueDate && (
                         <p className="text-[11px]" style={{ color: '#64748b' }}>Due Date: <strong style={{ color: '#0f172a' }}>{new Date(incomeRecord.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>
@@ -927,19 +1404,22 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                 {/* Billed To Card */}
                 <div className="text-xs">
                   <div className="p-3.5 rounded-xl border space-y-1.5 max-w-lg" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
-                    <div className="border-b pb-1" style={{ borderColor: '#e2e8f0' }}>
-                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
+                    <div className="border-b pb-2.5 mb-2" style={{ borderColor: '#e2e8f0' }}>
+                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-2 leading-none" style={{ color: '#475569' }}>
                         {resolvedSourceType === 'Academy' ? (
                           <>
-                            <GraduationCap size={12} style={{ color: '#64748b' }} /> Billed To (Student)
+                            <GraduationCap size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} />
+                            <span>Billed To (Student)</span>
                           </>
                         ) : resolvedSourceType === 'General' ? (
                           <>
-                            <User size={12} style={{ color: '#64748b' }} /> Billed To (Payer / Customer)
+                            <User size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} />
+                            <span>Billed To (Payer / Customer)</span>
                           </>
                         ) : (
                           <>
-                            <Building2 size={12} style={{ color: '#64748b' }} /> Billed To (Client / Customer)
+                            {/* <Building2 size={13} className="shrink-0" style={{ color: '#64748b', display: 'inline-block', verticalAlign: 'middle' }} /> */}
+                            <span>Billed To (Client / Customer)</span>
                           </>
                         )}
                       </h4>
@@ -985,13 +1465,13 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <table className="w-full text-xs text-left border-collapse">
                     <thead className="font-bold uppercase text-[10px] tracking-wider border-b" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', borderColor: '#cbd5e1' }}>
                       <tr>
-                        <th className="py-2.5 px-3 text-center w-10" style={{ color: '#0f172a' }}>#</th>
+                        <th className="py-2.5 px-3 text-center w-10" style={{ color: '#0f172a' }}>Sl no.</th>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>{resolvedSourceType === 'Academy' ? 'Course / Fee Description' : 'Item / Service Description'}</th>
                         {resolvedSourceType !== 'Academy' && (
                           <th className="py-2.5 px-3 text-center w-16" style={{ color: '#0f172a' }}>Qty</th>
                         )}
-                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a' }}>{resolvedSourceType === 'Academy' ? 'Course Fee (₹)' : 'Unit Price (₹)'}</th>
-                        <th className="py-2.5 px-3 text-right w-32" style={{ color: '#0f172a' }}>Amount (₹)</th>
+                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a', textAlign: 'right' }}>{resolvedSourceType === 'Academy' ? 'Course Fee (₹)' : 'Unit Price (₹)'}</th>
+                        <th className="py-2.5 px-3 text-right w-32" style={{ color: '#0f172a', textAlign: 'right' }}>Amount (₹)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
@@ -1004,8 +1484,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                           {resolvedSourceType !== 'Academy' && (
                             <td className="py-3 px-3 text-center font-mono" style={{ color: '#334155' }}>{Math.round(item.quantity || 1)}</td>
                           )}
-                          <td className="py-3 px-3 text-right font-mono" style={{ color: '#334155' }}>₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-xs" style={{ color: '#0f172a' }}>₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-3 text-right font-mono" style={{ color: '#334155', textAlign: 'right' }}>₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-xs" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1014,11 +1494,11 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
                 {/* Financial Totals Summary Card */}
                 <div className="flex justify-end items-start gap-4 pt-1">
-                  {/* Right Summary Box (Light Minimal Clean) */}
-                  <div className="w-full sm:w-64 p-3.5 rounded-xl border text-xs space-y-1.5" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                  {/* Right Summary Box (Light Minimal Clean - Fixed Width 280px) */}
+                  <div className="w-72 p-3.5 rounded-xl border text-xs space-y-1.5 ml-auto" style={{ width: '280px', backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
                     <div className="flex justify-between font-semibold" style={{ color: '#475569' }}>
                       <span>Subtotal Base:</span>
-                      <span className="font-mono" style={{ color: '#0f172a' }}>₹{Math.round(rawBaseAmt).toLocaleString('en-IN')}</span>
+                      <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(rawBaseAmt).toLocaleString('en-IN')}</span>
                     </div>
 
                     {/* Tax Lines Added to Base */}
@@ -1028,17 +1508,17 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                           <>
                             <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
                               <span>CGST ({(numGstRate / 2)}%):</span>
-                              <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(cgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
+                              <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>+ ₹{Math.round(cgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
                             </div>
                             <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
                               <span>SGST ({(numGstRate / 2)}%):</span>
-                              <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(sgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
+                              <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>+ ₹{Math.round(sgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
                             </div>
                           </>
                         ) : (
                           <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
                             <span>IGST ({numGstRate}%):</span>
-                            <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(igstAmount || calcGstAmt).toLocaleString('en-IN')}</span>
+                            <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>+ ₹{Math.round(igstAmount || calcGstAmt).toLocaleString('en-IN')}</span>
                           </div>
                         )}
                       </>
@@ -1046,19 +1526,19 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
                     <div className="flex justify-between font-bold border-t pt-1" style={{ borderColor: '#e2e8f0', color: '#0f172a' }}>
                       <span>Total:</span>
-                      <span className="font-mono">₹{Math.round(totalBeforeDiscount).toLocaleString('en-IN')}</span>
+                      <span className="font-mono text-right" style={{ textAlign: 'right' }}>₹{Math.round(totalBeforeDiscount).toLocaleString('en-IN')}</span>
                     </div>
 
                     {calcDiscountAmt > 0 && (
                       <div className="flex justify-between font-semibold pt-0.5" style={{ color: '#dc2626' }}>
-                        <span>- Discount {discountRate > 0 ? `(${discountRate}${discountType === 'amount' ? ' ₹' : '%'})` : ''}:</span>
-                        <span className="font-mono font-bold">- ₹{Math.round(calcDiscountAmt).toLocaleString('en-IN')}</span>
+                        <span>- Discount {discountRate > 0 ? `(${discountRate}${isFlatDiscount ? ' ₹' : '%'})` : ''}:</span>
+                        <span className="font-mono font-bold text-right" style={{ textAlign: 'right' }}>- ₹{Math.round(calcDiscountAmt).toLocaleString('en-IN')}</span>
                       </div>
                     )}
 
-                    <div className="flex justify-between border-t pt-2 text-xs font-bold items-center" style={{ borderColor: '#cbd5e1' }}>
-                      <span className="uppercase text-[10px] tracking-wider" style={{ color: '#475569' }}>Total Payable (Incl. GST):</span>
-                      <span className="text-base font-extrabold font-mono" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
+                    <div className="flex justify-between border-t pt-2 text-xs font-bold items-center gap-2" style={{ borderColor: '#cbd5e1' }}>
+                      <span className="uppercase text-[10px] tracking-wider shrink-0" style={{ color: '#475569' }}>Total Payable :</span>
+                      <span className="text-base font-extrabold font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -1082,11 +1562,10 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       <p className="text-[10px] font-normal" style={{ color: '#64748b' }}>Computer Generated Document. No signature required.</p>
                     </div>
                   </div>
-                  <div className="text-right text-[10px]">
-                    <div className="h-7 mb-0.5 flex items-end justify-end">
-                      <span className="font-serif italic font-bold text-xs border-b pb-0.5 px-3" style={{ color: '#0f172a', borderColor: '#cbd5e1' }}>{createdByName || 'Accounts Officer'}</span>
-                    </div>
-                    <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>Authorized Signatory</p>
+                  <div className="text-right text-[10px] space-y-1">
+                    <p className="font-serif italic font-bold text-xs" style={{ color: '#0f172a' }}>{createdByName || 'Accountant'}</p>
+                    <div className="w-36 border-b my-1 border-slate-300 ml-auto" style={{ borderColor: '#cbd5e1' }} />
+                    <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>AUTHORIZED SIGNATORY</p>
                   </div>
                 </div>
               </div>
@@ -1190,6 +1669,21 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                             >
                               <Receipt size={11} />
                               <span>View Receipt</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const stDate = st.receiptDate ? new Date(st.receiptDate).toLocaleDateString('en-IN') : formattedDate;
+                                const stMsg = `Hello *${customerName || finalClientName || 'Customer'}*,\n\nPayment Settlement Confirmation for Invoice *${invoiceNo}*:\n🧾 Receipt No: ${st.receiptNo || editReceiptNo || defaultRecNo}\n💵 Amount Received: ₹${Math.round(st.amount || 0).toLocaleString('en-IN')}\n💳 Payment Method: ${st.paymentMethod || 'Bank Transfer'}\n📅 Date: ${stDate}\nStatus: *${dynamicStatus}*`;
+                                handleSendWhatsAppPdfLink(null, stMsg, 'receipt', st);
+                              }}
+                              disabled={isPreparingPdf}
+                              className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-2xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                              title="Send WhatsApp confirmation & PDF download link for this payment settlement"
+                            >
+                              <MessageCircle size={11} />
+                              <span>WhatsApp</span>
                             </button>
 
                             {st._id && !isEditingThis && (

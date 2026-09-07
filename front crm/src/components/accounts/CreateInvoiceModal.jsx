@@ -240,6 +240,9 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
         totalAmount: taxCalc.totalAmount,
         status,
         lineItems,
+        discountRate: parseFloat(discountRate || 0),
+        discountType,
+        discountAmount: calcDiscount,
         notes: notes.trim(),
         terms: terms.trim()
       };
@@ -410,7 +413,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                 type="text"
                 value={referenceNo}
                 onChange={(e) => setReferenceNo(e.target.value)}
-                placeholder="Auto-generated (e.g. INV-KB-C1001)"
+                placeholder="Auto-generated (e.g. KB/26-27/0001)"
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-semibold focus:outline-none"
               />
             </div>

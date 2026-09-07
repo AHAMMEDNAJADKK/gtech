@@ -28,7 +28,8 @@ import {
   SlidersHorizontal,
   Filter,
   ArrowUpDown,
-  Calendar
+  Calendar,
+  MessageCircle
 } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 import { getClients } from '../../services/clientService';
@@ -315,10 +316,12 @@ const IncomeTab = ({ mode = 'sales' }) => {
 
     const totalBeforeDisc = rawBase + gstAmt;
 
+    const isFlatDisc = ['amount', 'flat', 'rs'].includes(inc.discountType) || (parseFloat(inc.discountAmount || 0) > 0 && parseFloat(inc.discountAmount || 0) === parseFloat(inc.discountRate || 0));
+
     const discAmt = parseFloat(inc.discountAmount || 0) > 0
       ? parseFloat(inc.discountAmount)
       : (parseFloat(inc.discountRate || 0) > 0
-        ? (inc.discountType === 'amount' ? parseFloat(inc.discountRate) : (totalBeforeDisc * parseFloat(inc.discountRate)) / 100)
+        ? (isFlatDisc ? parseFloat(inc.discountRate) : (totalBeforeDisc * parseFloat(inc.discountRate)) / 100)
         : 0);
 
     const calculatedNetPayable = Math.max(0, totalBeforeDisc - discAmt);
@@ -363,9 +366,15 @@ const IncomeTab = ({ mode = 'sales' }) => {
   // Sort and Filter Incomes Client-Side (Excludes Pending for Income tab; Shows all for Sales tab)
   const sortedAndFilteredIncomes = React.useMemo(() => {
     let result = incomes.filter((inc) => {
+      const st = String(inc.status || '').trim().toLowerCase();
+      if (mode === 'proforma') {
+        return st === 'proforma';
+      }
       if (mode === 'income') {
-        const st = String(inc.status || '').trim().toLowerCase();
         return st === 'paid' || st === 'partially paid' || st === 'completed';
+      }
+      if (mode === 'sales') {
+        return st !== 'proforma' && st !== 'paid' && st !== 'completed';
       }
       return true;
     });
@@ -401,15 +410,25 @@ const IncomeTab = ({ mode = 'sales' }) => {
     const receiptsList = [];
 
     sortedAndFilteredIncomes.forEach((inc) => {
-      const mongoIdNum = String(inc._id || '').slice(-4).toUpperCase() || '1001';
-      const resolvedSType = inc.sourceType || 'General';
-      const defaultRecNo = inc.receiptNo || (resolvedSType === 'Client' ? `REC-KB-C${mongoIdNum}` : resolvedSType === 'Academy' ? `REC-KB-A${mongoIdNum}` : `REC-KB-G${mongoIdNum}`);
-      const defaultInvNo = inc.referenceNo || (resolvedSType === 'Client' ? `INV-KB-C${mongoIdNum}` : resolvedSType === 'Academy' ? `INV-KB-A${mongoIdNum}` : `INV-KB-G${mongoIdNum}`);
+      const mongoIdNum = String(inc._id || '').slice(-4).padStart(4, '0') || '0001';
+      const dObj = new Date(inc.date || inc.createdAt || Date.now());
+      const y = isNaN(dObj.getTime()) ? new Date().getFullYear() : dObj.getFullYear();
+      const m = isNaN(dObj.getTime()) ? new Date().getMonth() : dObj.getMonth();
+      const fyStr = `${String(m >= 3 ? y : y - 1).slice(-2)}-${String((m >= 3 ? y : y - 1) + 1).slice(-2)}`;
+      const defaultRecNo = inc.receiptNo || `KBR/${fyStr}/${mongoIdNum}`;
+      const defaultInvNo = inc.referenceNo || '-';
+
+      const resolvedSType = (inc.sourceType === 'Academy' || inc.department === 'Academy & LMS')
+        ? 'Academy'
+        : (inc.sourceType === 'Client' || inc.client || (inc.title || '').toLowerCase().includes('client'))
+        ? 'Client'
+        : 'General';
 
       const companyStr = (
         inc.clientName ||
         (typeof inc.client === 'object' && (inc.client?.companyName || inc.client?.clientName || inc.client?.name)) ||
         inc.companyName ||
+        inc.title ||
         resolvedSType
       ).trim();
 
@@ -628,7 +647,10 @@ const IncomeTab = ({ mode = 'sales' }) => {
           cgstAmount: currentTaxCalc.cgstAmount,
           sgstAmount: currentTaxCalc.sgstAmount,
           igstAmount: currentTaxCalc.igstAmount,
-          totalAmount: currentTaxCalc.totalAmount
+          totalAmount: currentTaxCalc.totalAmount,
+          receiptAmount: currentTaxCalc.totalAmount,
+          status: 'Paid',
+          isDirectReceipt: true
         })
       });
 
@@ -660,7 +682,10 @@ const IncomeTab = ({ mode = 'sales' }) => {
 
   // Open Edit Page
   const handleOpenEdit = (inc) => {
-    navigate('/accounts/create-invoice', { state: { editIncome: inc } });
+    const isProf = inc && inc.status === 'Proforma';
+    navigate(isProf ? '/accounts/create-invoice?type=proforma' : '/accounts/create-invoice', { 
+      state: { editIncome: inc, isProforma: isProf } 
+    });
   };
 
   // Update Income Handler
@@ -828,6 +853,69 @@ const IncomeTab = ({ mode = 'sales' }) => {
     });
   };
 
+  const handleConvertProformaToInvoice = (inc) => {
+    const pRef = inc.referenceNo || 'Proforma Invoice';
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Convert Proforma to Official Tax Invoice',
+      message: `Are you sure you want to convert Proforma Invoice ${pRef} into an official Tax Invoice? An official Invoice Number (KB/26-27/...) will be generated and assigned.`,
+      type: 'info',
+      confirmText: 'Convert Now',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(getApiEndpoint(`/accounts/income/${inc._id}/convert-proforma`), {
+            method: 'PUT',
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(data.message || "Proforma Invoice converted to Tax Invoice successfully!", "success");
+            setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+            fetchIncomes();
+            navigate('/accounts/sales');
+          } else {
+            showToast(data.message || "Failed to convert proforma invoice.", "error");
+          }
+        } catch (err) {
+          console.error("Error converting proforma invoice:", err);
+          showToast("Error converting proforma invoice.", "error");
+        }
+      }
+    });
+  };
+
+  const handleSendWhatsAppDirect = (inc) => {
+    const clientObj = (typeof inc.client === 'object' && inc.client !== null) ? inc.client : {};
+    let targetPhone = clientObj.phone || clientObj.primaryContact?.phone || clientObj.alternativePhone || inc.phone || inc.clientPhone || '';
+    let digits = String(targetPhone || '').replace(/\D/g, '');
+
+    if (!digits) {
+      const inputPhone = prompt(`Enter WhatsApp / Phone Number for ${inc.clientName || inc.title || 'Client'}:`);
+      if (!inputPhone) return;
+      digits = inputPhone.replace(/\D/g, '');
+    }
+
+    if (digits.length === 10) {
+      digits = `91${digits}`;
+    }
+
+    if (digits.length < 10) {
+      showToast('Invalid phone number for WhatsApp.', 'error');
+      return;
+    }
+
+    const refNo = inc.referenceNo || `INV-KB-${String(inc._id || '').slice(-4).toUpperCase()}`;
+    const netPayable = inc.totalAmount || inc.amount || 0;
+    const paidAmt = inc.receiptAmount || 0;
+    const balDue = Math.max(0, netPayable - paidAmt);
+    const clientNameStr = clientObj.clientName || inc.clientName || inc.title || 'Customer';
+
+    const text = `Hello *${clientNameStr}*,\n\nInvoice & Payment Status for *${refNo}*:\n📅 Date: ${new Date(inc.date || inc.createdAt).toLocaleDateString('en-IN')}\n💰 Total Amount: ₹${Math.round(netPayable).toLocaleString('en-IN')}\n💵 Paid Amount: ₹${Math.round(paidAmt).toLocaleString('en-IN')}\n⚠️ Balance Due: ₹${Math.round(balDue).toLocaleString('en-IN')}\nStatus: *${inc.status || 'Pending'}*\n\nThank you for your business!`;
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${digits}&text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="space-y-4">
       {/* Sleek 1-Row Compact Header Toolbar */}
@@ -839,15 +927,17 @@ const IncomeTab = ({ mode = 'sales' }) => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              {mode === 'income' ? 'Income Records & Received Payments' : 'Sales Records & Billing Ledger'}
+              {mode === 'proforma' ? 'Proforma Invoices & Quotations' : mode === 'income' ? 'Income Records & Received Payments' : 'Sales Records & Billing Ledger'}
             </h3>
           </div>
 
           {/* Income Opening Balance Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
-            <Coins size={13} />
-            <span>OB: ₹{incomeObAmount.toLocaleString('en-IN')}</span>
-          </div>
+          {mode !== 'proforma' && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 shrink-0">
+              <Coins size={13} />
+              <span>OB: ₹{incomeObAmount.toLocaleString('en-IN')}</span>
+            </div>
+          )}
 
           {/* Active vs Inactive Sub-Tabs Switcher */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 ml-1">
@@ -860,7 +950,7 @@ const IncomeTab = ({ mode = 'sales' }) => {
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
-              <TrendingUp size={13} /> Active Incomes
+              <TrendingUp size={13} /> {mode === 'proforma' ? 'Active Proformas' : mode === 'income' ? 'Active Incomes' : 'Active Invoices'}
             </button>
             <button
               type="button"
@@ -891,14 +981,16 @@ const IncomeTab = ({ mode = 'sales' }) => {
           </div>
 
           {/* Set Income Opening Balance Button */}
-          <button
-            type="button"
-            onClick={handleOpenIncomeObModal}
-            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
-          >
-            <Coins size={14} />
-            <span>Set Opening Balance</span>
-          </button>
+          {mode !== 'proforma' && (
+            <button
+              type="button"
+              onClick={handleOpenIncomeObModal}
+              className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+            >
+              <Coins size={14} />
+              <span>Set Opening Balance</span>
+            </button>
+          )}
 
           {/* Single Sort & Filter Button */}
           <button
@@ -919,8 +1011,19 @@ const IncomeTab = ({ mode = 'sales' }) => {
             )}
           </button>
 
-          {/* Create Zoho Invoice Builder Page Button */}
-          {mode !== 'income' && (
+          {/* Create Proforma / Invoice Button */}
+          {mode === 'proforma' && (
+            <button
+              type="button"
+              onClick={() => navigate('/accounts/create-invoice?type=proforma')}
+              className="py-1.5 px-3.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer active:scale-98 shrink-0"
+            >
+              <FileText size={14} />
+              + Create Proforma Invoice
+            </button>
+          )}
+
+          {mode === 'sales' && (
             <button
               type="button"
               onClick={() => navigate('/accounts/create-invoice')}
@@ -928,6 +1031,17 @@ const IncomeTab = ({ mode = 'sales' }) => {
             >
               <FileText size={14} />
               + Create Invoice
+            </button>
+          )}
+
+          {mode === 'income' && (
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="py-1.5 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer active:scale-98 shrink-0"
+            >
+              <Plus size={14} />
+              + Add Receipts
             </button>
           )}
         </div>
@@ -943,8 +1057,10 @@ const IncomeTab = ({ mode = 'sales' }) => {
         ) : sortedAndFilteredIncomes.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-xs space-y-1">
             <Coins className="mx-auto text-slate-300 dark:text-slate-700 mb-2" size={28} />
-            <p className="font-semibold text-slate-600 dark:text-slate-300">No Income Records Found</p>
-            <p>Click "+ Create Invoice" to add your first revenue stream.</p>
+            <p className="font-semibold text-slate-600 dark:text-slate-300">
+              {mode === 'proforma' ? 'No Proforma Invoices Found' : 'No Income Records Found'}
+            </p>
+            <p>{mode === 'proforma' ? 'Click "+ Create Proforma Invoice" to add your first proforma invoice.' : 'Click "+ Create Invoice" to add your first revenue stream.'}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -1009,15 +1125,6 @@ const IncomeTab = ({ mode = 'sales' }) => {
 
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDocumentModal(rec.parentRecord, 'invoice')}
-                            className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-indigo-200/60 dark:border-indigo-800/60 shadow-2xs"
-                            title="View Tax Invoice"
-                          >
-                            <FileText size={12} className="text-indigo-600 dark:text-indigo-400" />
-                            <span>Invoice</span>
-                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenDocumentModal(rec.parentRecord, 'receipt')}
@@ -1113,7 +1220,13 @@ const IncomeTab = ({ mode = 'sales' }) => {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300 text-[11px]">
-                      {inc.referenceNo || (inc.sourceType === 'Client' ? `INV-KB-C${String(inc._id).slice(-4).toUpperCase()}` : inc.sourceType === 'Academy' ? `INV-KB-A${String(inc._id).slice(-4).toUpperCase()}` : `INV-KB-G${String(inc._id).slice(-4).toUpperCase()}`)}
+                      {inc.referenceNo || (() => {
+                        const dObj = new Date(inc.date || inc.createdAt || Date.now());
+                        const y = isNaN(dObj.getTime()) ? new Date().getFullYear() : dObj.getFullYear();
+                        const m = isNaN(dObj.getTime()) ? new Date().getMonth() : dObj.getMonth();
+                        const fyStr = `${String(m >= 3 ? y : y - 1).slice(-2)}-${String((m >= 3 ? y : y - 1) + 1).slice(-2)}`;
+                        return `KB/${fyStr}/${String(inc._id || '').slice(-4).padStart(4, '0')}`;
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {(() => {
@@ -1192,6 +1305,17 @@ const IncomeTab = ({ mode = 'sales' }) => {
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
+                        {inc.status === 'Proforma' && activeIncomeTab !== 'inactive' && (
+                          <button
+                            type="button"
+                            onClick={() => handleConvertProformaToInvoice(inc)}
+                            className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
+                            title="Convert Proforma Invoice to Official Tax Invoice"
+                          >
+                            <CheckCircle2 size={12} />
+                            <span>Convert to Invoice</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleOpenDocumentModal(inc, 'invoice')}
@@ -1263,7 +1387,7 @@ const IncomeTab = ({ mode = 'sales' }) => {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 shrink-0">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <TrendingUp size={16} className="text-emerald-500" />
-                Record New Income
+                Record New Receipt
               </h3>
               <button
                 type="button"
@@ -1733,10 +1857,14 @@ const IncomeTab = ({ mode = 'sales' }) => {
                       const newStatus = e.target.value;
                       const updated = { ...editingIncome, status: newStatus };
                       if (newStatus === 'Paid' && !updated.receiptNo) {
-                        const sType = updated.sourceType || 'General';
-                        const prefix = sType === 'Client' ? 'REC-KB-C' : sType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
-                        const mongoIdNum = String(updated._id || '').slice(-4).toUpperCase() || '1001';
-                        updated.receiptNo = `${prefix}${mongoIdNum}`;
+                        const dateObj = new Date(updated.date || Date.now());
+                        const year = isNaN(dateObj.getTime()) ? new Date().getFullYear() : dateObj.getFullYear();
+                        const month = isNaN(dateObj.getTime()) ? new Date().getMonth() : dateObj.getMonth();
+                        const startYear = month >= 3 ? year : year - 1;
+                        const fyStr = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+                        const numDigits = String(updated._id || '').replace(/\D/g, '');
+                        const seqStr = numDigits ? numDigits.slice(-4).padStart(4, '0') : '0001';
+                        updated.receiptNo = `KBR/${fyStr}/${seqStr}`;
                         updated.receiptDate = new Date().toISOString().split('T')[0];
                       }
                       setEditingIncome(updated);
@@ -1757,7 +1885,7 @@ const IncomeTab = ({ mode = 'sales' }) => {
                     type="text"
                     value={editingIncome.receiptNo || ''}
                     onChange={(e) => setEditingIncome({ ...editingIncome, receiptNo: e.target.value })}
-                    placeholder="e.g. REC-KB-C1001"
+                    placeholder="e.g. KBR/26-27/0001"
                     className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
                   />
                 </div>
