@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Building, ChevronRight, ArrowUpDown, ExternalLink, 
   Trash2, Mail, Phone, UserCheck, ShieldCheck, Tag 
 } from 'lucide-react';
 
 const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
+  const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState([]);
 
   const toggleSelectAll = () => {
@@ -130,11 +131,12 @@ const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
               return (
                 <tr
                   key={id}
-                  className={`hover:bg-indigo-50/40 dark:hover:bg-slate-800/50 transition-colors ${
+                  onClick={() => navigate(`/clients/${id}`)}
+                  className={`hover:bg-indigo-50/40 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${
                     isSelected ? 'bg-indigo-50/60 dark:bg-slate-800/80' : ''
                   }`}
                 >
-                  <td className="py-3.5 px-4 text-center">
+                  <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={isSelected}
@@ -158,12 +160,9 @@ const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
                         </div>
                       )}
                       <div>
-                        <Link
-                          to={`/clients/${id}`}
-                          className="font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 transition-colors"
-                        >
+                        <div className="font-bold text-slate-800 dark:text-slate-100 hover:text-indigo-600 transition-colors">
                           {client.companyName}
-                        </Link>
+                        </div>
                         <div className="text-[10px] text-slate-400 font-semibold">{client.clientType || 'SMB'}</div>
                       </div>
                     </div>
@@ -171,12 +170,9 @@ const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
 
                   {/* Primary Contact */}
                   <td className="py-3.5 px-4">
-                    <Link
-                      to={`/clients/${id}`}
-                      className="font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition-colors"
-                    >
+                    <div className="font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition-colors">
                       {client.clientName || client.primaryContact?.name || '-'}
-                    </Link>
+                    </div>
                   </td>
 
                   {/* Client ID */}
@@ -230,21 +226,22 @@ const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
                   </td>
 
                   {/* Actions */}
-                  <td className="py-3.5 px-4 text-center">
+                  <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
-                      <Link
-                        to={`/clients/${id}`}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/clients/${id}`)}
                         title="View Profile"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
                       >
                         <ExternalLink className="w-4 h-4" />
-                      </Link>
+                      </button>
 
                       <button
                         type="button"
                         onClick={() => onDelete?.(id)}
                         title="Delete Client"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

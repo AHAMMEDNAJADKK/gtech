@@ -5,6 +5,49 @@ import { sendNotification } from '../services/notification.service.js';
 import socketService from '../services/socket.service.js';
 
 /**
+ * Helper to check if a user is SuperAdmin
+ */
+const isSuperAdminUser = (userObj) => {
+  if (!userObj) return false;
+  const role = String(userObj.role || '').toLowerCase().trim();
+  const roleId = String(userObj.role_id || userObj.roleId || '').trim();
+  const desig = String(userObj.designation || '').toLowerCase().trim();
+
+  return (
+    userObj.isSuperAdmin === true ||
+    role === 'superadmin' ||
+    role === 'md' ||
+    roleId === '0' ||
+    roleId === 'md' ||
+    desig === 'md' ||
+    desig.includes('managing director') ||
+    desig.includes('md')
+  );
+};
+
+/**
+ * Helper to fetch SuperAdmin/MD user IDs
+ */
+const getSuperAdminUserIds = async () => {
+  try {
+    const superUsers = await User.find({
+      $or: [
+        { isSuperAdmin: true },
+        { role_id: '0' },
+        { role_id: 'md' },
+        { role: 'superadmin' },
+        { role: 'md' },
+        { designation: { $regex: /md|managing director/i } }
+      ]
+    }).select('_id');
+    return superUsers.map(u => u._id);
+  } catch (err) {
+    console.error('Error fetching SuperAdmin users:', err);
+    return [];
+  }
+};
+
+/**
  * Helper to check if a user has HR/Admin privileges
  */
 const isHrOrAdmin = (userObj) => {
@@ -100,6 +143,26 @@ const getTeamLeadUserId = async (managerName) => {
 };
 
 /**
+ * Helper to enrich leave requests with actual user department and team lead from Department manager
+ */
+const enrichLeaveList = (leaves) => {
+  if (!Array.isArray(leaves)) return [];
+  return leaves.map(leave => {
+    const l = leave?.toObject ? leave.toObject() : { ...leave };
+    const deptName = l.user?.departmentId?.name || l.user?.department || (l.department && l.department.trim() ? l.department : 'General');
+    const deptManagerName = l.user?.departmentId?.managerId?.name;
+    const tlName = deptManagerName || l.user?.reportingManager || l.reportingManager || '';
+
+    return {
+      ...l,
+      department: deptName,
+      reportingManager: tlName,
+      teamLeadName: tlName
+    };
+  });
+};
+
+/**
  * @desc Submit a new Leave Request
  * @route POST /api/leaves
  * @access Protected
@@ -167,18 +230,39 @@ export const createLeaveRequest = async (req, res) => {
 
 
     const requesterIsTl = await isTlOrManager(userObj);
-    const initialTeamLeadStatus = requesterIsTl ? 'APPROVED' : 'PENDING';
-    const initialTeamLeadActionBy = requesterIsTl ? userId : undefined;
-    const initialTeamLeadActionAt = requesterIsTl ? new Date() : undefined;
-    const initialTeamLeadComment = requesterIsTl ? 'Auto-approved (Requester is Team Lead)' : undefined;
+    const requesterIsHr = isHrOrAdmin(userObj);
+    const skipTeamLeadStage = requesterIsTl || requesterIsHr;
+
+    const initialTeamLeadStatus = skipTeamLeadStage ? 'APPROVED' : 'PENDING';
+    const initialTeamLeadActionBy = skipTeamLeadStage ? userId : undefined;
+    const initialTeamLeadActionAt = skipTeamLeadStage ? new Date() : undefined;
+    const initialTeamLeadComment = skipTeamLeadStage 
+      ? (requesterIsHr ? 'Bypassed (Requester is HR)' : 'Auto-approved (Requester is Team Lead)') 
+      : undefined;
+
+    let userDeptName = userObj.department || '';
+    let userTeamLeadName = userObj.reportingManager || '';
+
+    if (userObj.departmentId) {
+      try {
+        const Department = (await import('../modules/departments/department.model.js')).default;
+        const deptDoc = await Department.findById(userObj.departmentId).populate('managerId', 'name');
+        if (deptDoc) {
+          if (!userDeptName) userDeptName = deptDoc.name || '';
+          if (deptDoc.managerId?.name) {
+            userTeamLeadName = deptDoc.managerId.name;
+          }
+        }
+      } catch (e) {}
+    }
 
     const newLeave = new LeaveRequest({
       user: userId,
       employeeId: userObj.employeeId || '',
       userName: userObj.name || '',
       userEmail: userObj.email || '',
-      department: userObj.department || '',
-      reportingManager: userObj.reportingManager || '',
+      department: userDeptName || 'General',
+      reportingManager: userTeamLeadName || userObj.reportingManager || '',
       ccUsers: resolvedCcUsers,
       leaveType,
       startDate: start,
@@ -190,7 +274,9 @@ export const createLeaveRequest = async (req, res) => {
       teamLeadActionAt: initialTeamLeadActionAt,
       teamLeadComment: initialTeamLeadComment,
       hrStatus: 'PENDING',
-      finalStatus: 'PENDING'
+      finalStatus: 'PENDING',
+      isHrRequest: requesterIsHr,
+      requiresMdApproval: requesterIsHr
     });
 
     await newLeave.save();
@@ -242,6 +328,23 @@ export const createLeaveRequest = async (req, res) => {
       }
     }
 
+    // 3. Target MD / SuperAdmin if requester is HR
+    if (requesterIsHr) {
+      const superUserIds = await getSuperAdminUserIds();
+      for (const superId of superUserIds) {
+        if (superId.toString() !== userId.toString()) {
+          await sendNotification(
+            superId,
+            `👑 HR Leave Request: ${userObj.name} (${userObj.department || 'HR'}) requested leave (${leaveType}, ${totalDays} day(s)). Requires MD Approval (Stage 2).`,
+            'info',
+            'HR Leave Request - Pending MD Approval',
+            userId,
+            userObj.name
+          );
+        }
+      }
+    }
+
     // Live Socket Alert for Management
     if (socketService && socketService.emitNewApproval) {
       socketService.emitNewApproval({
@@ -277,13 +380,25 @@ export const getMyLeaveRequests = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
     const leaves = await LeaveRequest.find({ user: userId })
+      .populate({
+        path: 'user',
+        select: 'name email department departmentId reportingManager profile_image avatar',
+        populate: {
+          path: 'departmentId',
+          select: 'name code managerId',
+          populate: {
+            path: 'managerId',
+            select: 'name email designation role'
+          }
+        }
+      })
       .populate('teamLeadActionBy', 'name')
       .populate('hrActionBy', 'name')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
-      data: leaves
+      data: enrichLeaveList(leaves)
     });
   } catch (error) {
     console.error('Error fetching user leave requests:', error);
@@ -387,14 +502,25 @@ export const getTeamLeaveRequests = async (req, res) => {
     };
 
     const leaves = await LeaveRequest.find(query)
-      .populate('user', 'name email department profile_image avatar')
+      .populate({
+        path: 'user',
+        select: 'name email department departmentId reportingManager profile_image avatar',
+        populate: {
+          path: 'departmentId',
+          select: 'name code managerId',
+          populate: {
+            path: 'managerId',
+            select: 'name email designation role'
+          }
+        }
+      })
       .populate('teamLeadActionBy', 'name')
       .populate('hrActionBy', 'name')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
-      data: leaves
+      data: enrichLeaveList(leaves)
     });
   } catch (error) {
     console.error('Error fetching team leave requests:', error);
@@ -453,14 +579,25 @@ export const getAllLeaveRequests = async (req, res) => {
     }
 
     const leaves = await LeaveRequest.find(query)
-      .populate('user', 'name email department profile_image avatar')
+      .populate({
+        path: 'user',
+        select: 'name email department departmentId reportingManager profile_image avatar',
+        populate: {
+          path: 'departmentId',
+          select: 'name code managerId',
+          populate: {
+            path: 'managerId',
+            select: 'name email designation role'
+          }
+        }
+      })
       .populate('teamLeadActionBy', 'name')
       .populate('hrActionBy', 'name')
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
-      data: leaves
+      data: enrichLeaveList(leaves)
     });
   } catch (error) {
     console.error('Error fetching all leave requests:', error);
@@ -497,6 +634,7 @@ export const approveOrRejectLeave = async (req, res) => {
 
     const actorUser = await User.findById(actorId);
     const userIsHr = isHrOrAdmin(actorUser);
+    const userIsSuper = isSuperAdminUser(actorUser);
 
     let targetType = approvalType;
     if (!targetType) {
@@ -509,18 +647,27 @@ export const approveOrRejectLeave = async (req, res) => {
 
     const requesterUser = await User.findById(leaveObj.user);
     const requesterIsTl = await isTlOrManager(requesterUser);
+    const requesterIsHr = leaveObj.isHrRequest || isHrOrAdmin(requesterUser);
 
-    // STAGE 2 ENFORCEMENT: HR can only approve/reject after Team Lead has APPROVED Stage 1
-    if (targetType === 'hr' && hasReportingManager && leaveObj.teamLeadStatus !== 'APPROVED' && !requesterIsTl) {
+    // HR Leave Request Enforcement: HR leave requests ONLY need MD / SuperAdmin approval!
+    if (requesterIsHr && !userIsSuper) {
+      return res.status(403).json({
+        success: false,
+        message: 'HR leave requests require MD approval (Stage 2).'
+      });
+    }
+
+    // STAGE 2 ENFORCEMENT: HR can only approve/reject after Team Lead has APPROVED Stage 1 (unless requester is TL or HR)
+    if (targetType === 'hr' && hasReportingManager && leaveObj.teamLeadStatus !== 'APPROVED' && !requesterIsTl && !requesterIsHr) {
       return res.status(400).json({
         success: false,
         message: 'Stage 1 (Team Lead Approval) must be completed before HR can review or take action.'
       });
     }
 
-    if (requesterIsTl && leaveObj.teamLeadStatus !== 'APPROVED') {
+    if ((requesterIsTl || requesterIsHr) && leaveObj.teamLeadStatus !== 'APPROVED') {
       leaveObj.teamLeadStatus = 'APPROVED';
-      leaveObj.teamLeadComment = 'Auto-approved (Requester is Team Lead)';
+      leaveObj.teamLeadComment = requesterIsHr ? 'Bypassed (Requester is HR)' : 'Auto-approved (Requester is Team Lead)';
     }
 
     // Update specific approval fields
@@ -687,7 +834,18 @@ export const getLeaveHistory = async (req, res) => {
     }
 
     const leaves = await LeaveRequest.find(query)
-      .populate('user', 'name email department profile_image avatar')
+      .populate({
+        path: 'user',
+        select: 'name email department departmentId reportingManager profile_image avatar',
+        populate: {
+          path: 'departmentId',
+          select: 'name code managerId',
+          populate: {
+            path: 'managerId',
+            select: 'name email designation role'
+          }
+        }
+      })
       .populate('teamLeadActionBy', 'name')
       .populate('hrActionBy', 'name')
       .sort({ createdAt: -1 });
@@ -707,22 +865,21 @@ export const getLeaveHistory = async (req, res) => {
         rejectedCount++;
       } else if (l.finalStatus === 'CANCELLED') {
         cancelledCount++;
-      } else if (l.finalStatus === 'PENDING') {
+      } else {
         pendingCount++;
       }
     });
 
     return res.status(200).json({
       success: true,
-      summary: {
-        totalRequests: leaves.length,
+      metrics: {
         totalDaysApproved,
         approvedCount,
         rejectedCount,
         cancelledCount,
         pendingCount
       },
-      data: leaves
+      data: enrichLeaveList(leaves)
     });
   } catch (error) {
     console.error('Error fetching leave history:', error);
@@ -767,6 +924,73 @@ export const cancelLeaveRequest = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || 'Server error while deleting leave request.'
+    });
+  }
+};
+
+/**
+ * @desc Edit a Leave Request (SuperAdmin / Admin or Owner)
+ * @route PUT /api/leaves/:id
+ * @access Protected
+ */
+export const updateLeaveRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { leaveType, startDate, endDate, reason, teamLeadStatus, hrStatus, finalStatus } = req.body;
+    const userId = req.user.id || req.user._id;
+    const currentUser = await User.findById(userId);
+
+    const isSuper = isSuperAdminUser(currentUser);
+
+    const leave = await LeaveRequest.findById(id);
+    if (!leave) {
+      return res.status(404).json({ success: false, message: 'Leave request not found.' });
+    }
+
+    const isOwner = leave.user.toString() === userId.toString();
+
+    if (!isSuper && !isOwner) {
+      return res.status(403).json({ success: false, message: 'Not authorized to edit this leave request.' });
+    }
+
+    if (!isSuper && leave.finalStatus !== 'PENDING') {
+      return res.status(400).json({ success: false, message: 'Cannot edit a leave request that has already been processed.' });
+    }
+
+    if (leaveType) leave.leaveType = leaveType;
+    if (startDate) leave.startDate = new Date(startDate);
+    if (endDate) leave.endDate = new Date(endDate);
+    if (reason) leave.reason = reason;
+
+    if (startDate || endDate) {
+      const s = new Date(leave.startDate);
+      const e = new Date(leave.endDate);
+      if (leave.leaveType === 'Half Day') {
+        leave.totalDays = 0.5;
+      } else {
+        const diffTime = Math.abs(e - s);
+        leave.totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      }
+    }
+
+    if (isSuper) {
+      if (teamLeadStatus) leave.teamLeadStatus = teamLeadStatus;
+      if (hrStatus) leave.hrStatus = hrStatus;
+      if (finalStatus) leave.finalStatus = finalStatus;
+    }
+
+    await leave.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Leave request updated successfully.',
+      data: leave
+    });
+  } catch (error) {
+    console.error('Error updating leave request:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error while updating leave request.'
     });
   }
 };

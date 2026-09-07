@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
 import {
@@ -24,7 +25,8 @@ import {
   Phone,
   MapPin,
   Download,
-  Edit3
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import {
   getSalaryPayments,
@@ -61,6 +63,91 @@ export default function ApprovalsPage() {
   const [leaveActionType, setLeaveActionType] = useState(null); // 'APPROVED' | 'REJECTED'
   const [leaveComment, setLeaveComment] = useState('');
   const [leaveSubmitting, setLeaveSubmitting] = useState(false);
+
+  // SuperAdmin / MD Check
+  const userRole = String(user?.role || '').toLowerCase().trim();
+  const userRoleId = String(user?.role_id || user?.roleId || '').trim();
+  const userDesig = String(user?.designation || '').toLowerCase().trim();
+  const isSuperAdmin = user?.isSuperAdmin === true || userRole === 'superadmin' || userRole === 'md' || userRoleId === '0' || userRoleId === 'md' || userDesig === 'md' || userDesig.includes('md') || userDesig.includes('managing director');
+
+  // SuperAdmin Edit & Delete Modal States
+  const [editModalLeave, setEditModalLeave] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    leaveType: 'Personal Leave',
+    startDate: '',
+    endDate: '',
+    reason: '',
+    teamLeadStatus: 'PENDING',
+    hrStatus: 'PENDING',
+    finalStatus: 'PENDING'
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const [deleteModalLeave, setDeleteModalLeave] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const handleOpenEditModal = (leave) => {
+    setEditModalLeave(leave);
+    setEditFormData({
+      leaveType: leave.leaveType || 'Personal Leave',
+      startDate: leave.startDate ? new Date(leave.startDate).toISOString().split('T')[0] : '',
+      endDate: leave.endDate ? new Date(leave.endDate).toISOString().split('T')[0] : '',
+      reason: leave.reason || '',
+      teamLeadStatus: leave.teamLeadStatus || 'PENDING',
+      hrStatus: leave.hrStatus || 'PENDING',
+      finalStatus: leave.finalStatus || 'PENDING'
+    });
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editModalLeave) return;
+    setEditSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/leaves/${editModalLeave._id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(editFormData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Leave request updated successfully!');
+        setEditModalLeave(null);
+        fetchLeaves();
+      } else {
+        showToast(data.message || 'Failed to update leave request.', 'error');
+      }
+    } catch (err) {
+      console.error('Error updating leave:', err);
+      showToast('Error updating leave request.', 'error');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteSubmit = async () => {
+    if (!deleteModalLeave) return;
+    setDeleteSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/leaves/${deleteModalLeave._id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Leave request deleted successfully!');
+        setDeleteModalLeave(null);
+        fetchLeaves();
+      } else {
+        showToast(data.message || 'Failed to delete leave request.', 'error');
+      }
+    } catch (err) {
+      console.error('Error deleting leave:', err);
+      showToast('Error deleting leave request.', 'error');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
 
   // Salary Approvals State
   const [salaryPayments, setSalaryPayments] = useState([]);
@@ -870,7 +957,12 @@ export default function ApprovalsPage() {
                           <div>
                             <div className="font-bold text-slate-900">{leave.userName || 'Employee'}</div>
                             <div className="text-[10px] text-slate-400">
-                              {leave.department || 'General'} {leave.reportingManager ? `• TL: ${leave.reportingManager}` : ''}
+                              {(leave.department && leave.department !== 'General' ? leave.department : (leave.user?.departmentId?.name || leave.user?.department || leave.department || 'General'))} {leave.reportingManager ? `• TL: ${leave.reportingManager}` : ''}
+                              {(leave.isHrRequest || leave.requiresMdApproval) && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold rounded text-[10px]">
+                                  👑 Needs MD Approval
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -894,7 +986,57 @@ export default function ApprovalsPage() {
                         {renderStatusBadge(leave.hrStatus)}
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        {renderStatusBadge(leave.finalStatus)}
+                        <div className="flex items-center justify-end gap-2">
+                          {leave.finalStatus === 'PENDING' ? (
+                            <div className="flex items-center gap-1.5">
+                              {leave.isHrRequest && (
+                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 mr-1">
+                                  👑 Needs MD Approval
+                                </span>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedLeave(leave);
+                                  setLeaveActionType('REJECTED');
+                                  setLeaveComment('');
+                                }}
+                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedLeave(leave);
+                                  setLeaveActionType('APPROVED');
+                                  setLeaveComment('');
+                                }}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                              >
+                                <CheckCircle2 className="w-3 h-3" /> Approve
+                              </button>
+                            </div>
+                          ) : (
+                            renderStatusBadge(leave.finalStatus)
+                          )}
+                          {isSuperAdmin && (
+                            <div className="flex items-center gap-1 ml-1 border-l border-slate-200 pl-1.5">
+                              <button
+                                onClick={() => handleOpenEditModal(leave)}
+                                title="Edit Leave Request (SuperAdmin)"
+                                className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition cursor-pointer"
+                              >
+                                <Edit3 size={14} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteModalLeave(leave)}
+                                title="Delete Leave Request (SuperAdmin)"
+                                className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -922,7 +1064,7 @@ export default function ApprovalsPage() {
                         <div>
                           <h3 className="text-xs font-bold text-slate-900">{leave.userName || 'Employee'}</h3>
                           <p className="text-[11px] text-slate-500">
-                            {leave.department || 'General'} {leave.reportingManager ? `• TL: ${leave.reportingManager}` : ''}
+                            {(leave.department && leave.department !== 'General' ? leave.department : (leave.user?.departmentId?.name || leave.user?.department || leave.department || 'General'))} {leave.reportingManager ? `• TL: ${leave.reportingManager}` : ''}
                           </p>
                         </div>
                       </div>
@@ -950,17 +1092,67 @@ export default function ApprovalsPage() {
                         <div>{renderStatusBadge(leave.teamLeadStatus)}</div>
                       </div>
                       <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                        <span className="text-[10px] font-bold uppercase text-slate-400">Stage 2: HR</span>
+                        <span className="text-[10px] font-bold uppercase text-slate-400">
+                          {leave.isHrRequest || leave.requiresMdApproval ? 'Stage 2: MD' : 'Stage 2: HR'}
+                        </span>
                         <div>{renderStatusBadge(leave.hrStatus)}</div>
                       </div>
                     </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
-                    <span className="flex items-center gap-1 text-slate-500">
-                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" /> Executive View Only
-                    </span>
-                    <span className="text-[10px] text-slate-400">Sequential: Stage 1 TL ➔ Stage 2 HR</span>
+                    {leave.finalStatus === 'PENDING' ? (
+                      <div className="flex items-center gap-2">
+                        {leave.isHrRequest && (
+                          <span className="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-[10px] font-bold">
+                            👑 Needs MD Approval
+                          </span>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedLeave(leave);
+                            setLeaveActionType('REJECTED');
+                            setLeaveComment('');
+                          }}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedLeave(leave);
+                            setLeaveActionType('APPROVED');
+                            setLeaveComment('');
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-1 text-slate-500">
+                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" /> Processed
+                      </span>
+                    )}
+
+                    {isSuperAdmin && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditModal(leave)}
+                          title="Edit Leave Request (SuperAdmin)"
+                          className="px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Edit3 size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteModalLeave(leave)}
+                          title="Delete Leave Request (SuperAdmin)"
+                          className="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-md text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -1583,31 +1775,32 @@ export default function ApprovalsPage() {
       )}
 
       {/* LEAVE ACTION MODAL */}
-      {selectedLeave && leaveActionType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
+      {selectedLeave && leaveActionType && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] w-screen h-screen flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm overflow-hidden">
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4 text-slate-800"
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4 text-slate-800 dark:text-slate-100 max-h-[88vh] overflow-y-auto"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {leaveActionType === 'APPROVED' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-rose-600" />
+                  <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                 )}
                 MD Executive Leave Action — {leaveActionType}
               </h2>
               <button
                 onClick={() => setSelectedLeave(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm p-1 rounded-md transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
               <p><strong>Employee:</strong> {selectedLeave.userName}</p>
               <p><strong>Type & Duration:</strong> {selectedLeave.leaveType} ({selectedLeave.totalDays} day(s))</p>
               <p><strong>Reason:</strong> "{selectedLeave.reason}"</p>
@@ -1615,13 +1808,13 @@ export default function ApprovalsPage() {
 
             <form onSubmit={handleLeaveActionSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Executive Remarks (Optional)</label>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">Executive Remarks (Optional)</label>
                 <textarea
                   rows={3}
                   value={leaveComment}
                   onChange={(e) => setLeaveComment(e.target.value)}
                   placeholder="Enter remarks or approval instructions..."
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
@@ -1629,14 +1822,14 @@ export default function ApprovalsPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedLeave(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-all cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold transition-all cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={leaveSubmitting}
-                  className={`px-5 py-2 text-white rounded-xl font-semibold transition-all flex items-center gap-2 shadow-xs cursor-pointer ${
+                  className={`px-5 py-2 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-md cursor-pointer text-xs ${
                     leaveActionType === 'APPROVED' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-rose-600 hover:bg-rose-700'
                   }`}
                 >
@@ -1646,7 +1839,8 @@ export default function ApprovalsPage() {
               </div>
             </form>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* SALARY REJECTION REASON MODAL */}
@@ -1971,6 +2165,155 @@ export default function ApprovalsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUPERADMIN EDIT LEAVE MODAL */}
+      {editModalLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-indigo-600" /> Edit Leave Request (SuperAdmin)
+              </h3>
+              <button onClick={() => setEditModalLeave(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Leave Type</label>
+                <select
+                  value={editFormData.leaveType}
+                  onChange={(e) => setEditFormData({ ...editFormData, leaveType: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 outline-none font-medium"
+                >
+                  <option value="Personal Leave">Personal Leave</option>
+                  <option value="Sick Leave">Sick Leave</option>
+                  <option value="Half Day">Half Day</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={editFormData.startDate}
+                    onChange={(e) => setEditFormData({ ...editFormData, startDate: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 outline-none font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={editFormData.endDate}
+                    onChange={(e) => setEditFormData({ ...editFormData, endDate: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 outline-none font-medium"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Reason</label>
+                <textarea
+                  rows={2}
+                  value={editFormData.reason}
+                  onChange={(e) => setEditFormData({ ...editFormData, reason: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 outline-none font-medium resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">TL Status</label>
+                  <select
+                    value={editFormData.teamLeadStatus}
+                    onChange={(e) => setEditFormData({ ...editFormData, teamLeadStatus: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-[11px] font-bold"
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="REJECTED">REJECTED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">HR Status</label>
+                  <select
+                    value={editFormData.hrStatus}
+                    onChange={(e) => setEditFormData({ ...editFormData, hrStatus: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-[11px] font-bold"
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="REJECTED">REJECTED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Final Status</label>
+                  <select
+                    value={editFormData.finalStatus}
+                    onChange={(e) => setEditFormData({ ...editFormData, finalStatus: e.target.value })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-[11px] font-bold"
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="REJECTED">REJECTED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditModalLeave(null)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  {editSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SUPERADMIN DELETE LEAVE MODAL */}
+      {deleteModalLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-slate-900/40 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <Trash2 className="w-6 h-6 shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Delete Leave Request</h3>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
+              Are you sure you want to permanently delete the leave request for <strong>{deleteModalLeave.userName}</strong> ({deleteModalLeave.leaveType})? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalLeave(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSubmit}
+                disabled={deleteSubmitting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                {deleteSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Delete Request</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

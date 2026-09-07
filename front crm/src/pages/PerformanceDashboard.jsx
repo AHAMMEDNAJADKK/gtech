@@ -192,9 +192,28 @@ const PerformanceDashboard = () => {
     const d = String(r.department || '').toLowerCase();
     const des = String(r.designation || '').toLowerCase();
     const role = String(r.role || '').toLowerCase();
-    if (d === 'student' || d === 'students' || d === 'academy students' || des.includes('student') || role.includes('student')) {
+    const roleId = String(r.roleId || r.role_id || '');
+
+    // Exclude students, academy members, learners, and superadmin
+    if (
+      d === 'student' || d === 'students' || d === 'academy students' ||
+      des.includes('student') ||
+      role.includes('student') ||
+      role === 'learner' ||
+      role === 'superadmin' ||
+      roleId === '0' ||
+      roleId === '10' ||
+      roleId === '4'
+    ) {
       return false;
     }
+
+    // If role/roleId is provided, ensure it matches Users list roles
+    if (role || roleId) {
+      const isUsersListRole = ['1', '2', '3'].includes(roleId) || ['hr', 'admin', 'employee'].includes(role);
+      if (!isUsersListRole) return false;
+    }
+
     return (
       r.employeeName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.department?.toLowerCase().includes(searchQuery.toLowerCase()) ||

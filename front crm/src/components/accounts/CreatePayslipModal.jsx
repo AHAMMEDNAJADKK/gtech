@@ -42,6 +42,7 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
   const [specialAllowance, setSpecialAllowance] = useState('0');
   const [transportAllowance, setTransportAllowance] = useState('0');
   const [otherAllowance, setOtherAllowance] = useState('0');
+  const [otherAllowanceRemark, setOtherAllowanceRemark] = useState('');
   const [integrityAward, setIntegrityAward] = useState('0');
   const [bonus, setBonus] = useState('0');
 
@@ -52,6 +53,7 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
   const [unpaidLeave, setUnpaidLeave] = useState('0');
   const [advanceSalary, setAdvanceSalary] = useState('0');
   const [otherDeductions, setOtherDeductions] = useState('0');
+  const [otherDeductionsRemark, setOtherDeductionsRemark] = useState('');
   const [department, setDepartment] = useState('');
   const [designation, setDesignation] = useState('');
   const [month, setMonth] = useState(() => {
@@ -180,6 +182,7 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
         specialAllowance: Number(specialAllowance || 0),
         transportAllowance: Number(transportAllowance || 0),
         otherAllowance: Number(otherAllowance || 0),
+        otherAllowanceRemark: otherAllowanceRemark ? otherAllowanceRemark.trim() : '',
         integrityAward: Number(integrityAward || 0),
         bonus: Number(bonus || 0),
         totalEarnings,
@@ -189,6 +192,7 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
         unpaidLeave: Number(unpaidLeave || 0),
         advanceSalary: Number(advanceSalary || 0),
         otherDeductions: Number(otherDeductions || 0),
+        otherDeductionsRemark: otherDeductionsRemark ? otherDeductionsRemark.trim() : '',
         totalDeductions
       };
 
@@ -458,6 +462,21 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
                     className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-2"
                   />
                 </div>
+
+                {(Number(otherAllowance) > 0 || (otherAllowance && String(otherAllowance).trim() !== '0' && String(otherAllowance).trim() !== '')) && (
+                  <div className="col-span-1 sm:col-span-2 md:col-span-3 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-300/70 dark:border-amber-800/40 p-2.5 rounded-xl space-y-1 my-1 animate-in fade-in duration-200">
+                    <label className="block text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">
+                      Other Allowance Remark / Reason
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Travel Reimbursement, Project Incentive, Relocation Stipend"
+                      value={otherAllowanceRemark}
+                      onChange={e => setOtherAllowanceRemark(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700/60 rounded-xl p-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500/40"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[11px] text-slate-500 font-semibold mb-1">KODBRAND Integrity</label>
                   <input
@@ -545,6 +564,21 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
                     className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-2"
                   />
                 </div>
+
+                {(Number(otherDeductions) > 0 || (otherDeductions && String(otherDeductions).trim() !== '0' && String(otherDeductions).trim() !== '')) && (
+                  <div className="col-span-1 sm:col-span-2 md:col-span-3 bg-rose-50/70 dark:bg-rose-950/20 border border-rose-300/70 dark:border-rose-800/40 p-2.5 rounded-xl space-y-1 my-1 animate-in fade-in duration-200">
+                    <label className="block text-[10px] font-bold text-rose-800 dark:text-rose-300 uppercase tracking-wider">
+                      Other Deductions Remark / Reason
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Asset Damage Recovery, Excess Disbursal Adjustment, Fine"
+                      value={otherDeductionsRemark}
+                      onChange={e => setOtherDeductionsRemark(e.target.value)}
+                      className="w-full bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-700/60 rounded-xl p-2 text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-rose-500/40"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

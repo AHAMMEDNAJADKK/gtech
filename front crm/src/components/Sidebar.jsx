@@ -136,7 +136,8 @@ const menuItems = [
       { icon: Tag, label: 'Expense Categories', path: '/accounts/categories' },
       { icon: PlusCircle, label: 'Expense', path: '/accounts/expenses' },
       { icon: DollarSign, label: 'Salary Payment', path: '/accounts/salary' },
-      { icon: BookCheck, label: 'Cash Book', path: '/accounts/cash-book' },
+      { icon: BookCheck, label: 'Cash & Bank', path: '/accounts/cash-book' },
+      { icon: Layers, label: 'Operation', path: '/accounts/operation' },
       { icon: BarChart3, label: 'Profit and Loss', path: '/accounts/reports' }
     ]
   },

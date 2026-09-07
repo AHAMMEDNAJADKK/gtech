@@ -42,6 +42,24 @@ const getTaskImageUrl = (path) => {
   return `${backendHost}/${cleanPath}`;
 };
 
+const toIsoDueDate = (val) => {
+  if (!val) return '';
+  if (typeof val !== 'string') {
+    try {
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    } catch (e) {}
+    return '';
+  }
+  const clean = val.trim();
+  if (!clean) return '';
+  try {
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  } catch (e) {}
+  return clean;
+};
+
 const formatDateTimeDisplay = (dVal) => {
   if (!dVal) return '';
   try {
@@ -601,7 +619,7 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations, cu
     fd.append('designation_id', form.designation_id);
     fd.append('status', 'pending');
     fd.append('priority', form.priority || 'medium');
-    if (form.dueDate) fd.append('dueDate', form.dueDate);
+    if (form.dueDate) fd.append('dueDate', toIsoDueDate(form.dueDate));
     if (form.client) fd.append('client', form.client);
     if (form.project) fd.append('project', form.project);
 
@@ -1500,7 +1518,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     }
 
     if (newFile) fd.append('file', newFile);
-    if (editForm.dueDate) fd.append('dueDate', editForm.dueDate);
+    if (editForm.dueDate) fd.append('dueDate', toIsoDueDate(editForm.dueDate));
 
     try {
       await fetch(`${API_BASE}/tasks/update/${task.id}`, {

@@ -568,7 +568,7 @@ const AccountantDashboard = () => {
                 }`}
               >
                 <BookCheck size={13} />
-                Cash Book ({cashBook.length})
+                Cash & Bank ({cashBook.length})
               </button>
             </div>
           </div>

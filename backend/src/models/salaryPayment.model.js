@@ -125,6 +125,10 @@ const salaryPaymentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  otherAllowanceRemark: {
+    type: String,
+    default: ''
+  },
   integrityAward: {
     type: Number,
     default: 0
@@ -162,6 +166,10 @@ const salaryPaymentSchema = new mongoose.Schema({
   otherDeductions: {
     type: Number,
     default: 0
+  },
+  otherDeductionsRemark: {
+    type: String,
+    default: ''
   },
   totalDeductions: {
     type: Number,

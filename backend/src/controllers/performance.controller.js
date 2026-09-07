@@ -20,10 +20,18 @@ const isStudentUser = (u) => {
   const des = String(u.designation || u.designationId?.name || '').toLowerCase().trim();
   const sId = String(u.studentId || '').trim();
 
-  if (r.includes('student') || rid.includes('student') || rid === '9' || rid === '11') return true;
+  // Exclude students
+  if (r.includes('student') || r === 'learner' || rid.includes('student') || rid === '10' || rid === '4' || rid === '9' || rid === '11') return true;
   if (d === 'student' || d === 'students' || d === 'academy students') return true;
   if (des.includes('student')) return true;
   if (sId.length > 0 && !u.employeeId) return true;
+
+  // Exclude superadmin (not listed in standard Users list)
+  if (r === 'superadmin' || rid === '0') return true;
+
+  // Only allow users that match the Users list roles (1, 2, 3 or hr, admin, employee)
+  const isTargetRole = ['1', '2', '3'].includes(rid) || ['hr', 'admin', 'employee'].includes(r);
+  if (!isTargetRole) return true;
 
   return false;
 };
@@ -46,16 +54,27 @@ const buildDepartmentUserQuery = async (reqUser) => {
   );
 
   const query = {
-    status: { $ne: 'inactive' },
-    role: { $nin: ['student', 'Student', 'STUDENT', 'learner', 'Learner'] },
-    role_id: { $nin: ['student', 'Student', '9', '11'] },
-    department: { $nin: ['Student', 'Students', 'STUDENT', 'Academy Students'] }
+    $and: [
+      {
+        role: { $nin: ['student', 'Student', 'STUDENT', 'learner', 'Learner', 'superadmin', 'Superadmin', 'SUPERADMIN'] }
+      },
+      {
+        role_id: { $nin: ['student', 'Student', '0', 0, '4', 4, '9', 9, '10', 10, '11', 11] }
+      },
+      {
+        department: { $nin: ['Student', 'Students', 'STUDENT', 'Academy Students'] }
+      },
+      {
+        $or: [
+          { role_id: { $in: ['1', '2', '3', 1, 2, 3] } },
+          { role: { $in: ['admin', 'Admin', 'hr', 'HR', 'employee', 'Employee'] } }
+        ]
+      }
+    ]
   };
 
   // If user is not Admin/HR (e.g. Team Lead), scope strictly to their department
   if (!isUserAdminOrHr && loggedUser) {
-    query._id = { $ne: loggedUser._id }; // Exclude team lead themselves
-
     const deptId = loggedUser.departmentId;
     const deptName = loggedUser.department;
 
@@ -82,10 +101,11 @@ const buildDepartmentUserQuery = async (reqUser) => {
       deptMatchConditions.push({ department: { $regex: `^${deptDocName.trim()}$`, $options: 'i' } });
     }
 
+    query.$and.push({ _id: { $ne: loggedUser._id } }); // Exclude team lead themselves
     if (deptMatchConditions.length > 0) {
-      query.$or = deptMatchConditions;
+      query.$and.push({ $or: deptMatchConditions });
     } else {
-      query._id = null; // No department assigned, return empty list
+      query.$and.push({ _id: null }); // No department assigned, return empty list
     }
   }
 
@@ -695,6 +715,8 @@ export const getPerformanceReports = async (req, res) => {
         employeeId: u.employeeId || `EMP-${String(u._id).slice(-4).toUpperCase()}`,
         department: deptName,
         designation: desigName,
+        role: u.role,
+        role_id: u.role_id,
         kpiScore: score,
         grade: grade,
         status: review?.status || grade || 'Good',
