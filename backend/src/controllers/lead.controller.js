@@ -52,6 +52,39 @@ const clearAnalyticsCache = async () => {
   }
 };
 
+const isTransactionUnsupportedError = (err) => {
+  if (!err) return false;
+  const msg = String(err.message || err);
+  return (
+    msg.includes('Transaction numbers are only allowed on a replica set member or mongos') ||
+    msg.includes('Standalone servers do not support transactions') ||
+    msg.includes('replica set') ||
+    err.code === 20 ||
+    err.codeName === 'IllegalOperation'
+  );
+};
+
+const runTransactionWithFallback = async (transactionWork, fallbackWork) => {
+  let session = null;
+  try {
+    session = await mongoose.startSession();
+    let result;
+    await session.withTransaction(async () => {
+      result = await transactionWork(session);
+    });
+    await session.endSession();
+    return result;
+  } catch (err) {
+    if (session) {
+      try { await session.endSession(); } catch (_) {}
+    }
+    if (isTransactionUnsupportedError(err)) {
+      return await fallbackWork();
+    }
+    throw err;
+  }
+};
+
 export const leadController = {
   /**
    * GET /api/v1/leads
@@ -256,24 +289,13 @@ export const leadController = {
         leadPayload.convertedAt = new Date();
       }
 
-      try {
-        const session = await mongoose.startSession();
-        await session.withTransaction(async () => {
-          const [newLead] = await Lead.create([leadPayload], { session });
+      const performCreate = async (opts = {}) => {
+        if (opts.session) {
+          const [newLead] = await Lead.create([leadPayload], opts);
           createdLead = newLead;
-          const initialFollowup = new LeadFollowup({
-            leadId: newLead._id,
-            remarks: remarks || 'Lead created in CRM.',
-            statusChangedTo: newLead.status,
-            nextFollowUpDate: newLead.nextFollowUpDate,
-            createdBy: createdById
-          });
-          await initialFollowup.save({ session });
-        });
-        await session.endSession();
-      } catch (txErr) {
-        // Fallback for standalone MongoDB deployments where transactions are not supported
-        createdLead = await Lead.create(leadPayload);
+        } else {
+          createdLead = await Lead.create(leadPayload);
+        }
         const initialFollowup = new LeadFollowup({
           leadId: createdLead._id,
           remarks: remarks || 'Lead created in CRM.',
@@ -281,8 +303,13 @@ export const leadController = {
           nextFollowUpDate: createdLead.nextFollowUpDate,
           createdBy: createdById
         });
-        await initialFollowup.save();
-      }
+        await initialFollowup.save(opts);
+      };
+
+      await runTransactionWithFallback(
+        (session) => performCreate({ session }),
+        () => performCreate({})
+      );
 
       // Post transactions (async)
       await clearAnalyticsCache();
@@ -307,7 +334,6 @@ export const leadController = {
    * PUT /api/v1/leads/update/:id
    */
   updateLead: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const id = req.params.id || req.body.id || req.body._id;
 
@@ -318,13 +344,14 @@ export const leadController = {
       let updatedLead;
       const userId = req.user?.id || req.user?._id;
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(id).session(session);
+      const performUpdate = async (opts = {}) => {
+        const query = Lead.findById(id);
+        if (opts.session) query.session(opts.session);
+        const lead = await query;
+
         if (!lead) {
           throw new Error('NOT_FOUND_ERROR: Lead not found');
         }
-
-
 
         const {
           leadName, companyName, email, phone, city, source,
@@ -375,7 +402,7 @@ export const leadController = {
           }
         }
 
-        await lead.save({ session });
+        await lead.save(opts);
         updatedLead = lead;
 
         // Change history logic
@@ -397,11 +424,15 @@ export const leadController = {
             nextFollowUpDate: lead.nextFollowUpDate,
             createdBy: userId
           });
-          await changeFollowup.save({ session });
+          await changeFollowup.save(opts);
         }
-      });
+      };
 
-      await session.endSession();
+      await runTransactionWithFallback(
+        (session) => performUpdate({ session }),
+        () => performUpdate({})
+      );
+
       await clearAnalyticsCache();
       logAudit('UPDATE_LEAD', req, updatedLead._id, { updateStatus: 'Basic tracking logged' });
 
@@ -411,11 +442,10 @@ export const leadController = {
         data: updatedLead
       });
     } catch (error) {
-      await session.endSession();
       console.error('Error updating lead:', error);
       
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
-      if (error.message.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
       
       return res.status(500).json({ success: false, message: 'Failed to update lead', error: error.message });
     }
@@ -425,7 +455,6 @@ export const leadController = {
    * POST /api/v1/leads/followup
    */
   addFollowUp: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const leadId = req.body.leadId || req.body.id || req.params.id;
       const { remarks, nextFollowUpDate, callSummary, meetingNotes, statusChangedTo } = req.body;
@@ -441,8 +470,11 @@ export const leadController = {
       let createdFollowup;
       const createdById = req.user?.id || req.user?._id;
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(leadId).session(session);
+      const performAddFollowup = async (opts = {}) => {
+        const query = Lead.findById(leadId);
+        if (opts.session) query.session(opts.session);
+        const lead = await query;
+
         if (!lead) {
           throw new Error('NOT_FOUND_ERROR: Lead not found');
         }
@@ -456,7 +488,7 @@ export const leadController = {
           statusChangedTo: statusChangedTo || lead.status,
           createdBy: createdById
         });
-        await followup.save({ session });
+        await followup.save(opts);
         createdFollowup = followup;
 
         if (statusChangedTo) {
@@ -474,10 +506,14 @@ export const leadController = {
         if (nextFollowUpDate !== undefined) lead.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
         if (remarks) lead.remarks = remarks;
 
-        await lead.save({ session });
-      });
+        await lead.save(opts);
+      };
 
-      await session.endSession();
+      await runTransactionWithFallback(
+        (session) => performAddFollowup({ session }),
+        () => performAddFollowup({})
+      );
+
       await clearAnalyticsCache();
       logAudit('ADD_FOLLOWUP', req, leadId, { statusChangedTo });
 
@@ -487,8 +523,7 @@ export const leadController = {
         data: createdFollowup
       });
     } catch (error) {
-      await session.endSession();
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
       return res.status(500).json({ success: false, message: 'Failed to record follow-up', error: error.message });
     }
   },
@@ -497,7 +532,6 @@ export const leadController = {
    * POST /api/v1/leads/status-update
    */
   updateStatus: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const leadId = req.body.leadId || req.body.id || req.params.id;
       const { status, lostReason } = req.body;
@@ -506,8 +540,11 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Lead ID and Status are required.' });
       }
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(leadId).session(session);
+      const performStatusUpdate = async (opts = {}) => {
+        const query = Lead.findById(leadId);
+        if (opts.session) query.session(opts.session);
+        const lead = await query;
+
         if (!lead) throw new Error('NOT_FOUND_ERROR: Lead not found');
 
         const previousStatus = lead.status;
@@ -524,7 +561,7 @@ export const leadController = {
           lead.lostReason = undefined;
         }
 
-        await lead.save({ session });
+        await lead.save(opts);
 
         const followup = new LeadFollowup({
           leadId,
@@ -533,17 +570,20 @@ export const leadController = {
           nextFollowUpDate: lead.nextFollowUpDate,
           createdBy: req.user?.id || req.user?._id
         });
-        await followup.save({ session });
-      });
+        await followup.save(opts);
+      };
 
-      await session.endSession();
+      await runTransactionWithFallback(
+        (session) => performStatusUpdate({ session }),
+        () => performStatusUpdate({})
+      );
+
       await clearAnalyticsCache();
       logAudit('STATUS_UPDATE', req, leadId, { status });
 
       return res.status(200).json({ success: true, message: 'Lead status updated successfully' });
     } catch (error) {
-      await session.endSession();
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
       return res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
     }
   },
@@ -552,7 +592,6 @@ export const leadController = {
    * DELETE /api/v1/leads/delete/:id
    */
   deleteLead: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const id = req.params.id || req.body.id || req.body._id;
 
@@ -560,32 +599,34 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Valid Lead ID required.' });
       }
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(id).session(session);
+      const performDelete = async (opts = {}) => {
+        const query = Lead.findById(id);
+        if (opts.session) query.session(opts.session);
+        const lead = await query;
+
         if (!lead) throw new Error('NOT_FOUND_ERROR: Lead not found');
 
-        const userRole = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-        const userId = req.user?.id || req.user?._id;
-        const isPrivileged = ['1', '2', 'hr', 'admin'].includes(userRole);
-        
-        // Ownership check bypassed per user request to allow delete permissions for leads, leadstelecaller, and leads counselor pages
-        // if (!isPrivileged && String(lead.assignedTo) !== String(userId)) {
-        //   throw new Error('FORBIDDEN_ERROR: Unprivileged removal restriction applied.');
-        // }
+        const delLeadQuery = Lead.findByIdAndDelete(id);
+        if (opts.session) delLeadQuery.session(opts.session);
+        await delLeadQuery;
 
-        await Lead.findByIdAndDelete(id).session(session);
-        await LeadFollowup.deleteMany({ leadId: id }).session(session);
-      });
+        const delFollowupQuery = LeadFollowup.deleteMany({ leadId: id });
+        if (opts.session) delFollowupQuery.session(opts.session);
+        await delFollowupQuery;
+      };
 
-      await session.endSession();
+      await runTransactionWithFallback(
+        (session) => performDelete({ session }),
+        () => performDelete({})
+      );
+
       await clearAnalyticsCache();
       logAudit('DELETE_LEAD', req, id, { deletedResource: id });
 
       return res.status(200).json({ success: true, message: 'Lead records clean-purged successfully.' });
     } catch (error) {
-      await session.endSession();
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
-      if (error.message.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
       return res.status(500).json({ success: false, message: 'Failed to delete lead', error: error.message });
     }
   },
@@ -595,7 +636,6 @@ export const leadController = {
    * Optimizes many writes through rapid standard batch arrays
    */
   importLeads: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const { leads } = req.body;
       if (!leads || !Array.isArray(leads) || leads.length === 0) {
@@ -605,7 +645,7 @@ export const leadController = {
       const createdById = req.user?.id || req.user?._id;
       let insertedCount = 0;
 
-      await session.withTransaction(async () => {
+      const performImport = async (opts = {}) => {
         const leadRecords = leads.map(item => ({
           leadName: item.leadName || 'Unnamed Lead',
           phone: item.phone ? String(item.phone).replace(/^p:/i, '').trim() : '0000000000',
@@ -630,8 +670,7 @@ export const leadController = {
           createdBy: createdById
         }));
 
-        // Optimized bulk insertion via session option passing
-        const insertedLeads = await Lead.insertMany(leadRecords, { session });
+        const insertedLeads = await Lead.insertMany(leadRecords, opts);
         insertedCount = insertedLeads.length;
 
         const followupRecords = insertedLeads.map(lead => ({
@@ -641,16 +680,19 @@ export const leadController = {
           createdBy: createdById
         }));
 
-        await LeadFollowup.insertMany(followupRecords, { session });
-      });
+        await LeadFollowup.insertMany(followupRecords, opts);
+      };
 
-      await session.endSession();
+      await runTransactionWithFallback(
+        (session) => performImport({ session }),
+        () => performImport({})
+      );
+
       await clearAnalyticsCache();
       logAudit('IMPORT_LEADS', req, 'bulk', { count: insertedCount });
 
       return res.status(201).json({ success: true, message: `Successfully imported ${insertedCount} leads.` });
     } catch (error) {
-      await session.endSession();
       console.error('Error importing leads:', error);
       return res.status(500).json({ success: false, message: 'Failed to import leads', error: error.message });
     }
@@ -661,7 +703,6 @@ export const leadController = {
    * Replaced sequential slow for-loops with high-speed parallel Mongoose bulkWrites
    */
   bulkUpdateStatus: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const { leadIds, status, lostReason } = req.body;
 
@@ -678,69 +719,71 @@ export const leadController = {
       const bulkLeadOperations = [];
       const followupRecordsToInsert = [];
 
-      // Fetch dynamic verification fields ahead of loop calculations
-      const validIds = leadIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-      const structuralLeadsMap = await Lead.find({ _id: { $in: validIds } }).session(session);
+      const performBulkUpdate = async (opts = {}) => {
+        const validIds = leadIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+        const findQuery = Lead.find({ _id: { $in: validIds } });
+        if (opts.session) findQuery.session(opts.session);
+        const structuralLeadsMap = await findQuery;
 
-      for (const id of leadIds) {
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-          failedLeads.push({ id, reason: 'Invalid Lead ID structure' });
-          continue;
-        }
-
-        const currentLead = structuralLeadsMap.find(l => String(l._id) === String(id));
-        if (!currentLead) {
-          failedLeads.push({ id, reason: 'Lead record missing' });
-          continue;
-        }
-
-        // Row Security validations
-        if (!isPrivileged && String(currentLead.assignedTo) !== String(userId)) {
-          failedLeads.push({ id, reason: 'Access Denied (Ownership restriction)' });
-          continue;
-        }
-
-        const previousStatus = currentLead.status;
-        const updateFields = { status };
-
-        if (status === 'Converted' && previousStatus !== 'Converted') {
-          updateFields.convertedAt = new Date();
-          updateFields.$unset = { lostReason: "" };
-        } else if (status === 'Lost') {
-          updateFields.lostReason = lostReason || 'Not specified';
-          updateFields.$unset = { convertedAt: "" };
-        } else {
-          updateFields.$unset = { convertedAt: "", lostReason: "" };
-        }
-
-        // Queue Bulk update executions for structural efficiency
-        bulkLeadOperations.push({
-          updateOne: {
-            filter: { _id: id },
-            update: updateFields
+        for (const id of leadIds) {
+          if (!mongoose.Types.ObjectId.isValid(id)) {
+            failedLeads.push({ id, reason: 'Invalid Lead ID structure' });
+            continue;
           }
-        });
 
-        followupRecordsToInsert.push({
-          leadId: id,
-          remarks: `Bulk status update from "${previousStatus}" to "${status}".`,
-          statusChangedTo: status,
-          nextFollowUpDate: currentLead.nextFollowUpDate,
-          createdBy: userId
-        });
+          const currentLead = structuralLeadsMap.find(l => String(l._id) === String(id));
+          if (!currentLead) {
+            failedLeads.push({ id, reason: 'Lead record missing' });
+            continue;
+          }
 
-        updatedLeads.push(id);
-      }
+          if (!isPrivileged && String(currentLead.assignedTo) !== String(userId)) {
+            failedLeads.push({ id, reason: 'Access Denied (Ownership restriction)' });
+            continue;
+          }
 
-      // Execute combined execution writes atomically within isolated single query pipelines
-      if (bulkLeadOperations.length > 0) {
-        await session.withTransaction(async () => {
-          await Lead.bulkWrite(bulkLeadOperations, { session });
-          await LeadFollowup.insertMany(followupRecordsToInsert, { session });
-        });
-      }
+          const previousStatus = currentLead.status;
+          const updateFields = { status };
 
-      await session.endSession();
+          if (status === 'Converted' && previousStatus !== 'Converted') {
+            updateFields.convertedAt = new Date();
+            updateFields.$unset = { lostReason: "" };
+          } else if (status === 'Lost') {
+            updateFields.lostReason = lostReason || 'Not specified';
+            updateFields.$unset = { convertedAt: "" };
+          } else {
+            updateFields.$unset = { convertedAt: "", lostReason: "" };
+          }
+
+          bulkLeadOperations.push({
+            updateOne: {
+              filter: { _id: id },
+              update: updateFields
+            }
+          });
+
+          followupRecordsToInsert.push({
+            leadId: id,
+            remarks: `Bulk status update from "${previousStatus}" to "${status}".`,
+            statusChangedTo: status,
+            nextFollowUpDate: currentLead.nextFollowUpDate,
+            createdBy: userId
+          });
+
+          updatedLeads.push(id);
+        }
+
+        if (bulkLeadOperations.length > 0) {
+          await Lead.bulkWrite(bulkLeadOperations, opts);
+          await LeadFollowup.insertMany(followupRecordsToInsert, opts);
+        }
+      };
+
+      await runTransactionWithFallback(
+        (session) => performBulkUpdate({ session }),
+        () => performBulkUpdate({})
+      );
+
       await clearAnalyticsCache();
       logAudit('BULK_STATUS_UPDATE', req, 'bulk', { updatedCount: updatedLeads.length });
 
@@ -752,7 +795,6 @@ export const leadController = {
         failedLeads
       });
     } catch (error) {
-      await session.endSession();
       console.error('Error executing bulk state variations:', error);
       return res.status(500).json({ success: false, message: 'Failed operational pipeline execution.', error: error.message });
     }

@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import prisma from '../config/db.js';
-// import redis from '../config/redis.js';
+import redis from '../config/redis.js';
 import notificationService, { sendNotification } from './notification.service.js';
 // import { kpiService } from './kpi.service.js'; // Service file not found - wrapped in try-catch
 // import { payrollService } from './payroll.service.js'; // Service file not found - wrapped in try-catch
