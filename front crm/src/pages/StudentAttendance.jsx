@@ -84,18 +84,35 @@ const StudentAttendance = () => {
     try {
       const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
 
+      let cList = [];
       const cRes = await fetch(`${cleanBase}/v1/academy/courses`, { headers: getHeaders() });
       if (cRes.ok) {
         const cData = await cRes.json();
-        const cList = cData?.data || cData?.courses || (Array.isArray(cData) ? cData : []);
+        cList = cData?.data || cData?.courses || (Array.isArray(cData) ? cData : []);
         setCourses(cList);
       }
 
+      let bList = [];
       const bRes = await fetch(`${cleanBase}/v1/academy/batches`, { headers: getHeaders() });
       if (bRes.ok) {
         const bData = await bRes.json();
-        const bList = bData?.data || bData?.batches || (Array.isArray(bData) ? bData : []);
+        bList = bData?.data || bData?.batches || (Array.isArray(bData) ? bData : []);
         setBatches(bList);
+      }
+
+      if (cList.length === 1) {
+        const singleCourseId = cList[0]._id || cList[0].id;
+        setSelectedCourseId(singleCourseId);
+        const availB = bList.filter(b => String(b.courseId?._id || b.courseId) === String(singleCourseId));
+        if (availB.length === 1) {
+          setSelectedBatchId(availB[0]._id || availB[0].id);
+        }
+      } else if (bList.length === 1) {
+        const singleBatchId = bList[0]._id || bList[0].id;
+        setSelectedBatchId(singleBatchId);
+        if (bList[0].courseId) {
+          setSelectedCourseId(bList[0].courseId?._id || bList[0].courseId);
+        }
       }
     } catch (err) {
       console.error("Fetch Courses/Batches Error:", err);
@@ -556,7 +573,17 @@ const StudentAttendance = () => {
             {/* Course Selector */}
             <select
               value={selectedCourseId}
-              onChange={(e) => setSelectedCourseId(e.target.value)}
+              onChange={(e) => {
+                const cId = e.target.value;
+                setSelectedCourseId(cId);
+                const availB = batches.filter(b => !cId || String(b.courseId?._id || b.courseId) === String(cId));
+                if (availB.length === 1) {
+                  setSelectedBatchId(availB[0]._id || availB[0].id);
+                } else if (selectedBatchId) {
+                  const stillValid = availB.some(b => String(b._id || b.id) === String(selectedBatchId));
+                  if (!stillValid) setSelectedBatchId('');
+                }
+              }}
               className="bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 outline-none cursor-pointer"
             >
               <option value="">All Courses</option>
@@ -608,6 +635,21 @@ const StudentAttendance = () => {
             </div>
           </div>
         </nav>
+
+        {/* Course & Batch Selection Notice */}
+        {(!selectedCourseId || !selectedBatchId) && (
+          <div className="mb-8 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-4 text-amber-600 dark:text-amber-400 shadow-sm">
+            <div className="flex items-center gap-3">
+              <AlertCircle size={20} className="flex-shrink-0 text-amber-500" />
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider">Course & Batch Selection Required</p>
+                <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 mt-0.5">
+                  Please select both a <strong>Course</strong> and a <strong>Batch</strong> from the top header filter before marking attendance.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">

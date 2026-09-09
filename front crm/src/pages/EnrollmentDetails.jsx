@@ -34,6 +34,11 @@ const EnrollmentDetails = () => {
   }, []);
 
   const fetchEnrollmentDetails = useCallback(async () => {
+    if (!enrollmentId || enrollmentId === 'undefined' || enrollmentId === 'null') {
+      setLoading(false);
+      setEnrollment(null);
+      return;
+    }
     setLoading(true);
     try {
       const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
@@ -42,7 +47,10 @@ const EnrollmentDetails = () => {
         : `${cleanBase}/v1/academy/enrollments/${enrollmentId}`;
 
       const res = await fetch(endpoint, { headers: getHeaders() });
-      if (!res.ok) throw new Error('Enrollment record not found.');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || 'Enrollment record not found.');
+      }
 
       const data = await res.json();
       const enObj = data.data || null;
@@ -53,7 +61,8 @@ const EnrollmentDetails = () => {
       }
     } catch (err) {
       console.error("Fetch Enrollment Details Error:", err);
-      showToast("Unable to load enrollment details.", "error");
+      showToast(err.message || "Unable to load enrollment details.", "error");
+      setEnrollment(null);
     } finally {
       setLoading(false);
     }

@@ -387,7 +387,12 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
     let text = customText;
     if (!text) {
-      text = `Hello *${customerName || finalClientName || 'Customer'}*,\n\nHere is your ${viewMode === 'receipt' ? 'Payment Receipt' : 'Invoice'} summary:\n🧾 Reference: *${invoiceNo}*\n📅 Date: ${formattedDate}\n💰 Total Amount: ₹${Math.round(calculatedTotalPayable).toLocaleString('en-IN')}\n💵 Amount Paid: ₹${Math.round(displayPaidAmt).toLocaleString('en-IN')}\n⚠️ Balance Due: ₹${Math.round(displayBalanceDue).toLocaleString('en-IN')}\nStatus: *${dynamicStatus}*\n\nThank you for your business!`;
+      const isDirect = currentRecord?.isDirectReceipt || !referenceNo || referenceNo.trim() === '-';
+      if (viewMode === 'receipt' && isDirect) {
+        text = `Hello *${customerName || finalClientName || 'Customer'}*,\n\nHere is your Payment Receipt summary:\n🧾 Receipt No: *${particularRecNo}*\n📅 Date: ${formattedDate}\n💵 Amount Received: ₹${Math.round(particularReceiptAmt).toLocaleString('en-IN')}\nStatus: *Paid*\n\nThank you for your business!`;
+      } else {
+        text = `Hello *${customerName || finalClientName || 'Customer'}*,\n\nHere is your ${viewMode === 'receipt' ? 'Payment Receipt' : 'Invoice'} summary:\n🧾 Reference: *${invoiceNo}*\n📅 Date: ${formattedDate}\n💰 Total Amount: ₹${Math.round(calculatedTotalPayable).toLocaleString('en-IN')}\n💵 Amount Paid: ₹${Math.round(displayPaidAmt).toLocaleString('en-IN')}\n⚠️ Balance Due: ₹${Math.round(displayBalanceDue).toLocaleString('en-IN')}\nStatus: *${dynamicStatus}*\n\nThank you for your business!`;
+      }
     }
 
     let imgData = null;
@@ -1316,14 +1321,20 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                   <div className="p-3.5 rounded-xl border space-y-1 text-right flex flex-col justify-center" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
                     <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Voucher Settlement Amount</span>
                     <span className="text-xl font-extrabold font-mono" style={{ color: '#047857' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</span>
-                    <p className="text-[10.5px] border-t pt-1 mt-0.5 flex justify-between" style={{ borderColor: '#e2e8f0', color: '#475569' }}>
-                      <span>Total Invoice Paid:</span>
-                      <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</strong>
-                    </p>
-                    <p className="text-[10.5px] flex justify-between" style={{ color: '#475569' }}>
-                      <span>Balance Remaining:</span>
-                      <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayBalanceDue).toLocaleString('en-IN')}</strong>
-                    </p>
+                    {Boolean(referenceNo && referenceNo.trim() && referenceNo.trim() !== '-' && !currentRecord?.isDirectReceipt) && (
+                      <>
+                        <p className="text-[10.5px] border-t pt-1 mt-0.5 flex justify-between" style={{ borderColor: '#e2e8f0', color: '#475569' }}>
+                          <span>Total Invoice Paid:</span>
+                          <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</strong>
+                        </p>
+                        {displayBalanceDue > 0 && (
+                          <p className="text-[10.5px] flex justify-between" style={{ color: '#475569' }}>
+                            <span>Balance Remaining:</span>
+                            <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayBalanceDue).toLocaleString('en-IN')}</strong>
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 
