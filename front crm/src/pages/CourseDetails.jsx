@@ -138,25 +138,25 @@ const CourseDetails = () => {
     setIsBatchModalOpen(true);
   };
 
-  const handleOpenEditBatchModal = (batch) => {
+  const handleOpenEditBatchModal = (batch = {}) => {
     setEditingBatch(batch);
-    const existingInstIds = Array.isArray(batch.instructors) && batch.instructors.length > 0
-      ? batch.instructors.map(i => i._id || i.id || i)
-      : (batch.instructorId?._id || batch.instructorId ? [batch.instructorId?._id || batch.instructorId] : []);
+    const existingInstIds = Array.isArray(batch?.instructors) && batch.instructors.length > 0
+      ? batch.instructors.map(i => i?._id || i?.id || i)
+      : (batch?.instructorId?._id || batch?.instructorId ? [batch.instructorId?._id || batch.instructorId] : []);
 
     setBatchFormData({
-      batchCode: batch.batchCode || '',
-      batchName: batch.batchName || '',
-      startDate: batch.startDate ? new Date(batch.startDate).toISOString().split('T')[0] : '',
-      endDate: batch.endDate ? new Date(batch.endDate).toISOString().split('T')[0] : '',
-      daysOfWeek: Array.isArray(batch.daysOfWeek) ? batch.daysOfWeek : [],
-      startTime: batch.startTime || '09:00 AM',
-      endTime: batch.endTime || '11:00 AM',
-      timezone: batch.timezone || 'IST (UTC+5:30)',
-      capacity: batch.capacity || 30,
+      batchCode: batch?.batchCode || '',
+      batchName: batch?.batchName || '',
+      startDate: batch?.startDate ? new Date(batch.startDate).toISOString().split('T')[0] : '',
+      endDate: batch?.endDate ? new Date(batch.endDate).toISOString().split('T')[0] : '',
+      daysOfWeek: Array.isArray(batch?.daysOfWeek) ? batch.daysOfWeek : [],
+      startTime: batch?.startTime || '09:00 AM',
+      endTime: batch?.endTime || '11:00 AM',
+      timezone: batch?.timezone || 'IST (UTC+5:30)',
+      capacity: batch?.capacity || 30,
       instructorId: existingInstIds[0] || '',
       instructorIds: existingInstIds,
-      status: batch.status || 'UPCOMING'
+      status: batch?.status || 'UPCOMING'
     });
     setIsBatchModalOpen(true);
   };

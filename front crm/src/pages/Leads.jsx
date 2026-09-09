@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
+import TopScrollbar from '../components/TopScrollbar';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable'; // 👈 Import it as a direct function
@@ -166,6 +167,8 @@ const Leads = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const { showToast } = useToast();
+
+  const tableRef = React.useRef(null);
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -943,7 +946,13 @@ const Leads = () => {
                 return (
                   <div
                     key={lead.id || lead._id}
-                    className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+                    className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4 cursor-pointer"
+                    onClick={(e) => {
+                      if (e.target.closest('select, button, input, textarea, a, [role="button"]')) return;
+                      setSelectedLead(lead);
+                      fetchLeadDetails(lead.id || lead._id);
+                      setIsViewOpen(true);
+                    }}
                   >
                     {/* Top Header & Status */}
                     <div>
@@ -1117,7 +1126,8 @@ const Leads = () => {
         ) : (
           /* List View Mode (Table) */
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            <TopScrollbar tableRef={tableRef} dependencies={[paginatedLeads, viewMode]} />
+            <div ref={tableRef} className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200/60 dark:border-slate-800">
@@ -1144,7 +1154,16 @@ const Leads = () => {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {paginatedLeads.map((lead) => {
                     return (
-                      <tr key={lead.id || lead._id} className={getRowClass()}>
+                      <tr
+                        key={lead.id || lead._id}
+                        className={`${getRowClass()} cursor-pointer`}
+                        onClick={(e) => {
+                          if (e.target.closest('select, button, input, textarea, a, [role="button"]')) return;
+                          setSelectedLead(lead);
+                          fetchLeadDetails(lead.id || lead._id);
+                          setIsViewOpen(true);
+                        }}
+                      >
                         {/* Name & Company */}
                         <td className="px-6 py-4.5">
                           <div className="font-semibold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -1604,7 +1623,7 @@ const FollowUpModal = ({ isOpen, onClose, onFollowedUp, lead, getAuthHeaders, sh
   if (!isOpen || !lead) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1779,7 +1798,7 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, getAuthHeaders, showTo
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2055,7 +2074,7 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, getAuthHeaders, sh
   if (!isOpen || !lead) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">    
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">    
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2253,7 +2272,7 @@ const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
   if (!isOpen || !lead) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2607,7 +2626,7 @@ const ImportModal = ({ isOpen, onClose, onImported, getAuthHeaders, showToast })
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

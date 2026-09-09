@@ -374,7 +374,7 @@ const IncomeTab = ({ mode = 'sales' }) => {
         return st === 'paid' || st === 'partially paid' || st === 'completed';
       }
       if (mode === 'sales') {
-        return st !== 'proforma' && st !== 'paid' && st !== 'completed';
+        return st !== 'proforma';
       }
       return true;
     });

@@ -339,7 +339,7 @@ const LedgerTab = () => {
       }
     });
 
-    // B. Process Purchases & Expenses
+    // B. Process Expenses (Purchases Excluded)
     const matchedExpenses = expenses.filter(exp => {
       const expClientId = exp.client ? String(typeof exp.client === 'object' ? (exp.client._id || exp.client.id) : exp.client) : '';
       const expName = (exp.clientName || exp.vendorName || exp.clientVendor || exp.title || exp.description || (typeof exp.client === 'object' && exp.client?.companyName) || '').toLowerCase();
@@ -353,18 +353,19 @@ const LedgerTab = () => {
 
       const catStr = String(exp.categoryName || exp.category || '').toLowerCase();
       const isPurchase = catStr.includes('purchase') || catStr.includes('inventory') || catStr.includes('vendor') || exp.isPurchase === true;
-      const typeStr = isPurchase ? 'Purchase' : 'Expense';
-      const catGroup = isPurchase ? 'PURCHASE' : 'EXPENSE';
+      
+      // Exclude purchase records from party ledger statement
+      if (isPurchase) return;
 
       rawRows.push({
         id: `${exp._id}_exp`,
         date: expDate,
         refNo: exp.billNo || exp.voucherNo || `EXP-${String(exp._id).slice(-4)}`,
-        type: typeStr,
-        categoryGroup: catGroup,
-        particulars: `${exp.title || exp.description || exp.categoryName || 'Procurement Cost'} (${exp.paymentMethod || 'Paid'})`,
-        debit: isPurchase ? expAmt : 0,
-        credit: isPurchase ? 0 : expAmt,
+        type: 'Expense',
+        categoryGroup: 'EXPENSE',
+        particulars: `${exp.title || exp.description || exp.categoryName || 'Expense Payout'} (${exp.paymentMethod || 'Paid'})`,
+        debit: 0,
+        credit: expAmt,
         rawRecord: null,
         viewMode: 'expense'
       });
@@ -454,7 +455,7 @@ const LedgerTab = () => {
                 Consolidated Financial Ledger Statement
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                Receipt, Income, Sales, Purchase & Expense ledger for selected party
+                Receipt, Income, Sales & Expense ledger for selected party
               </p>
             </div>
 
@@ -561,11 +562,10 @@ const LedgerTab = () => {
               onChange={(e) => setTypeFilter(e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 cursor-pointer"
             >
-              <option value="ALL">All Categories (Sales, Receipt, Income, Purchase, Expense)</option>
+              <option value="ALL">All Categories (Sales, Receipt, Income, Expense)</option>
               <option value="RECEIPT">Receipt Only</option>
               <option value="INCOME">Income Only</option>
               <option value="SALES">Sales Only</option>
-              <option value="PURCHASE">Purchase Only</option>
               <option value="EXPENSE">Expense Only</option>
               <option value="PROFORMA">Proforma Only</option>
             </select>
