@@ -117,9 +117,7 @@ const menuItems = [
   { icon: ShieldCheck, label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR', allowedRoles: ['0', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
 
   // --- SALES & CRM ---
-  { icon: Magnet, label: 'Leads Directory', path: '/leads', category: 'Sales & CRM', allowedDepartmentNames: ['marketing', 'digital', 'counselor', 'sales'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'] },
   { icon: PhoneCall, label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM', allowedDesignationNames: ['counselor', 'telecaller', 'ops'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin'] },
-  { icon: Contact, label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM', allowedDesignationNames: ['ops', 'counselor', 'sales'], allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin'] },
   { icon: Briefcase, label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
   { icon: Building2, label: 'Clients', path: '/clients', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
 
@@ -160,7 +158,7 @@ const menuItems = [
   { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports', allowedRoles: ['hr', 'admin'] },
   { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports', isTeamLeadOnly: true },
   { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev', 'junior', 'jr', 'software', 'engineer', 'react', 'node', 'flutter', 'coder', 'programmer', 'frontend', 'backend', 'fullstack', 'web'] },
-  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod', 'r&d', 'research'] },
+  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod'] },
   { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
   { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports', allowedDesignationNames: ['video', 'editor', 'media'] },
   { icon: BookOpenCheck, label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
@@ -492,6 +490,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         currentUserDesignation = String(userObj.designation_id).trim();
       }
       
+      const isPrivilegedUser = ['0', '1', '2', '10', 'admin', 'hr', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl', 'md'].includes(currentUserRole) || !!userObj.isTeamLead;
+      const DEFAULT_EMPLOYEE_LABELS = ['Dashboard', 'Task Assign', 'Notifications', 'Attendance', 'Leave Requests'];
+
       const visible = menuItems.filter(item => {
         if (item.excludeRoles && item.excludeRoles.includes(currentUserRole)) {
           return false;
@@ -507,10 +508,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           return false;
         }
         if (item.label === 'Clients' || item.label === 'Projects' || item.label === 'Client Leads' || item.label === 'KPI Analytics' || item.label === 'Lead Dashboard' || item.label === 'Marketing Dashboard') {
-          const isAdminHrOrTeamLead = ['1', '2', '3', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl', 'marketing'].includes(currentUserRole) || !!userObj.isTeamLead;
-          return isAdminHrOrTeamLead;
+          return isPrivilegedUser;
         }
-        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames) return true;
+
+        const hasNoRoleRestrictions = !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames;
+        
+        if (hasNoRoleRestrictions) {
+          if (isPrivilegedUser) return true;
+          // Standard employees without custom permissions only get default items
+          return DEFAULT_EMPLOYEE_LABELS.includes(item.label);
+        }
+
         const roleMatch = item.allowedRoles && item.allowedRoles.includes(currentUserRole);
         const deptMatch = item.allowedDepartments && item.allowedDepartments.includes(currentUserDept);
         const designationMatch = item.allowedDesignations && item.allowedDesignations.includes(currentUserDesignation);

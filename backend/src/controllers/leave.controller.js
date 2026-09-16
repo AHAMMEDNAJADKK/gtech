@@ -851,6 +851,7 @@ export const getLeaveHistory = async (req, res) => {
       .sort({ createdAt: -1 });
 
     // Calculate Summary Metrics
+    const totalRequests = leaves.length;
     let totalDaysApproved = 0;
     let approvedCount = 0;
     let rejectedCount = 0;
@@ -870,15 +871,19 @@ export const getLeaveHistory = async (req, res) => {
       }
     });
 
+    const summaryMetrics = {
+      totalRequests,
+      totalDaysApproved,
+      approvedCount,
+      rejectedCount,
+      cancelledCount,
+      pendingCount
+    };
+
     return res.status(200).json({
       success: true,
-      metrics: {
-        totalDaysApproved,
-        approvedCount,
-        rejectedCount,
-        cancelledCount,
-        pendingCount
-      },
+      summary: summaryMetrics,
+      metrics: summaryMetrics,
       data: enrichLeaveList(leaves)
     });
   } catch (error) {

@@ -368,7 +368,9 @@ const DeveloperDashboard = () => {
           {/* Report */}
           <button onClick={() => {
             const desigName = String(user?.designation || user?.designationId?.name || '').toLowerCase().trim();
-            const isHodRd = desigName.includes('hod') || desigName.includes('r&d');
+            const roleName = String(user?.role || user?.role_id || '').toLowerCase().trim();
+            const isHod = desigName.includes('hod') || roleName.includes('hod');
+            const isHodRd = isHod && (desigName.includes('r&d') || desigName.includes('research'));
             navigate(isHodRd ? '/hod-rd-report' : '/developer-report');
           }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-black transition-all shadow-md shadow-indigo-500/25">

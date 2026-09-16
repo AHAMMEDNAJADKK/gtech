@@ -404,6 +404,24 @@ export const getClientLeadStats = async (req, res, next) => {
     const warmClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'WARM').length;
     const coldClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'COLD').length;
 
+    // Wrong Client Leads updated or created today
+    const wrongClientLeads = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      const interestVal = String(l.interestedService || l.courseIntrests || l.courseInterests || '').trim().toLowerCase();
+      const statusVal = String(l.status || '').trim().toLowerCase();
+      const priorityVal = String(l.priority || '').trim().toLowerCase();
+      const remarksVal = String(l.remarks || '').trim().toLowerCase();
+      return (
+        interestVal.includes('wrong') ||
+        statusVal.includes('wrong') ||
+        priorityVal.includes('wrong') ||
+        remarksVal.includes('wrong') ||
+        tags.includes('wrong lead') ||
+        tags.includes('wrong number') ||
+        tags.includes('invalid')
+      );
+    }).length;
+
     // 6. Total pending client leads updated today
     const pendingClientLeads = leadsActiveToday.filter(l => {
       const tags = getCombinedTags(l);
@@ -447,6 +465,7 @@ export const getClientLeadStats = async (req, res, next) => {
       { activity: 'Hot Client Leads (High Priority)', count: String(hotClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Warm Client Leads (Medium Priority)', count: String(warmClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Cold Client Leads (Low Priority)', count: String(coldClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Wrong Client Leads', count: String(wrongClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Total Pending Client Leads', count: String(pendingClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Client Meetings Fixed', count: String(meetingsFixed), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Client Closings / Onboarding Done', count: String(closingsDone), digitalMktg: '', web: '', dueDate: '', remarks: '' }
