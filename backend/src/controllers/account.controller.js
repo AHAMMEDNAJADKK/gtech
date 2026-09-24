@@ -421,7 +421,7 @@ export const createExpense = async (req, res) => {
 export const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, category, amount, paymentMode, paidTo, description } = req.body;
+    const { date, category, amount, paymentMode, paidTo, description, deleteAttachment, removeAttachment } = req.body;
 
     const expense = await Expense.findById(id);
     if (!expense) {
@@ -448,6 +448,8 @@ export const updateExpense = async (req, res) => {
 
     if (req.file) {
       expense.attachment = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    } else if (deleteAttachment || removeAttachment || req.body.attachment === '' || req.body.attachment === null) {
+      expense.attachment = '';
     }
 
     await expense.save();

@@ -43,60 +43,6 @@ export const getProjects = async (req, res) => {
     if (projectManager && mongoose.Types.ObjectId.isValid(projectManager)) query.projectManager = projectManager;
     if (assignedEmployee && mongoose.Types.ObjectId.isValid(assignedEmployee)) query.assignedEmployees = assignedEmployee;
 
-    // Department Team Lead restriction: Team Leads see projects managed by PMs in their department
-    if (req.user) {
-      const userId = req.user.id || req.user._id;
-      const currentUser = await User.findById(userId);
-
-      const isUserAdminOrHr = currentUser && (
-        ['1', '2', '10', 'admin', 'hr', 'superadmin'].includes(String(currentUser.role_id)) ||
-        ['admin', 'hr', 'superadmin', 'md', 'coo'].includes(String(currentUser.role || '').toLowerCase())
-      );
-
-      if (!isUserAdminOrHr && currentUser) {
-        const deptId = currentUser.departmentId;
-        const deptName = currentUser.department;
-        
-        let deptDocName = '';
-        if (deptId) {
-          try {
-            const Department = (await import('../models/department.model.js')).default;
-            const deptObj = await Department.findById(deptId);
-            if (deptObj && (deptObj.name || deptObj.department_name)) {
-              deptDocName = deptObj.name || deptObj.department_name;
-            }
-          } catch (e) {}
-        }
-
-        const accessConditions = [];
-        if (deptId && mongoose.Types.ObjectId.isValid(deptId)) {
-          accessConditions.push({ departmentId: new mongoose.Types.ObjectId(deptId) });
-          accessConditions.push({ departmentId: String(deptId) });
-        }
-        if (deptName) {
-          accessConditions.push({ department: { $regex: `^${deptName.trim()}$`, $options: 'i' } });
-        }
-        if (deptDocName && deptDocName.trim() !== deptName?.trim()) {
-          accessConditions.push({ department: { $regex: `^${deptDocName.trim()}$`, $options: 'i' } });
-        }
-
-        // Also include projects where this user is directly assigned
-        accessConditions.push({ assignedTeamLead: currentUser._id });
-        accessConditions.push({ assignedEmployees: currentUser._id });
-
-        if (accessConditions.length > 0) {
-          if (query.$or) {
-            query.$and = [
-              { $or: query.$or },
-              { $or: accessConditions }
-            ];
-            delete query.$or;
-          } else {
-            query.$or = accessConditions;
-          }
-        }
-      }
-    }
 
     const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };

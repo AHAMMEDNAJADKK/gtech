@@ -26,7 +26,7 @@ const expenseSchema = new mongoose.Schema({
   },
   paymentMode: {
     type: String,
-    enum: ['Cash', 'Bank', 'UPI'],
+    enum: ['Cash', 'Bank', 'UPI', 'Bank Transfer'],
     default: 'Cash',
     required: true
   },
@@ -53,7 +53,7 @@ const expenseSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['Expense', 'Salary'],
+    enum: ['Expense', 'Salary', 'Purchase'],
     default: 'Expense'
   },
   taxOption: {

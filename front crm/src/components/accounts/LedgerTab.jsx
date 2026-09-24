@@ -133,7 +133,7 @@ const LedgerTab = () => {
 
         // Fetch Users (Students)
         try {
-          const resUsers = await fetch(getApiEndpoint('/users?limit=1000'), {
+          const resUsers = await fetch(getApiEndpoint('/users?role=student&limit=500'), {
             headers: getAuthHeaders()
           });
           if (resUsers.ok) {
