@@ -2819,21 +2819,6 @@ const AccountantReportPage = () => {
                   Monthly Report
                 </button>
 
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Accounts & Finance',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, dailyAccountingSummary, dailyTasks, transactionReport, payrollPaymentStatus, expenseTracking, documentationCompliance, accountantComments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
-
                 <button
                   type="button"
                   onClick={handleDownloadPDF}

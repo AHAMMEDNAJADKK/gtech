@@ -65,6 +65,8 @@ import CalendarWorkPage from './pages/CalendarWorkPage';
 import DailyOperationsPage from './pages/DailyOperationsPage';
 import TeamLeadDailyOperationsPage from './pages/TeamLeadDailyOperationsPage';
 import DailyShiftReportPage from './pages/DailyShiftReportPage';
+import WeeklyPerformanceReportPage from './pages/WeeklyPerformanceReportPage';
+import MonthlyPerformanceReportPage from './pages/MonthlyPerformanceReportPage';
 
 // Client & Project Management Module Pages
 import ClientsPage from './pages/ClientsPage';
@@ -231,6 +233,8 @@ function App() {
         <Route path="/md-dashboard" element={<ProtectedRoute><MainLayout><RestrictedRoute><MdDashboard /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/basic-report" element={<ProtectedRoute><MainLayout><BasicReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/daily-shift-report" element={<ProtectedRoute><MainLayout><DailyShiftReportPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/weekly-performance-report" element={<ProtectedRoute><MainLayout><WeeklyPerformanceReportPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/monthly-performance-report" element={<ProtectedRoute><MainLayout><MonthlyPerformanceReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
         <Route path="/performance-dashboard" element={<ProtectedRoute><MainLayout><PerformanceDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/leaves" element={<ProtectedRoute><MainLayout><LeavesPage /></MainLayout></ProtectedRoute>} />

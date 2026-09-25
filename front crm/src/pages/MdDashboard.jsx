@@ -117,7 +117,6 @@ const ExecutivePieChart = ({ data }) => {
  */
 const ExecutiveBarGraph = ({ data }) => {
   const bars = [
-    { label: 'Account', value: data?.accountBalance || 0, color: 'from-emerald-500 to-teal-600' },
     { label: 'Income', value: data?.totalIncome || 0, color: 'from-indigo-500 to-blue-600' },
     { label: 'Expenses', value: data?.totalExpenses || 0, color: 'from-rose-500 to-pink-600' },
     { label: 'Purchases', value: data?.totalPurchases || 0, color: 'from-amber-500 to-orange-600' }

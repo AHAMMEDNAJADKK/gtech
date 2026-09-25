@@ -3,13 +3,14 @@
 // Duplicated from DeveloperReportPage framework & customized for Daily Shift Report
 // ===============================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, Calendar, Plus, Trash2, Save, Download,
   CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, ChevronDown, Pencil, X, Maximize2,
-  MinusCircle, PlusCircle, History, Printer, Send, Sparkles, CheckCircle2
+  MinusCircle, PlusCircle, History, Printer, Send, Sparkles, CheckCircle2, RefreshCw, Award
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -70,7 +71,69 @@ const DEFAULT_PRIORITIES = [
   { priorityText: '' }
 ];
 
+const DEFAULT_STUDENT_LEADS = [
+  { activity: 'New Leads Generated', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Qualified Lead', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Calls Made', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Follow up', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', remarks: '' }
+];
+
+const DEFAULT_CLIENT_LEADS = [
+  { activity: 'New Client Leads Generated', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Qualified Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Client Calls / Contacted', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Client Follow ups', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Hot Client Leads (High Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Warm Client Leads (Medium Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Cold Client Leads (Low Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Wrong Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Client Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Client Closings / Onboarding Done', count: '', digitalMktg: '', web: '', remarks: '' }
+];
+
+// Helper to group planVsAchievement rows by project (Task / Activity)
+const getProjectGroups = (rows) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const groups = [];
+  let currentGroup = null;
+
+  rows.forEach((row, index) => {
+    const rawName = (row.taskActivity || '').trim();
+
+    if (!currentGroup) {
+      currentGroup = { projectName: rawName, startIndex: index, rows: [{ ...row, originalIndex: index }] };
+    } else {
+      if (
+        (rawName === '' && currentGroup.projectName !== '') ||
+        (rawName !== '' && currentGroup.projectName !== '' && rawName.toLowerCase() === currentGroup.projectName.toLowerCase())
+      ) {
+        currentGroup.rows.push({ ...row, originalIndex: index });
+      } else {
+        groups.push(currentGroup);
+        currentGroup = { projectName: rawName, startIndex: index, rows: [{ ...row, originalIndex: index }] };
+      }
+    }
+  });
+
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+
+  return groups;
+};
+
 const DailyShiftReportPage = () => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [selectedDate, setSelectedDate] = useState(getISTDate());
@@ -163,6 +226,8 @@ const DailyShiftReportPage = () => {
   const [evidenceAttachments, setEvidenceAttachments] = useState(DEFAULT_EVIDENCE);
   const [pendingBlockers, setPendingBlockers] = useState(DEFAULT_BLOCKERS);
   const [tomorrowPriorities, setTomorrowPriorities] = useState(DEFAULT_PRIORITIES);
+  const [studentLeadsUpdate, setStudentLeadsUpdate] = useState(DEFAULT_STUDENT_LEADS);
+  const [clientLeadsUpdate, setClientLeadsUpdate] = useState(DEFAULT_CLIENT_LEADS);
 
   const [handoverFinalConfirmation, setHandoverFinalConfirmation] = useState({
     handoverRequired: 'No',
@@ -173,16 +238,6 @@ const DailyShiftReportPage = () => {
     signature: ''
   });
 
-  // Monthly Consolidation Modal States
-  const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
-  const [monthlyStartDate, setMonthlyStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [monthlyEndDate, setMonthlyEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [isMonthlyLoading, setIsMonthlyLoading] = useState(false);
-
   // Fetch token headers helper
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -192,6 +247,71 @@ const DailyShiftReportPage = () => {
       'Content-Type': 'application/json'
     };
   }, []);
+
+  // Designation Check: Is Academic Counselor / Telecaller
+  const isAcademicCounselor = useMemo(() => {
+    const userDetail = isPrivileged && staffList.length > 0 ? staffList.find(u => (u._id || u.id) === selectedUserId) : currentUser;
+    const desig = String(
+      employeeShiftDetails.designation ||
+      userDetail?.designationName ||
+      userDetail?.designation ||
+      userDetail?.designationId?.name ||
+      currentUser?.designationName ||
+      currentUser?.designation ||
+      ''
+    ).toLowerCase().trim();
+
+    const dept = String(
+      employeeShiftDetails.department ||
+      userDetail?.department ||
+      userDetail?.departmentId?.name ||
+      currentUser?.department ||
+      ''
+    ).toLowerCase().trim();
+
+    return (
+      desig.includes('counselor') ||
+      desig.includes('academic') ||
+      desig.includes('tele') ||
+      dept.includes('counselor') ||
+      dept.includes('academic')
+    );
+  }, [employeeShiftDetails.designation, employeeShiftDetails.department, isPrivileged, staffList, selectedUserId, currentUser]);
+
+  // Auto-fetch Student & Client Leads stats from CRM
+  const autoFetchLeadStats = useCallback(async (dateStr = selectedDate, showNotification = false) => {
+    try {
+      const [resTele, resClient] = await Promise.all([
+        fetch(getApiEndpoint(`/ops-reports/lead-stats?date=${dateStr}`), { headers: getAuthHeaders() }),
+        fetch(getApiEndpoint(`/ops-reports/client-lead-stats?date=${dateStr}`), { headers: getAuthHeaders() })
+      ]);
+
+      const contentTypeTele = resTele.headers.get('content-type') || '';
+      if (contentTypeTele.includes('application/json')) {
+        const dataTele = await resTele.json();
+        if (dataTele.success && Array.isArray(dataTele.data) && dataTele.data.length > 0) {
+          setStudentLeadsUpdate(dataTele.data);
+        }
+      }
+
+      const contentTypeClient = resClient.headers.get('content-type') || '';
+      if (contentTypeClient.includes('application/json')) {
+        const dataClient = await resClient.json();
+        if (dataClient.success && Array.isArray(dataClient.data) && dataClient.data.length > 0) {
+          setClientLeadsUpdate(dataClient.data);
+        }
+      }
+
+      if (showNotification) {
+        showToast('Counselor lead statistics auto-fetched from CRM!', 'success');
+      }
+    } catch (e) {
+      console.error('Failed to auto-fetch counselor lead stats:', e);
+      if (showNotification) {
+        showToast('Failed to auto-fetch counselor lead stats', 'error');
+      }
+    }
+  }, [selectedDate, getAuthHeaders, showToast]);
 
   // Initialize user session
   useEffect(() => {
@@ -319,6 +439,18 @@ const DailyShiftReportPage = () => {
         setEvidenceAttachments(report.evidenceAttachments && report.evidenceAttachments.length > 0 ? report.evidenceAttachments : DEFAULT_EVIDENCE);
         setPendingBlockers(report.pendingBlockers && report.pendingBlockers.length > 0 ? report.pendingBlockers : DEFAULT_BLOCKERS);
         setTomorrowPriorities(report.tomorrowPriorities && report.tomorrowPriorities.length > 0 ? report.tomorrowPriorities : DEFAULT_PRIORITIES);
+        if (report.studentLeadsUpdate && report.studentLeadsUpdate.length > 0) {
+          setStudentLeadsUpdate(report.studentLeadsUpdate);
+        } else {
+          setStudentLeadsUpdate(DEFAULT_STUDENT_LEADS);
+          autoFetchLeadStats(dateStr, false);
+        }
+        if (report.clientLeadsUpdate && report.clientLeadsUpdate.length > 0) {
+          setClientLeadsUpdate(report.clientLeadsUpdate);
+        } else {
+          setClientLeadsUpdate(DEFAULT_CLIENT_LEADS);
+          autoFetchLeadStats(dateStr, false);
+        }
         setHandoverFinalConfirmation(report.handoverFinalConfirmation || {
           handoverRequired: 'No', handoverTo: '', crmUpdated: 'Yes', reportSubmitted: 'Yes', employeeComment: '', signature: ''
         });
@@ -341,6 +473,9 @@ const DailyShiftReportPage = () => {
         setEvidenceAttachments(DEFAULT_EVIDENCE);
         setPendingBlockers(DEFAULT_BLOCKERS);
         setTomorrowPriorities(DEFAULT_PRIORITIES);
+        setStudentLeadsUpdate(DEFAULT_STUDENT_LEADS);
+        setClientLeadsUpdate(DEFAULT_CLIENT_LEADS);
+        autoFetchLeadStats(dateStr, false);
         setHandoverFinalConfirmation({
           handoverRequired: 'No', handoverTo: '', crmUpdated: 'Yes', reportSubmitted: 'Yes', employeeComment: '', signature: ''
         });
@@ -500,6 +635,8 @@ const DailyShiftReportPage = () => {
         evidenceAttachments: cleanEvidence.length > 0 ? cleanEvidence : evidenceAttachments,
         pendingBlockers: cleanBlockers.length > 0 ? cleanBlockers : pendingBlockers,
         tomorrowPriorities: cleanPriorities.length > 0 ? cleanPriorities : tomorrowPriorities,
+        studentLeadsUpdate,
+        clientLeadsUpdate,
         handoverFinalConfirmation,
         status: 'Submitted'
       };
@@ -592,9 +729,10 @@ const DailyShiftReportPage = () => {
       });
 
       // Title
-      doc.setFontSize(14);
+      const reportTitleText = isAcademicCounselor ? "ACADEMIC COUNSELOR DAILY SHIFT REPORT" : "DAILY SHIFT REPORT";
+      doc.setFontSize(isAcademicCounselor ? 12.5 : 14);
       doc.setTextColor(30, 41, 59);
-      doc.text("DAILY SHIFT REPORT", 100, 17);
+      doc.text(reportTitleText, isAcademicCounselor ? 70 : 100, 17);
 
       currentY = 24;
 
@@ -631,13 +769,29 @@ const DailyShiftReportPage = () => {
       if (!hiddenSections.planVsAchievement) {
         drawSectionHeader("2. TODAY'S PLAN VS ACHIEVEMENT", 35);
         const summaryHeaders = [["Task / Activity", "Target", "Actual", "Status", "Remarks"]];
-        const summaryRows = planVsAchievement.map(t => [
-          t.taskActivity || '',
-          t.targetToday || '',
-          t.actualOutput || '',
-          t.status || '',
-          t.businessResultRemarks || ''
-        ]);
+        const summaryRows = [];
+        const projectGroups = getProjectGroups(planVsAchievement);
+
+        projectGroups.forEach(group => {
+          group.rows.forEach((t, gIdx) => {
+            if (gIdx === 0) {
+              summaryRows.push([
+                { content: group.projectName || t.taskActivity || '', rowSpan: group.rows.length },
+                t.targetToday || '',
+                t.actualOutput || '',
+                t.status || '',
+                t.businessResultRemarks || ''
+              ]);
+            } else {
+              summaryRows.push([
+                t.targetToday || '',
+                t.actualOutput || '',
+                t.status || '',
+                t.businessResultRemarks || ''
+              ]);
+            }
+          });
+        });
 
         autoTable(doc, {
           head: summaryHeaders,
@@ -652,6 +806,62 @@ const DailyShiftReportPage = () => {
             2: { width: 32 },
             3: { width: 22, halign: 'center' },
             4: { width: 38 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // 2B. STUDENT LEADS UPDATE (FOR COUNSELORS)
+      if (isAcademicCounselor && !hiddenSections.studentLeadsUpdate) {
+        drawSectionHeader("2B. STUDENT LEADS UPDATE", 35);
+        const studentHeaders = [["Activity", "Count", "Remarks"]];
+        const studentRows = (studentLeadsUpdate || []).map(t => [
+          t.activity || '',
+          t.count || '',
+          t.remarks || ''
+        ]);
+
+        autoTable(doc, {
+          head: studentHeaders,
+          body: studentRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [49, 46, 129], textColor: [255, 255, 255], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+          columnStyles: {
+            0: { width: 75 },
+            1: { width: 25, halign: 'center' },
+            2: { width: 82 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // 2C. CLIENT LEADS UPDATE (FOR COUNSELORS)
+      if (isAcademicCounselor && !hiddenSections.clientLeadsUpdate) {
+        drawSectionHeader("2C. CLIENT LEADS UPDATE", 35);
+        const clientHeaders = [["Activity", "Count", "Remarks"]];
+        const clientRows = (clientLeadsUpdate || []).map(t => [
+          t.activity || '',
+          t.count || '',
+          t.remarks || ''
+        ]);
+
+        autoTable(doc, {
+          head: clientHeaders,
+          body: clientRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [6, 78, 59], textColor: [255, 255, 255], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+          columnStyles: {
+            0: { width: 75 },
+            1: { width: 25, halign: 'center' },
+            2: { width: 82 }
           },
           margin: { left: 14, right: 14 }
         });
@@ -799,7 +1009,8 @@ const DailyShiftReportPage = () => {
       }
 
       const pdfBlob = doc.output('blob');
-      const filename = `Daily_Shift_Report_${(employeeShiftDetails.employeeName || 'Staff').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      const reportPrefix = isAcademicCounselor ? 'Academic_Counselor_Daily_Shift_Report' : 'Daily_Shift_Report';
+      const filename = `${reportPrefix}_${(employeeShiftDetails.employeeName || 'Staff').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
 
       try {
         const targetUserId = selectedUserId || currentUser._id || currentUser.id || localStorage.getItem('user_id') || '';
@@ -871,7 +1082,7 @@ const DailyShiftReportPage = () => {
     }
   };
 
-  // Helper row handlers
+  // Helper row handlers for Plan Vs Achievement (Project & Task grouping)
   const handlePlanChange = (index, field, value) => {
     setPlanVsAchievement(prev => {
       const updated = [...prev];
@@ -880,11 +1091,57 @@ const DailyShiftReportPage = () => {
     });
   };
 
+  const handleProjectNameChange = (group, newName) => {
+    setPlanVsAchievement(prev => {
+      const updated = [...prev];
+      group.rows.forEach(r => {
+        updated[r.originalIndex] = {
+          ...updated[r.originalIndex],
+          taskActivity: newName
+        };
+      });
+      return updated;
+    });
+  };
+
+  const addNewProject = () => {
+    setPlanVsAchievement(prev => {
+      const existingGroups = getProjectGroups(prev);
+      const projectNum = existingGroups.length + 1;
+      const newProjectName = `New Project ${projectNum}`;
+      return [
+        ...prev,
+        { taskActivity: newProjectName, targetToday: '', actualOutput: '', status: 'Pending', businessResultRemarks: '' }
+      ];
+    });
+  };
+
+  const addTaskToProject = (projectName = '', insertAfterIndex = -1) => {
+    setPlanVsAchievement(prev => {
+      const updated = [...prev];
+      let targetName = projectName;
+      if (!targetName && updated.length > 0) {
+        targetName = updated[updated.length - 1].taskActivity || '';
+      }
+      const newRow = {
+        taskActivity: targetName,
+        targetToday: '',
+        actualOutput: '',
+        status: 'Pending',
+        businessResultRemarks: ''
+      };
+
+      if (typeof insertAfterIndex === 'number' && insertAfterIndex >= 0 && insertAfterIndex < updated.length) {
+        updated.splice(insertAfterIndex + 1, 0, newRow);
+      } else {
+        updated.push(newRow);
+      }
+      return updated;
+    });
+  };
+
   const addPlanRow = () => {
-    setPlanVsAchievement(prev => [
-      ...prev,
-      { taskActivity: '', targetToday: '', actualOutput: '', status: 'Pending', businessResultRemarks: '' }
-    ]);
+    addTaskToProject();
   };
 
   const removePlanRow = (index) => {
@@ -1103,27 +1360,32 @@ const DailyShiftReportPage = () => {
                 <span>History</span>
               </button>
 
-              <AiAnalyzeButton
-                onAnalyze={() => {
-                  setAiModalContext({
-                    reportTitle: 'Daily Shift Report',
-                    date: selectedDate,
-                    employeeShiftDetails,
-                    planVsAchievement,
-                    departmentKeyMetrics,
-                    pendingBlockers
-                  });
-                  setIsAiModalOpen(true);
-                }}
-              />
+              <button
+                onClick={() => navigate('/weekly-performance-report')}
+                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-extrabold rounded-lg shadow-xs transition-all cursor-pointer"
+                title="Open 7-Day Weekly Performance & MD Review Report"
+              >
+                <Award size={14} />
+                <span>Weekly Report</span>
+              </button>
+
+              <button
+                onClick={() => navigate('/monthly-performance-report')}
+                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white text-xs font-extrabold rounded-lg shadow-xs transition-all cursor-pointer"
+                title="Open Monthly Performance Report"
+              >
+                <Calendar size={14} />
+                <span>Monthly Report</span>
+              </button>
 
               <button
                 onClick={handleDownloadPDF}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-extrabold rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                title="Saves report to system, downloads PDF to your computer, and uploads to Employee Reports"
               >
-                {saving ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                <span>Submit & Export PDF</span>
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                <span>Submit & Save Report</span>
               </button>
             </div>
           </div>
@@ -1225,11 +1487,11 @@ const DailyShiftReportPage = () => {
         <div>
           <div className="flex justify-between items-center mb-3">
             <SectionHeader number="2" title="TODAY'S PLAN VS ACHIEVEMENT" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 print:hidden">
               <button
                 type="button"
                 onClick={() => toggleSectionHidden('planVsAchievement')}
-                className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer mb-3"
+                className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
               >
                 <MinusCircle size={14} /> Exclude
               </button>
@@ -1241,91 +1503,276 @@ const DailyShiftReportPage = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold uppercase border-b border-slate-200 dark:border-slate-700">
-                    <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-32 sm:w-36">Task / Activity</th>
+                    <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-36 sm:w-44">Task / Activity (Project Name)</th>
                     <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-44 sm:w-52">Target Today</th>
                     <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-28">Actual Output</th>
                     <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-28">Status</th>
                     <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-44">Business Result / Remarks</th>
-                    <th className="p-2.5 text-center w-10 print:hidden"></th>
+                    <th className="p-2.5 text-center w-28 print:hidden">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {planVsAchievement.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                        <input
-                          type="text"
-                          placeholder="Project Name..."
-                          value={row.taskActivity || ''}
-                          onChange={(e) => handlePlanChange(idx, 'taskActivity', e.target.value)}
-                          className="w-full bg-transparent font-bold border-none focus:outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 text-xs"
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                        <textarea
-                          rows={2}
-                          placeholder="Tasks list..."
-                          value={row.targetToday || ''}
-                          onKeyDown={(e) => handleAutoListKeyDown(e, row.targetToday, (val) => handlePlanChange(idx, 'targetToday', val))}
-                          onChange={(e) => handlePlanChange(idx, 'targetToday', e.target.value)}
-                          className="w-full bg-transparent font-medium border-none focus:outline-none text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs resize-y min-h-[40px]"
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                        <textarea
-                          rows={2}
-                          placeholder="Actual output..."
-                          value={row.actualOutput || ''}
-                          onKeyDown={(e) => handleAutoListKeyDown(e, row.actualOutput, (val) => handlePlanChange(idx, 'actualOutput', val))}
-                          onChange={(e) => handlePlanChange(idx, 'actualOutput', e.target.value)}
-                          className="w-full bg-transparent font-medium border-none focus:outline-none text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs resize-y min-h-[40px]"
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                        <select
-                          value={row.status || 'Pending'}
-                          onChange={(e) => handlePlanChange(idx, 'status', e.target.value)}
-                          className="w-full bg-transparent font-bold border-none focus:outline-none text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                <tbody className="border-t border-slate-200 dark:border-slate-800">
+                  {getProjectGroups(planVsAchievement).map((group) => {
+                    return group.rows.map((row, rowInGroupIdx) => {
+                      const idx = row.originalIndex;
+                      const isFirstInGroup = rowInGroupIdx === 0;
+                      const isLastInGroup = rowInGroupIdx === group.rows.length - 1;
+
+                      return (
+                        <tr 
+                          key={idx} 
+                          className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${
+                            isLastInGroup ? 'border-b border-slate-200 dark:border-slate-700' : 'border-b border-slate-100/60 dark:border-slate-800/40'
+                          }`}
                         >
-                          <option value="Pending">Pending</option>
-                          <option value="Current">Current</option>
-                          <option value="Preview">Preview</option>
-                          <option value="Completed">Completed</option>
-                        </select>
-                      </td>
-                      <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
-                        <textarea
-                          rows={2}
-                          placeholder="Remarks / outcome..."
-                          value={row.businessResultRemarks || ''}
-                          onKeyDown={(e) => handleAutoListKeyDown(e, row.businessResultRemarks, (val) => handlePlanChange(idx, 'businessResultRemarks', val))}
-                          onChange={(e) => handlePlanChange(idx, 'businessResultRemarks', e.target.value)}
-                          className="w-full bg-transparent font-medium border-none focus:outline-none text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs resize-y min-h-[40px]"
-                        />
-                      </td>
-                      <td className="p-2 text-center print:hidden">
-                        <button
-                          onClick={() => removePlanRow(idx)}
-                          className="text-slate-400 hover:text-rose-500 p-1 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {isFirstInGroup && (
+                            <td 
+                              rowSpan={group.rows.length} 
+                              className="p-2.5 border-r border-slate-200 dark:border-slate-800 align-top bg-slate-50/40 dark:bg-slate-900/40 font-bold"
+                            >
+                              <textarea
+                                rows={Math.max(2, group.rows.length * 2)}
+                                placeholder="Project Name..."
+                                value={group.projectName || row.taskActivity || ''}
+                                onChange={(e) => handleProjectNameChange(group, e.target.value)}
+                                className="w-full bg-transparent font-bold border-none focus:outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400 text-xs resize-y"
+                              />
+                            </td>
+                          )}
+                          <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
+                            <textarea
+                              rows={2}
+                              placeholder="Tasks list..."
+                              value={row.targetToday || ''}
+                              onKeyDown={(e) => handleAutoListKeyDown(e, row.targetToday, (val) => handlePlanChange(idx, 'targetToday', val))}
+                              onChange={(e) => handlePlanChange(idx, 'targetToday', e.target.value)}
+                              className="w-full bg-transparent font-medium border-none focus:outline-none text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs resize-y min-h-[40px]"
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
+                            <textarea
+                              rows={2}
+                              placeholder="Actual output..."
+                              value={row.actualOutput || ''}
+                              onKeyDown={(e) => handleAutoListKeyDown(e, row.actualOutput, (val) => handlePlanChange(idx, 'actualOutput', val))}
+                              onChange={(e) => handlePlanChange(idx, 'actualOutput', e.target.value)}
+                              className="w-full bg-transparent font-medium border-none focus:outline-none text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs resize-y min-h-[40px]"
+                            />
+                          </td>
+                          <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
+                            <select
+                              value={row.status || 'Pending'}
+                              onChange={(e) => handlePlanChange(idx, 'status', e.target.value)}
+                              className="w-full bg-transparent font-bold border-none focus:outline-none text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                            >
+                              <option value="Pending">Pending</option>
+                              <option value="Current">Current</option>
+                              <option value="Preview">Preview</option>
+                              <option value="Completed">Completed</option>
+                            </select>
+                          </td>
+                          <td className="p-2 border-r border-slate-200 dark:border-slate-800 align-top">
+                            <textarea
+                              rows={2}
+                              placeholder="Remarks / outcome..."
+                              value={row.businessResultRemarks || ''}
+                              onKeyDown={(e) => handleAutoListKeyDown(e, row.businessResultRemarks, (val) => handlePlanChange(idx, 'businessResultRemarks', val))}
+                              onChange={(e) => handlePlanChange(idx, 'businessResultRemarks', e.target.value)}
+                              className="w-full bg-transparent font-medium border-none focus:outline-none text-slate-800 dark:text-slate-200 placeholder:text-slate-400 text-xs resize-y min-h-[40px]"
+                            />
+                          </td>
+                          <td className="p-2 text-center print:hidden align-top whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => addTaskToProject(group.projectName || row.taskActivity, idx)}
+                                className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 bg-indigo-50/90 dark:bg-indigo-950/70 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-all cursor-pointer shadow-2xs"
+                                title={`Add target under ${group.projectName || 'this project'}`}
+                              >
+                                <Plus size={10} /> + Add Target
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removePlanRow(idx)}
+                                className="text-slate-400 hover:text-rose-500 p-1 transition-colors"
+                                title="Delete row"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })}
                 </tbody>
               </table>
             </div>
           )}
           {!hiddenSections.planVsAchievement && (
-            <button
-              onClick={addPlanRow}
-              className="mt-2 flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline print:hidden cursor-pointer"
-            >
-              <Plus size={14} /> Add Row
-            </button>
+            <div className="mt-2.5 print:hidden">
+              <button
+                type="button"
+                onClick={addNewProject}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                <PlusCircle size={14} /> + Add Project
+              </button>
+            </div>
           )}
         </div>
+
+        {/* COUNSELOR LEAD INTELLIGENCE (STUDENT & CLIENT LEADS UPDATE - STRICTLY FOR COUNSELORS) */}
+        {isAcademicCounselor && (
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-indigo-50/70 via-purple-50/50 to-emerald-50/50 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-emerald-950/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 shadow-xs">
+              <div>
+                <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-200 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  Academic Counselor Lead Intelligence Updates
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                  Daily tracking metrics for student course counseling & corporate client lead pipelines.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => autoFetchLeadStats(selectedDate, true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 font-bold text-xs shadow-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all cursor-pointer shrink-0"
+              >
+                <RefreshCw size={13} /> Auto-Fetch CRM Leads
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* STUDENT LEADS UPDATE TABLE */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                    Student Leads Update
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('studentLeadsUpdate')}
+                    className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Exclude
+                  </button>
+                </div>
+                {!hiddenSections.studentLeadsUpdate && (
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-2xs">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold uppercase border-b border-slate-200 dark:border-slate-700">
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-[50%]">Activity</th>
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center w-20">Count</th>
+                          <th className="p-2.5">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {studentLeadsUpdate.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                            <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800">{item.activity}</td>
+                            <td className="p-2 text-center border-r border-slate-200 dark:border-slate-800">
+                              <input
+                                type="text"
+                                value={item.count || ''}
+                                onChange={(e) => {
+                                  const updated = [...studentLeadsUpdate];
+                                  updated[index].count = e.target.value;
+                                  setStudentLeadsUpdate(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-900 dark:text-slate-100 font-extrabold"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={item.remarks || ''}
+                                onChange={(e) => {
+                                  const updated = [...studentLeadsUpdate];
+                                  updated[index].remarks = e.target.value;
+                                  setStudentLeadsUpdate(updated);
+                                }}
+                                placeholder="Remarks..."
+                                className="w-full bg-transparent border-none focus:outline-none text-slate-800 dark:text-slate-200"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* CLIENT LEADS UPDATE TABLE */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    Client Leads Update
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('clientLeadsUpdate')}
+                    className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
+                  >
+                    Exclude
+                  </button>
+                </div>
+                {!hiddenSections.clientLeadsUpdate && (
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-2xs">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold uppercase border-b border-slate-200 dark:border-slate-700">
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 w-[50%]">Activity</th>
+                          <th className="p-2.5 border-r border-slate-200 dark:border-slate-700 text-center w-20">Count</th>
+                          <th className="p-2.5">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {clientLeadsUpdate.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                            <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800">{item.activity}</td>
+                            <td className="p-2 text-center border-r border-slate-200 dark:border-slate-800">
+                              <input
+                                type="text"
+                                value={item.count || ''}
+                                onChange={(e) => {
+                                  const updated = [...clientLeadsUpdate];
+                                  updated[index].count = e.target.value;
+                                  setClientLeadsUpdate(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-900 dark:text-slate-100 font-extrabold"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                value={item.remarks || ''}
+                                onChange={(e) => {
+                                  const updated = [...clientLeadsUpdate];
+                                  updated[index].remarks = e.target.value;
+                                  setClientLeadsUpdate(updated);
+                                }}
+                                placeholder="Remarks..."
+                                className="w-full bg-transparent border-none focus:outline-none text-slate-800 dark:text-slate-200"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* SECTION 3: DEPARTMENT-SPECIFIC KEY METRICS */}
         <div>

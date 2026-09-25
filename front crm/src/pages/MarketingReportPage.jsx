@@ -1495,21 +1495,6 @@ const MarketingReportPage = () => {
                   Monthly Report
                 </button>
 
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Marketing & Digital Strategy',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, taskSummary, keyNumbers, blockersTomorrowPlan, marketingComments: comments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
-
                 <button
                   type="button"
                   onClick={handleDownloadPDF}

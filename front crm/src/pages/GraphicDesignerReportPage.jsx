@@ -1278,21 +1278,6 @@ const GraphicDesignerReportPage = () => {
                   Monthly Report
                 </button>
 
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Graphic Design & UI/UX',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, taskLog, designDeliverables, designerComments: comments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
-
                 <button
                   type="button"
                   onClick={handleDownloadPDF}

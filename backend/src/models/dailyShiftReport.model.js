@@ -57,6 +57,24 @@ const dailyShiftReportSchema = new mongoose.Schema({
       priorityText: { type: String, default: '' }
     }
   ],
+  studentLeadsUpdate: [
+    {
+      activity: { type: String, default: '' },
+      count: { type: String, default: '' },
+      digitalMktg: { type: String, default: '' },
+      web: { type: String, default: '' },
+      remarks: { type: String, default: '' }
+    }
+  ],
+  clientLeadsUpdate: [
+    {
+      activity: { type: String, default: '' },
+      count: { type: String, default: '' },
+      digitalMktg: { type: String, default: '' },
+      web: { type: String, default: '' },
+      remarks: { type: String, default: '' }
+    }
+  ],
   handoverFinalConfirmation: {
     handoverRequired: { type: String, enum: ['Yes', 'No'], default: 'No' },
     handoverTo: { type: String, default: '' },
