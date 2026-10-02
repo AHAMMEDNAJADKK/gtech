@@ -224,3 +224,61 @@ export const getStudentProfile = async (req, res) => {
   }
 };
 
+export const deleteStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, detail: 'Invalid student ID format.' });
+    }
+
+    // 1. Delete associated attendance records
+    await StudentAttendance.deleteMany({ user_id: id });
+
+    // 2. Delete associated enrollment records (handles both string and ObjectId references)
+    await Enrollment.deleteMany({
+      $or: [
+        { studentId: id },
+        ...(mongoose.Types.ObjectId.isValid(id) ? [{ studentId: new mongoose.Types.ObjectId(id) }] : [])
+      ]
+    });
+
+    // 3. Remove student from all batch rosters
+    await Batch.updateMany(
+      { students: id },
+      { $pull: { students: id } }
+    );
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      await Batch.updateMany(
+        { students: new mongoose.Types.ObjectId(id) },
+        { $pull: { students: new mongoose.Types.ObjectId(id) } }
+      );
+    }
+
+    // 4. Delete student user record
+    let deletedStudent = await User.findByIdAndDelete(id);
+    if (!deletedStudent) {
+      const Student = (await import('../models/student.js')).default;
+      if (Student) {
+        deletedStudent = await Student.findByIdAndDelete(id);
+      }
+    }
+
+    if (!deletedStudent) {
+      return res.status(404).json({ success: false, detail: 'Student profile not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Student record, enrollment tracking, and attendance history successfully deleted.'
+    });
+
+  } catch (err) {
+    console.error('Delete Student Error:', err);
+    return res.status(500).json({
+      success: false,
+      detail: err.message || 'Internal server error while deleting student.'
+    });
+  }
+};
+

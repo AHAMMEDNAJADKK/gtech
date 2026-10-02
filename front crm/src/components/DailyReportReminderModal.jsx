@@ -8,59 +8,7 @@ import { playNotificationBeep } from '../utils/soundUtils';
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const getReportConfig = (user) => {
-  const role = String(user?.role || user?.role_id || '').toLowerCase().trim();
-  const designation = String(user?.designation || '').toLowerCase().trim();
-  const department = String(user?.department || user?.departmentId?.name || '').toLowerCase().trim();
-
-  const isHod = designation.includes('hod') || role.includes('hod');
-
-  if (designation.includes('graphic') || role.includes('graphic')) {
-    return { route: '/graphic-designer-report', apiPrefix: 'graphic-designer-reports', name: 'Graphic Designer Daily Report' };
-  }
-  if (designation.includes('video') || role.includes('video')) {
-    return { route: '/videographer-report', apiPrefix: 'videographer-reports', name: 'Videographer Daily Report' };
-  }
-  // HOD R&D (Requires HOD role/designation)
-  if (isHod && (department.includes('r&d') || designation.includes('r&d') || department.includes('research') || designation.includes('research'))) {
-    return { route: '/hod-rd-report', apiPrefix: 'hod-rd-reports', name: 'HOD R&D Daily Report' };
-  }
-  // Developer / Junior Developer / Software Engineer / R&D Staff
-  if (
-    designation.includes('developer') ||
-    designation.includes('dev') ||
-    designation.includes('engineer') ||
-    role.includes('developer') ||
-    role.includes('dev') ||
-    role.includes('junior') ||
-    department.includes('development') ||
-    department.includes('software') ||
-    department.includes('engineering') ||
-    department.includes('it') ||
-    department.includes('r&d') ||
-    department.includes('research')
-  ) {
-    return { route: '/developer-report', apiPrefix: 'developer-reports', name: 'Developer Daily Report' };
-  }
-  // HOD Marketing
-  if (isHod && (department.includes('market') || designation.includes('market'))) {
-    return { route: '/hod-marketing-report', apiPrefix: 'hod-marketing-reports', name: 'HOD Marketing Daily Report' };
-  }
-  if (department.includes('market') || designation.includes('market') || role === '4' || role.includes('digital')) {
-    return { route: '/marketing-report', apiPrefix: 'marketing-reports', name: 'Marketing Daily Report' };
-  }
-  if (department.includes('account') || designation.includes('account') || role.includes('account')) {
-    return { route: '/accountant-report', apiPrefix: 'accountant-reports', name: 'Accountant Daily Report' };
-  }
-  if (department.includes('ops') || designation.includes('ops') || role.includes('ops')) {
-    return { route: '/ops-report', apiPrefix: 'ops-reports', name: 'Ops Daily Report' };
-  }
-  if (department.includes('counsel') || designation.includes('counsel')) {
-    return { route: '/academic-counselor-report', apiPrefix: 'academic-counselor-reports', name: 'Academic Counselor Daily Report' };
-  }
-  if (department.includes('hr') || designation.includes('hr') || role === '1' || role === 'hr') {
-    return { route: '/hr-report', apiPrefix: 'hr-reports', name: 'HR Daily Report' };
-  }
-  return { route: '/basic-report', apiPrefix: 'basic-report', name: 'Daily Work Report' };
+  return { route: '/daily-shift-report', apiPrefix: 'daily-shift-reports', name: 'Daily Shift Report' };
 };
 
 const DailyReportReminderModal = () => {

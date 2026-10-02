@@ -260,7 +260,7 @@ const consolidateDeveloperReports = (reports) => {
 const DeveloperReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -1743,6 +1743,15 @@ const DeveloperReportPage = () => {
           })}
         </div>
       </div>
+
+      {/* Sidebar Toggle Arrow Button */}
+      <button
+        type="button"
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="mt-6 z-30 flex items-center justify-center w-8 h-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-lime-500 text-slate-600 dark:text-slate-350 hover:text-indigo-600 dark:hover:text-lime-400 rounded-full shadow-md transition-all shrink-0 cursor-pointer active:scale-95"
+      >
+        {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+      </button>
 
 
 

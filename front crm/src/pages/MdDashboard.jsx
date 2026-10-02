@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../components/ToastProvider';
 import HrDashboard from './HrDashboard';
-import Attendance from './Attendance';
+import StaffAttendance from './StaffAttendance';
 import AccountantDashboard from './AccountantDashboard';
 import EnrollmentTracking from './EnrollmentTracking';
 import MarketingDashboard from './Marketing Dashboard';
@@ -404,7 +404,7 @@ const MdDashboard = () => {
       <div className="rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800">
         {activeTab === 'overview' && <OverallStatCards data={data} />}
         {activeTab === 'hr' && <HrDashboard />}
-        {activeTab === 'attendance' && <Attendance />}
+        {activeTab === 'attendance' && <StaffAttendance />}
         {activeTab === 'accountant' && <AccountantDashboard />}
         {activeTab === 'academy' && <EnrollmentTracking />}
         {activeTab === 'marketing' && <MarketingDashboard />}

@@ -167,6 +167,47 @@ export const requireAdminOrStaff = (req, res, next) => {
 };
 
 /**
+ * Strict SuperAdmin Authorization Middleware
+ */
+export const requireSuperAdmin = async (req, res, next) => {
+  const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+  const roleName = String(req.user?.role || '').toLowerCase().trim();
+  const userId = req.user?.id || req.user?._id || req.user?.userId;
+
+  let isSuper = 
+    req.user?.isSuperAdmin === true ||
+    req.user?.is_super_admin === true ||
+    roleId === '0' ||
+    roleName.includes('super');
+
+  if (!isSuper && userId) {
+    try {
+      const User = (await import('../models/user.model.js')).default;
+      const userObj = await User.findById(userId);
+      if (userObj && (
+        userObj.isSuperAdmin === true || 
+        userObj.is_super_admin === true ||
+        String(userObj.role).toLowerCase().includes('super') || 
+        String(userObj.role_id) === '0' ||
+        String(userObj.roleId) === '0'
+      )) {
+        isSuper = true;
+        req.user.isSuperAdmin = true;
+      }
+    } catch (err) {}
+  }
+
+  if (!isSuper) {
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. Only SuperAdmins are authorized to delete enrollment records.'
+    });
+  }
+
+  next();
+};
+
+/**
  * Strict Role Access control middleware for leads and analytics
  * Checks req.user.role (e.g. 'digital_marketer') and req.user.role_id (e.g. '4')
  */

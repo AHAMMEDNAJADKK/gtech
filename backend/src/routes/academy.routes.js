@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import protectRoute, { requireAdminOrStaff } from '../middleware/auth.middleware.js';
+import protectRoute, { requireAdminOrStaff, requireSuperAdmin } from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
 import courseController from '../controllers/course.controller.js';
 import batchController from '../controllers/batch.controller.js';
@@ -42,6 +42,7 @@ router.post('/enrollments', requireAdminOrStaff, enrollmentController.createEnro
 router.get('/enrollments/:id', enrollmentController.getEnrollmentById);
 router.patch('/enrollments/:id/progress', requireAdminOrStaff, enrollmentController.updateProgress);
 router.patch('/enrollments/:id/status', requireAdminOrStaff, enrollmentController.updateStatus);
+router.delete('/enrollments/:id', requireSuperAdmin, enrollmentController.deleteEnrollment);
 
 // ============================================================
 // LMS LEARNING MANAGEMENT SYSTEM ROUTES (Module 4.4)

@@ -89,8 +89,47 @@ export const autoCompileMonthlyReport = async (req, res) => {
     const kpiMap = new Map();
     const achievementsList = [];
     const nextMonthPlanList = [];
+    const DEFAULT_STUDENT_LEADS = [
+      'New Leads Generated',
+      'Qualified Lead',
+      'Total Calls Made',
+      'Total Follow up',
+      'Hot Leads',
+      'Warm Leads',
+      'Cold Leads',
+      'Call back Leads',
+      'RNT Leads (Ring Next Time)',
+      'Switch Off Leads',
+      'Wrong leads',
+      'Total Pending Follow-ups',
+      'Total Pending Leads',
+      'Client/Student Meetings Fixed',
+      'Admissions/Closings Done'
+    ];
+
+    const DEFAULT_CLIENT_LEADS = [
+      'New Client Leads Generated',
+      'Qualified Client Leads',
+      'Total Client Calls / Contacted',
+      'Total Client Follow ups',
+      'Hot Client Leads (High Priority)',
+      'Warm Client Leads (Medium Priority)',
+      'Cold Client Leads (Low Priority)',
+      'Call back Client Leads',
+      'RNT Client Leads (Ring Next Time)',
+      'Switch Off Client Leads',
+      'Wrong Client Leads',
+      'Total Pending Client Follow-ups',
+      'Total Pending Client Leads',
+      'Client Meetings Fixed',
+      'Client Closings / Onboarding Done'
+    ];
+
     const studentLeadsMap = new Map();
+    DEFAULT_STUDENT_LEADS.forEach(act => studentLeadsMap.set(act.toLowerCase(), { activity: act, monthlyTotal: 0, remarks: '' }));
+
     const clientLeadsMap = new Map();
+    DEFAULT_CLIENT_LEADS.forEach(act => clientLeadsMap.set(act.toLowerCase(), { activity: act, monthlyTotal: 0, remarks: '' }));
 
     shiftReports.forEach(r => {
       // 1. Project / Campaign Status
@@ -161,11 +200,12 @@ export const autoCompileMonthlyReport = async (req, res) => {
       (r.studentLeadsUpdate || []).forEach(sl => {
         const act = (sl.activity || '').trim();
         if (act) {
+          const actKey = act.toLowerCase();
           const val = parseFloat(sl.count) || 0;
-          if (!studentLeadsMap.has(act)) {
-            studentLeadsMap.set(act, { monthlyTotal: val, remarks: sl.remarks || '' });
+          if (!studentLeadsMap.has(actKey)) {
+            studentLeadsMap.set(actKey, { activity: act, monthlyTotal: val, remarks: sl.remarks || '' });
           } else {
-            const prev = studentLeadsMap.get(act);
+            const prev = studentLeadsMap.get(actKey);
             prev.monthlyTotal += val;
             if (sl.remarks && !prev.remarks) prev.remarks = sl.remarks;
           }
@@ -175,11 +215,12 @@ export const autoCompileMonthlyReport = async (req, res) => {
       (r.clientLeadsUpdate || []).forEach(cl => {
         const act = (cl.activity || '').trim();
         if (act) {
+          const actKey = act.toLowerCase();
           const val = parseFloat(cl.count) || 0;
-          if (!clientLeadsMap.has(act)) {
-            clientLeadsMap.set(act, { monthlyTotal: val, remarks: cl.remarks || '' });
+          if (!clientLeadsMap.has(actKey)) {
+            clientLeadsMap.set(actKey, { activity: act, monthlyTotal: val, remarks: cl.remarks || '' });
           } else {
-            const prev = clientLeadsMap.get(act);
+            const prev = clientLeadsMap.get(actKey);
             prev.monthlyTotal += val;
             if (cl.remarks && !prev.remarks) prev.remarks = cl.remarks;
           }
@@ -190,14 +231,14 @@ export const autoCompileMonthlyReport = async (req, res) => {
     const projectCampaignStatus = Array.from(projectCampaignMap.values());
     const overallKpiSummary = Array.from(kpiMap.values());
 
-    const studentLeadsSummary = Array.from(studentLeadsMap.entries()).map(([activity, data]) => ({
-      activity,
+    const studentLeadsSummary = Array.from(studentLeadsMap.values()).map(data => ({
+      activity: data.activity,
       monthlyTotal: String(data.monthlyTotal),
       remarks: data.remarks
     }));
 
-    const clientLeadsSummary = Array.from(clientLeadsMap.entries()).map(([activity, data]) => ({
-      activity,
+    const clientLeadsSummary = Array.from(clientLeadsMap.values()).map(data => ({
+      activity: data.activity,
       monthlyTotal: String(data.monthlyTotal),
       remarks: data.remarks
     }));

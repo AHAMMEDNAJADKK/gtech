@@ -17,6 +17,7 @@ import OpsReport from '../models/opsReport.model.js';
 import VideographerReport from '../models/videographerReport.model.js';
 import AcademicCounselorReport from '../models/academicCounselorReport.model.js';
 import AccountantReport from '../models/accountantReport.model.js';
+import DailyShiftReport from '../models/dailyShiftReport.model.js';
 import { generateReportPDFBuffer } from '../utils/pdfGenerator.js';
 import { v2 as cloudinary } from 'cloudinary';
 import { sendSuccess, sendError } from '../utils/response.helper.js';
@@ -38,7 +39,6 @@ const uploadToCloudinary = (fileBuffer, userId, filenameKey) => {
     folder: `admin-reports/employee_${userId}`,
     public_id: `report_${filenameKey}`,
     resource_type: 'raw', // Critical for PDF uploads
-    format: 'pdf',
     overwrite: true
   };
 
@@ -196,6 +196,10 @@ const getReportModel = (type) => {
       return AcademicCounselorReport;
     case 'accountant':
       return AccountantReport;
+    case 'dailyshift':
+    case 'daily-shift':
+    case 'daily_shift':
+      return DailyShiftReport;
     default:
       return null;
   }
@@ -371,15 +375,23 @@ export const employeeReportPDFController = {
         }
       }
 
-      // Save to database with binary buffer
+      // Save to database with safe employee_id casting & buffer limits
+      const validEmployeeId = mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : userId;
+
+      // Only save binary buffer to MongoDB if smaller than 4MB (prevents BSON max size / socket timeouts on deployed DB)
+      const MAX_DB_BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
+      const shouldSaveBuffer = fileBuffer && fileBuffer.length <= MAX_DB_BUFFER_SIZE;
+
       const reportRecord = await EmployeeReports.findOneAndUpdate(
-        { employee_id: userId, report_date: reportDate, report_period: reportPeriod },
+        { employee_id: validEmployeeId, report_date: reportDate, report_period: reportPeriod },
         {
           pdf_url: uploadResult?.secure_url || localUrl || '',
           pdf_public_id: uploadResult?.public_id || '',
-          ...(fileBuffer ? { pdf_data: fileBuffer } : {}),
+          ...(shouldSaveBuffer ? { pdf_data: fileBuffer } : {}),
           filename: cleanFilename,
-          employee_id: userId,
+          employee_id: validEmployeeId,
           report_date: reportDate,
           report_type: reportType,
           report_period: reportPeriod,
@@ -460,7 +472,8 @@ export const employeeReportPDFController = {
         videoReports,
         counselorReports,
         acctReports,
-        hodMktReports
+        hodMktReports,
+        dailyShiftReports
       ] = await Promise.all([
         DeveloperReport.find(userQuery).lean(),
         GraphicDesignerReport.find(userQuery).lean(),
@@ -471,7 +484,8 @@ export const employeeReportPDFController = {
         VideographerReport.find(userQuery).lean(),
         AcademicCounselorReport.find(userQuery).lean(),
         AccountantReport.find(userQuery).lean(),
-        HodMarketingReport.find(userQuery).lean()
+        HodMarketingReport.find(userQuery).lean(),
+        DailyShiftReport.find(userQuery).lean()
       ]);
 
       const baseUrl = process.env.VITE_API_URL || '/api';
@@ -500,7 +514,8 @@ export const employeeReportPDFController = {
         ...opsReports.map(d => mapShiftReport(d, 'Ops', 'ops')),
         ...videoReports.map(d => mapShiftReport(d, 'Videographer', 'videographer')),
         ...counselorReports.map(d => mapShiftReport(d, 'Academic Counselor', 'academic-counselor')),
-        ...acctReports.map(d => mapShiftReport(d, 'Accountant', 'accountant'))
+        ...acctReports.map(d => mapShiftReport(d, 'Accountant', 'accountant')),
+        ...dailyShiftReports.map(d => mapShiftReport(d, 'Daily Shift', 'daily-shift'))
       ];
 
       // Merge and deduplicate by (report_date + '_' + report_period)
@@ -577,7 +592,8 @@ export const employeeReportPDFController = {
           { model: OpsReport, type: 'ops' },
           { model: VideographerReport, type: 'videographer' },
           { model: AcademicCounselorReport, type: 'academiccounselor' },
-          { model: AccountantReport, type: 'accountant' }
+          { model: AccountantReport, type: 'accountant' },
+          { model: DailyShiftReport, type: 'daily-shift' }
         ];
 
         let foundShiftDoc = null;
@@ -636,7 +652,8 @@ export const employeeReportPDFController = {
         { model: OpsReport, type: 'ops' },
         { model: VideographerReport, type: 'videographer' },
         { model: AcademicCounselorReport, type: 'academiccounselor' },
-        { model: AccountantReport, type: 'accountant' }
+        { model: AccountantReport, type: 'accountant' },
+        { model: DailyShiftReport, type: 'daily-shift' }
       ];
 
       const generateAndStreamShiftReport = async (empId, dateStr, shiftReportId, recordDbId) => {

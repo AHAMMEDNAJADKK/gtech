@@ -404,6 +404,11 @@ export const getClientLeadStats = async (req, res, next) => {
     const warmClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'WARM').length;
     const coldClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'COLD').length;
 
+    const callBackClientLeads = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      return tags.includes('call back') || tags.includes('callback');
+    }).length;
+
     // Wrong Client Leads updated or created today
     const wrongClientLeads = leadsActiveToday.filter(l => {
       const tags = getCombinedTags(l);
@@ -420,6 +425,11 @@ export const getClientLeadStats = async (req, res, next) => {
         tags.includes('wrong number') ||
         tags.includes('invalid')
       );
+    }).length;
+
+    const pendingClientFollowUps = allClientLeads.filter(l => {
+      const tags = getCombinedTags(l);
+      return (tags.includes('follow') || l.followUpDate1 || l.followUpDate2 || l.followUpDate3 || l.followUpDate4 || l.followUpDate5) && (!tags.includes('convert') && !tags.includes('closed'));
     }).length;
 
     // 6. Total pending client leads updated today
@@ -457,6 +467,16 @@ export const getClientLeadStats = async (req, res, next) => {
     const totalDigital = countBySource(targetForSource, digitalMktgSources);
     const totalWeb = countBySource(targetForSource, webSources);
 
+    const rntClientLeads = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      return tags.includes('rnt') || tags.includes('ring next time') || tags.includes('ring');
+    }).length;
+
+    const switchOffClientLeads = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      return tags.includes('switch') || tags.includes('switched') || tags.includes('unreachable');
+    }).length;
+
     const clientSalesActivity = [
       { activity: 'New Client Leads Generated', count: String(totalNewClientLeads), digitalMktg: String(totalDigital), web: String(totalWeb), dueDate: '', remarks: '' },
       { activity: 'Qualified Client Leads', count: String(qualifiedClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
@@ -465,7 +485,11 @@ export const getClientLeadStats = async (req, res, next) => {
       { activity: 'Hot Client Leads (High Priority)', count: String(hotClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Warm Client Leads (Medium Priority)', count: String(warmClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Cold Client Leads (Low Priority)', count: String(coldClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Call back Client Leads', count: String(callBackClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'RNT Client Leads (Ring Next Time)', count: String(rntClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Switch Off Client Leads', count: String(switchOffClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Wrong Client Leads', count: String(wrongClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Total Pending Client Follow-ups', count: String(pendingClientFollowUps), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Total Pending Client Leads', count: String(pendingClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Client Meetings Fixed', count: String(meetingsFixed), digitalMktg: '', web: '', dueDate: '', remarks: '' },
       { activity: 'Client Closings / Onboarding Done', count: String(closingsDone), digitalMktg: '', web: '', dueDate: '', remarks: '' }

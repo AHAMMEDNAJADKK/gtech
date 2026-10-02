@@ -79,9 +79,11 @@ const DEFAULT_STUDENT_LEADS = [
   { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', remarks: '' }
@@ -95,11 +97,54 @@ const DEFAULT_CLIENT_LEADS = [
   { activity: 'Hot Client Leads (High Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Warm Client Leads (Medium Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Cold Client Leads (Low Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Call back Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'RNT Client Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Switch Off Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Wrong Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Client Follow-ups', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Total Pending Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client Closings / Onboarding Done', count: '', digitalMktg: '', web: '', remarks: '' }
 ];
+
+// Helper to merge saved report lead rows with default standard activities list
+const mergeWithDefaultLeads = (savedRows, defaultRows) => {
+  if (!Array.isArray(savedRows) || savedRows.length === 0) return defaultRows;
+  
+  const savedMap = new Map();
+  savedRows.forEach(item => {
+    if (item && item.activity) {
+      savedMap.set(item.activity.trim().toLowerCase(), item);
+    }
+  });
+
+  const merged = defaultRows.map(defItem => {
+    const key = defItem.activity.trim().toLowerCase();
+    if (savedMap.has(key)) {
+      const saved = savedMap.get(key);
+      return {
+        ...defItem,
+        count: saved.count !== undefined && saved.count !== null ? String(saved.count) : defItem.count,
+        remarks: saved.remarks !== undefined && saved.remarks !== null ? saved.remarks : defItem.remarks,
+        digitalMktg: saved.digitalMktg !== undefined && saved.digitalMktg !== null ? String(saved.digitalMktg) : defItem.digitalMktg,
+        web: saved.web !== undefined && saved.web !== null ? String(saved.web) : defItem.web
+      };
+    }
+    return defItem;
+  });
+
+  savedRows.forEach(item => {
+    if (item && item.activity) {
+      const key = item.activity.trim().toLowerCase();
+      const inDefault = defaultRows.some(d => d.activity.trim().toLowerCase() === key);
+      if (!inDefault) {
+        merged.push(item);
+      }
+    }
+  });
+
+  return merged;
+};
 
 // Helper to group planVsAchievement rows by project (Task / Activity)
 const getProjectGroups = (rows) => {
@@ -290,7 +335,7 @@ const DailyShiftReportPage = () => {
       if (contentTypeTele.includes('application/json')) {
         const dataTele = await resTele.json();
         if (dataTele.success && Array.isArray(dataTele.data) && dataTele.data.length > 0) {
-          setStudentLeadsUpdate(dataTele.data);
+          setStudentLeadsUpdate(mergeWithDefaultLeads(dataTele.data, DEFAULT_STUDENT_LEADS));
         }
       }
 
@@ -298,7 +343,7 @@ const DailyShiftReportPage = () => {
       if (contentTypeClient.includes('application/json')) {
         const dataClient = await resClient.json();
         if (dataClient.success && Array.isArray(dataClient.data) && dataClient.data.length > 0) {
-          setClientLeadsUpdate(dataClient.data);
+          setClientLeadsUpdate(mergeWithDefaultLeads(dataClient.data, DEFAULT_CLIENT_LEADS));
         }
       }
 
@@ -440,13 +485,13 @@ const DailyShiftReportPage = () => {
         setPendingBlockers(report.pendingBlockers && report.pendingBlockers.length > 0 ? report.pendingBlockers : DEFAULT_BLOCKERS);
         setTomorrowPriorities(report.tomorrowPriorities && report.tomorrowPriorities.length > 0 ? report.tomorrowPriorities : DEFAULT_PRIORITIES);
         if (report.studentLeadsUpdate && report.studentLeadsUpdate.length > 0) {
-          setStudentLeadsUpdate(report.studentLeadsUpdate);
+          setStudentLeadsUpdate(mergeWithDefaultLeads(report.studentLeadsUpdate, DEFAULT_STUDENT_LEADS));
         } else {
           setStudentLeadsUpdate(DEFAULT_STUDENT_LEADS);
           autoFetchLeadStats(dateStr, false);
         }
         if (report.clientLeadsUpdate && report.clientLeadsUpdate.length > 0) {
-          setClientLeadsUpdate(report.clientLeadsUpdate);
+          setClientLeadsUpdate(mergeWithDefaultLeads(report.clientLeadsUpdate, DEFAULT_CLIENT_LEADS));
         } else {
           setClientLeadsUpdate(DEFAULT_CLIENT_LEADS);
           autoFetchLeadStats(dateStr, false);

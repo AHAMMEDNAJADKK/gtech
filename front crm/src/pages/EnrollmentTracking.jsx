@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   GraduationCap, Plus, Search, LayoutGrid, List, ChevronRight, Loader2, 
   BookOpen, Users, CheckCircle2, Archive, Eye, Edit, X, FolderKanban,
-  BarChart3, UserCheck, Clock, Percent, AlertCircle, Sparkles
+  BarChart3, UserCheck, Clock, Percent, AlertCircle, Sparkles, Trash2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
@@ -21,6 +21,27 @@ const initialEnrollmentForm = {
 const EnrollmentTracking = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+
+  // SuperAdmin detection
+  const isSuperAdmin = useMemo(() => {
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (!rawUser) return false;
+      const u = JSON.parse(rawUser);
+      const roleStr = String(u.role || '').toLowerCase();
+      const roleIdStr = String(u.role_id || u.roleId || '');
+      return Boolean(
+        u.isSuperAdmin === true ||
+        u.is_super_admin === true ||
+        roleStr === 'superadmin' ||
+        roleStr === 'super_admin' ||
+        roleIdStr === '0' ||
+        roleStr.includes('superadmin')
+      );
+    } catch (e) {
+      return false;
+    }
+  }, []);
 
   const [enrollments, setEnrollments] = useState([]);
   const [batches, setBatches] = useState([]);
@@ -48,6 +69,10 @@ const EnrollmentTracking = () => {
   const [progressTotal, setProgressTotal] = useState(10);
   const [isSubmittingProgress, setIsSubmittingProgress] = useState(false);
 
+  // Delete Enrollment Modal State (SuperAdmin Only)
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null, studentName: '', courseName: '' });
+  const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
+
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
     const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
@@ -70,7 +95,14 @@ const EnrollmentTracking = () => {
       if (!res.ok) throw new Error('Failed to load enrollment list.');
 
       const data = await res.json();
-      setEnrollments(data.data || []);
+      const validEnrollments = (data.data || []).filter(e => {
+        if (!e.studentId) return false;
+        if (!e.studentId._id && !e.studentId.name) return false;
+        const st = e.studentId;
+        if (st.isDeleted === true || st.is_deleted === true || st.status === 'deleted' || st.status === 'inactive' || st.isActive === false) return false;
+        return true;
+      });
+      setEnrollments(validEnrollments);
       if (data.stats) {
         setStats(data.stats);
       }
@@ -130,7 +162,12 @@ const EnrollmentTracking = () => {
       if (res.ok) {
         const data = await res.json();
         const studentUsers = data?.users || data?.data?.users || data?.data || [];
-        setRegisteredStudents(studentUsers);
+        const activeStudents = studentUsers.filter(s => {
+          if (!s) return false;
+          if (s.isDeleted === true || s.is_deleted === true || s.status === 'deleted' || s.status === 'inactive' || s.isActive === false) return false;
+          return true;
+        });
+        setRegisteredStudents(activeStudents);
       }
     } catch (err) {
       console.error("Fetch Registered Students Error:", err);
@@ -235,6 +272,48 @@ const EnrollmentTracking = () => {
       showToast("Network error.", "error");
     } finally {
       setIsSubmittingProgress(false);
+    }
+  };
+
+  const handleOpenDeleteModal = (enrollment) => {
+    const studentName = enrollment.studentId?.name || 'Student Account';
+    const courseName = enrollment.courseId?.courseName || 'Enrolled Course';
+    setDeleteConfirm({
+      isOpen: true,
+      id: enrollment._id || enrollment.id,
+      studentName,
+      courseName
+    });
+  };
+
+  const handleConfirmDeleteEnrollment = async () => {
+    const { id } = deleteConfirm;
+    if (!id) return;
+    setIsSubmittingDelete(true);
+
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/enrollments/${id}`
+        : `${cleanBase}/v1/academy/enrollments/${id}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      if (res.ok) {
+        setDeleteConfirm({ isOpen: false, id: null, studentName: '', courseName: '' });
+        showToast("Enrollment record deleted successfully!", "success");
+        fetchEnrollments();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || errData.error || errData.detail || "Failed to delete enrollment.", "error");
+      }
+    } catch (err) {
+      showToast("Network error.", "error");
+    } finally {
+      setIsSubmittingDelete(false);
     }
   };
 
@@ -483,6 +562,15 @@ const EnrollmentTracking = () => {
                               >
                                 <BarChart3 size={15} />
                               </button>
+                              {isSuperAdmin && (
+                                <button
+                                  onClick={() => handleOpenDeleteModal(e)}
+                                  className="p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-xl transition-all cursor-pointer"
+                                  title="Delete Enrollment (SuperAdmin Only)"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -575,6 +663,15 @@ const EnrollmentTracking = () => {
                       >
                         <BarChart3 size={14} />
                       </button>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleOpenDeleteModal(e)}
+                          className="p-3 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-xl transition-all cursor-pointer border border-rose-200 dark:border-rose-900/50"
+                          title="Delete Enrollment (SuperAdmin Only)"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -762,6 +859,56 @@ const EnrollmentTracking = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SuperAdmin Delete Enrollment Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirm.isOpen && (
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden my-auto p-8 space-y-6"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="p-4 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full border border-rose-200 dark:border-rose-800/60">
+                  <Trash2 size={28} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
+                    Delete Enrollment Record?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium leading-relaxed">
+                    Are you sure you want to permanently delete the enrollment of <span className="font-black text-slate-900 dark:text-slate-100">{deleteConfirm.studentName}</span> in course <span className="font-black text-indigo-600">{deleteConfirm.courseName}</span>?
+                  </p>
+                  <p className="text-[10px] text-rose-500 font-bold uppercase tracking-wider mt-2 bg-rose-50 dark:bg-rose-950/50 p-2 rounded-xl border border-rose-200/50 dark:border-rose-900/40">
+                    ⚠️ Action restricted to SuperAdmin users.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm({ isOpen: false, id: null, studentName: '', courseName: '' })}
+                  className="flex-1 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteEnrollment}
+                  disabled={isSubmittingDelete}
+                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/20"
+                >
+                  {isSubmittingDelete ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                  Delete Record
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

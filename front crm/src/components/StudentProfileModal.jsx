@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, User, Mail, Phone, MapPin, GraduationCap, ShieldCheck, 
-  Calendar, Award, CreditCard, BookOpen, CheckCircle2, AlertCircle, Edit, Loader2, Save
+  Calendar, Award, CreditCard, BookOpen, CheckCircle2, AlertCircle, Edit, Loader2, Save, Trash2
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHeaders }) => {
+const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, onDeleteStudent, getHeaders }) => {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -250,6 +250,7 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     </button>
                   </>
                 ) : (
+                  <>
                     <button
                       onClick={() => {
                         if (onEditStudent) {
@@ -263,6 +264,18 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     >
                       <Edit size={14} /> Edit Profile
                     </button>
+                    {onDeleteStudent && (
+                      <button
+                        onClick={() => {
+                          onDeleteStudent(student);
+                        }}
+                        className="flex items-center gap-2 bg-rose-600/90 hover:bg-rose-600 text-white px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md cursor-pointer"
+                        title="Delete Student Profile"
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

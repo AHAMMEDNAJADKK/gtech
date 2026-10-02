@@ -290,11 +290,11 @@ const Login = () => {
           )}
 
           {/* Registration Link */}
-          <div className="mt-8 text-center">
+          {/* <div className="mt-8 text-center">
             <Link to="/register" className="text-slate-500 dark:text-slate-400 text-sm hover:text-indigo-400">
               Register Staff
             </Link>
-          </div>
+          </div> */}
         </div>
       </motion.div>
 
