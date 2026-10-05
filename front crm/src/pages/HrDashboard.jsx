@@ -133,10 +133,6 @@ export default function HrDashboard() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [leaveSubmittingId, setLeaveSubmittingId] = useState(null);
   
-  // Search & Filter state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [deptFilter, setDeptFilter] = useState('ALL');
-  const [availabilityTab, setAvailabilityTab] = useState('CHECKED_IN');
   const [activeTab, setActiveTab] = useState('OVERVIEW');
 
   const navigate = useNavigate();
@@ -224,19 +220,53 @@ export default function HrDashboard() {
 
   // Compute Online/Offline stats
   const userStats = useMemo(() => {
+    const isSuperUser = (u) => {
+      if (!u) return false;
+      const roleStr = String(u.role || u.role_id || u.roleId || '').toLowerCase().trim();
+      const nameStr = String(u.name || '').toLowerCase().trim();
+      return (
+        u.isSuperAdmin === true ||
+        u.is_super_admin === true ||
+        roleStr === 'superadmin' ||
+        roleStr === 'super admin' ||
+        roleStr === '0' ||
+        nameStr.includes('super admin') ||
+        nameStr.includes('superadmin')
+      );
+    };
+
+    const getUserIdStr = (userObjOrId) => {
+      if (!userObjOrId) return null;
+      if (typeof userObjOrId === 'object') {
+        return String(userObjOrId._id || userObjOrId.id || '');
+      }
+      return String(userObjOrId);
+    };
+
+    // Filter active staff members excluding SuperAdmins
+    const validStaff = (users || []).filter(u => {
+      if (!u) return false;
+      if (isSuperUser(u)) return false;
+      const isInactive = u.isActive === false || u.status === 'inactive' || u.status === 'deactivated';
+      return !isInactive;
+    });
+
+    // Extract checked-in user IDs from attendance records
+    const attendanceMap = new Map();
+    (attendance || []).forEach(rec => {
+      const uId = getUserIdStr(rec.user_id);
+      if (uId && rec.check_in_time) {
+        attendanceMap.set(uId, rec);
+      }
+    });
+
     let online = [];
     let offline = [];
 
-    const attendedUserIds = new Set(
-      attendance.filter(a => a.check_in_time).map(a => a.user_id.toString())
-    );
-
-    users.forEach(u => {
-      if (!u.isActive && u.status === 'inactive') return;
-
-      let isOnline = attendedUserIds.has(u._id.toString());
-      const attRecord = attendance.find(a => a.user_id.toString() === u._id.toString());
-
+    validStaff.forEach(u => {
+      const uId = getUserIdStr(u);
+      const attRecord = attendanceMap.get(uId);
+      const isOnline = !!attRecord;
       const userWithAtt = { ...u, attendanceRecord: attRecord };
 
       if (isOnline) {
@@ -246,40 +276,8 @@ export default function HrDashboard() {
       }
     });
 
-    return { online, offline, total: online.length + offline.length };
+    return { online, offline, total: validStaff.length };
   }, [users, attendance]);
-
-  // Departments list for dropdown filter
-  const departmentsList = useMemo(() => {
-    const set = new Set();
-    users.forEach(u => {
-      if (u.department) set.add(u.department.trim());
-    });
-    return Array.from(set).sort();
-  }, [users]);
-
-  // Filtered staff lists based on Search and Department
-  const filteredOnlineUsers = useMemo(() => {
-    return userStats.online.filter(u => {
-      const matchesSearch = !searchTerm.trim() || 
-        (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.designation || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.department || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDept = deptFilter === 'ALL' || (u.department || '').trim().toLowerCase() === deptFilter.toLowerCase();
-      return matchesSearch && matchesDept;
-    });
-  }, [userStats.online, searchTerm, deptFilter]);
-
-  const filteredOfflineUsers = useMemo(() => {
-    return userStats.offline.filter(u => {
-      const matchesSearch = !searchTerm.trim() || 
-        (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.designation || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (u.department || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDept = deptFilter === 'ALL' || (u.department || '').trim().toLowerCase() === deptFilter.toLowerCase();
-      return matchesSearch && matchesDept;
-    });
-  }, [userStats.offline, searchTerm, deptFilter]);
 
   // Compute Task Performance per User
   const performanceStats = useMemo(() => {
@@ -405,10 +403,10 @@ export default function HrDashboard() {
         </button>
 
         <button
-          onClick={() => navigate('/users')}
+          onClick={() => navigate('/staff-attendance')}
           className="px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"
         >
-          Staff Roster
+          Staff Attendance
         </button>
 
         <button
@@ -442,6 +440,7 @@ export default function HrDashboard() {
           color="text-indigo-600 dark:text-indigo-400"
           bgColor="bg-indigo-50 dark:bg-indigo-950/40"
           subtext="Registered Staff Members"
+          onClick={() => navigate('/staff-attendance')}
         />
 
         <StatCard
@@ -451,6 +450,7 @@ export default function HrDashboard() {
           color="text-emerald-600 dark:text-emerald-400"
           bgColor="bg-emerald-50 dark:bg-emerald-950/40"
           subtext="Active Duty Staff"
+          onClick={() => navigate('/staff-attendance')}
         />
 
         <StatCard
@@ -628,7 +628,7 @@ export default function HrDashboard() {
           </div>
         </div>
 
-        {/* Right Column: Doughnut & Staff Roster */}
+        {/* Right Column: Doughnut & Staff Attendance */}
         <div className="space-y-8">
           
           {/* Company Workload Doughnut */}
@@ -667,141 +667,84 @@ export default function HrDashboard() {
             )}
           </div>
 
-          {/* Staff Availability Roster */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 shadow-sm flex flex-col space-y-4">
+          {/* Staff Attendance Summary */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-6 shadow-sm flex flex-col space-y-5">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800/80">
               <div>
                 <h2 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                  <Users size={16} className="text-indigo-600 dark:text-indigo-400" /> Staff Roster
+                  <Users size={16} className="text-indigo-600 dark:text-indigo-400" /> Staff Attendance
                 </h2>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Today's attendance tracking</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Today's attendance summary</p>
               </div>
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/80 dark:border-slate-800">
-                <button
-                  onClick={() => setAvailabilityTab('CHECKED_IN')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
-                    availabilityTab === 'CHECKED_IN'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Active ({userStats.online.length})
-                </button>
-                <button
-                  onClick={() => setAvailabilityTab('NOT_CHECKED_IN')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition cursor-pointer ${
-                    availabilityTab === 'NOT_CHECKED_IN'
-                      ? 'bg-rose-600 text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  Absent ({userStats.offline.length})
-                </button>
-              </div>
+              <button
+                onClick={() => navigate('/staff-attendance')}
+                className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                View Details <ArrowRight size={12} />
+              </button>
             </div>
 
-            {/* Search & Dept Filters */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search staff..."
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
-              </div>
-              {departmentsList.length > 0 && (
-                <select
-                  value={deptFilter}
-                  onChange={(e) => setDeptFilter(e.target.value)}
-                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer max-w-[110px]"
-                >
-                  <option value="ALL">All Depts</option>
-                  {departmentsList.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Staff List View */}
-            <div className="max-h-[320px] overflow-y-auto pr-1 space-y-2 scrollbar-thin">
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-6 gap-2 text-slate-400 text-xs font-bold">
-                  <Loader2 size={16} className="animate-spin text-indigo-500" />
-                  <span>Loading staff...</span>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Present Count Card */}
+              <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400 tracking-wider">Present</span>
+                  <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
+                    <UserCheck size={16} />
+                  </div>
                 </div>
-              ) : availabilityTab === 'CHECKED_IN' ? (
-                filteredOnlineUsers.length === 0 ? (
-                  <div className="text-center text-slate-400 py-6 text-xs font-bold">No active staff found</div>
-                ) : (
-                  filteredOnlineUsers.map(u => (
-                    <div key={u._id} className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-colors group">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 flex items-center justify-center font-black text-xs border border-indigo-200 dark:border-indigo-500/30">
-                            {(u.name || '?').charAt(0).toUpperCase()}
-                          </div>
-                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900" />
-                        </div>
-                        <div>
-                          <p className="font-extrabold text-xs text-slate-900 dark:text-white">{u.name}</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
-                            {u.designation || 'Staff'} {u.department ? `• ${u.department}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-500/20 font-mono">
-                          {u.attendanceRecord?.check_in_time ? formatTime(u.attendanceRecord.check_in_time) : 'Active'}
-                        </span>
-                        <button 
-                          onClick={() => setSelectedUser(u)} 
-                          className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                          title="View Staff Profile"
-                        >
-                          <Eye size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )
-              ) : (
-                filteredOfflineUsers.length === 0 ? (
-                  <div className="text-center text-slate-400 py-6 text-xs font-bold">All staff members are checked in!</div>
-                ) : (
-                  filteredOfflineUsers.map(u => (
-                    <div key={u._id} className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 opacity-80 hover:opacity-100 transition-colors group">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center font-black text-xs border border-slate-200 dark:border-slate-700">
-                          {(u.name || '?').charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-bold text-xs text-slate-800 dark:text-slate-300">{u.name}</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[120px]">
-                            {u.designation || 'Staff'} {u.department ? `• ${u.department}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                          Not Checked In
-                        </span>
-                        <button 
-                          onClick={() => setSelectedUser(u)} 
-                          className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                          title="View Staff Profile"
-                        >
-                          <Eye size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )
-              )}
+                <div className="mt-3">
+                  <span className="text-3xl font-black text-emerald-900 dark:text-emerald-100 font-mono">
+                    {loading ? '...' : userStats.online.length}
+                  </span>
+                  <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    Staff Checked In
+                  </p>
+                </div>
+              </div>
+
+              {/* Absent Count Card */}
+              <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-rose-700 dark:text-rose-400 tracking-wider">Absent</span>
+                  <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400">
+                    <UserMinus size={16} />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="text-3xl font-black text-rose-900 dark:text-rose-100 font-mono">
+                    {loading ? '...' : userStats.offline.length}
+                  </span>
+                  <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
+                    Not Checked In
+                  </p>
+                </div>
+              </div>
             </div>
+
+            {/* Attendance Progress Track */}
+            {userStats.total > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  <span>Attendance Rate</span>
+                  <span className="font-mono text-slate-900 dark:text-white font-black">
+                    {Math.round((userStats.online.length / userStats.total) * 100)}% ({userStats.online.length}/{userStats.total})
+                  </span>
+                </div>
+                <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-950 rounded-full flex overflow-hidden border border-slate-200/60 dark:border-slate-800">
+                  <div
+                    style={{ width: `${(userStats.online.length / userStats.total) * 100}%` }}
+                    className="bg-emerald-500"
+                    title={`Present: ${userStats.online.length}`}
+                  />
+                  <div
+                    style={{ width: `${(userStats.offline.length / userStats.total) * 100}%` }}
+                    className="bg-rose-500"
+                    title={`Absent: ${userStats.offline.length}`}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

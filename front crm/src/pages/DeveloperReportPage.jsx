@@ -260,7 +260,7 @@ const consolidateDeveloperReports = (reports) => {
 const DeveloperReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -1753,6 +1753,8 @@ const DeveloperReportPage = () => {
         {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
       </button>
 
+
+
       {/* RIGHT PANEL: Main Report Form */}
       <div className="flex-1 min-w-0 w-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-6 lg:p-8 shadow-sm">
         
@@ -1788,21 +1790,6 @@ const DeveloperReportPage = () => {
                   <FileText size={16} />
                   Monthly Report
                 </button>
-
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Software Development / R&D',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, dailyTasks: dailyTaskSummary, developmentTaskReport, researchLearning, toolsUsed, challengesFaced, nextDayPlan, internRemarks })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
 
                 <button
                   type="button"
@@ -2574,26 +2561,34 @@ const DeveloperReportPage = () => {
               <button
                 type="button"
                 onClick={() => setIsMonthlyModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-semibold text-sm transition-all border border-indigo-100 dark:border-indigo-900/50"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-semibold text-xs transition-all border border-indigo-100 dark:border-indigo-900/50"
               >
-                <FileText size={16} />
+                <FileText size={14} />
                 Monthly Report
               </button>
 
-              
+              <button
+                type="button"
+                onClick={handleSaveReport}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 border border-slate-200 dark:border-slate-700"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin text-indigo-500" /> : <Save size={14} className="text-indigo-500" />}
+                <span>Save Report</span>
+              </button>
 
               <button
                 type="button"
                 onClick={handleDownloadPDF}
                 disabled={saving}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-50"
               >
                 {saving ? (
-                  <Loader2 className="animate-spin" size={16} />
+                  <Loader2 className="animate-spin" size={14} />
                 ) : (
-                  <Save size={16} />
+                  <Download size={14} />
                 )}
-                Save File
+                <span>Submit & Export PDF</span>
               </button>
             </div>
 

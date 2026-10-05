@@ -1,37 +1,22 @@
-// ===============================
+// ==========================================
 // FRONTEND: Attendance.jsx
-// ===============================
+// Minimal Personal Attendance Log In & Log Out Page
+// ==========================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock,
   LogIn,
   LogOut,
-  History,
-  ShieldCheck,
-  Timer,
-  Loader2,
-  Activity,
-  AlertTriangle,
   CheckCircle2,
-  Fingerprint,
-  ChevronLeft,
-  ChevronRight,
-  Calendar
+  AlertCircle,
+  Loader2,
+  UserX
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL;
-// ===============================
-// HELPERS
-// ===============================
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
-
+// Helper to get IST Date YYYY-MM-DD
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kolkata'
@@ -40,36 +25,13 @@ const getISTDate = () => {
 
 const parseAsUTC = (dateInput) => {
   if (!dateInput) return null;
-
-  if (dateInput instanceof Date) {
-    return dateInput;
-  }
-
+  if (dateInput instanceof Date) return dateInput;
   const value = String(dateInput);
-
   return new Date(value.endsWith('Z') ? value : `${value}Z`);
-};
-
-const formatToISTFull = (dateInput) => {
-  if (!dateInput) return '---';
-
-  try {
-    return parseAsUTC(dateInput).toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    }).toUpperCase();
-  } catch {
-    return '---';
-  }
 };
 
 const formatTime = (dateInput) => {
   if (!dateInput) return '---';
-
   try {
     return parseAsUTC(dateInput).toLocaleTimeString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -82,605 +44,290 @@ const formatTime = (dateInput) => {
   }
 };
 
-const calculateWorkingHours = (checkIn, checkOut) => {
+const calculateWorkingHours = (checkIn, checkOut, targetDateStr = null) => {
   if (!checkIn) return "0.00";
-
   const start = parseAsUTC(checkIn);
-  const end = checkOut ? parseAsUTC(checkOut) : new Date();
-
-  return Math.max(
-    0,
-    (end.getTime() - start.getTime()) / 3600000
-  ).toFixed(2);
+  let end;
+  if (checkOut) {
+    end = parseAsUTC(checkOut);
+  } else {
+    const isToday = targetDateStr ? targetDateStr === getISTDate() : true;
+    if (isToday) {
+      end = new Date();
+    } else {
+      return "0.00";
+    }
+  }
+  return Math.max(0, (end.getTime() - start.getTime()) / 3600000).toFixed(2);
 };
 
-// ===============================
-// LIVE CLOCK
-// ===============================
-
-const LiveClock = () => {
+// Minimalist Clock
+const MinimalClock = () => {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date());
-    }, 1000);
-
+    const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  const timeString = time.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+
   return (
-    <>
-      <div className="flex items-baseline gap-4 mb-4">
-        <div className="text-8xl lg:text-[10rem] font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none select-none">
-          {time.getHours().toString().padStart(2, '0')}
-          <span className="animate-pulse text-indigo-500">:</span>
-          {time.getMinutes().toString().padStart(2, '0')}
-        </div>
-
-        <div className="text-2xl lg:text-4xl font-mono text-indigo-500/50 font-bold w-12">
-          {time.getSeconds().toString().padStart(2, '0')}
-        </div>
-      </div>
-
-      <p className="text-[10px] tracking-[0.5em] text-slate-600 dark:text-slate-400 font-black uppercase mb-12">
-        Universal Time Protocol
+    <div className="text-center py-4">
+      <p className="text-4xl sm:text-5xl font-mono font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+        {timeString}
       </p>
-    </>
+      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wider mt-1">
+        Indian Standard Time (IST)
+      </p>
+    </div>
   );
 };
 
-// ===============================
-// MAIN COMPONENT
-// ===============================
-
 const Attendance = () => {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try {
-        const userObj = JSON.parse(savedUser);
-        const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
-        const isAdmin = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
-        if (isAdmin) {
-          navigate('/dashboard', { replace: true });
-        }
-      } catch (err) {
-        console.error("Failed to parse user for admin check:", err);
-      }
+  const currentUser = useMemo(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
     }
-  }, [navigate]);
+  }, []);
 
   const [todayLog, setTodayLog] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [punchLoading, setPunchLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [error, setError] = useState(null);
+
   const [successMsg, setSuccessMsg] = useState(null);
-
-  // Calendar and Selected Date States
-  const [selectedDate, setSelectedDate] = useState(getISTDate());
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [selectedLoading, setSelectedLoading] = useState(false);
-  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
-  const [showCalendar, setShowCalendar] = useState(false);
-
-  const prevMonth = () => {
-    setCalendarMonth((prev) => {
-      if (prev === 0) {
-        setCalendarYear((y) => y - 1);
-        return 11;
-      }
-      return prev - 1;
-    });
-  };
-
-  const nextMonth = () => {
-    setCalendarMonth((prev) => {
-      if (prev === 11) {
-        setCalendarYear((y) => y + 1);
-        return 0;
-      }
-      return prev + 1;
-    });
-  };
-
-  const daysInMonth = useMemo(() => {
-    return new Date(calendarYear, calendarMonth + 1, 0).getDate();
-  }, [calendarYear, calendarMonth]);
-
-  const firstDayIndex = useMemo(() => {
-    return new Date(calendarYear, calendarMonth, 1).getDay();
-  }, [calendarYear, calendarMonth]);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const getHeaders = () => {
+  const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
     const token = rawToken ? rawToken.replace(/"/g, '') : '';
-
     return {
-      Authorization: `Bearer ${token}`,
+      Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
-  };
+  }, []);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchPersonalStatus = useCallback(async () => {
     try {
       setLoading(true);
-
       const todayStr = getISTDate();
+      const res = await fetch(`${API_BASE}/attendance/${todayStr}`, {
+        headers: getHeaders()
+      });
 
-      const response = await fetch(
-        `${API_BASE}/attendance/${todayStr}`,
-        {
-          headers: getHeaders()
-        }
-      );
-
-      if (!response.ok) {
+      if (!res.ok) {
         setTodayLog(null);
         return;
       }
-
-      const data = await response.json();
-
+      const data = await res.json();
       setTodayLog(data || null);
-    } catch {
-      setError("System Sync Failed");
+    } catch (err) {
+      console.error("Fetch error:", err);
       setTodayLog(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getHeaders]);
 
   useEffect(() => {
-    fetchStatus();
-  }, [fetchStatus]);
+    fetchPersonalStatus();
+  }, [fetchPersonalStatus]);
 
-  const fetchSelectedDateStatus = useCallback(async (dateStr) => {
-    try {
-      setSelectedLoading(true);
-      const response = await fetch(
-        `${API_BASE}/attendance/${dateStr}`,
-        {
-          headers: getHeaders()
-        }
-      );
-
-      if (!response.ok) {
-        setSelectedLog(null);
-        return;
-      }
-
-      const data = await response.json();
-      setSelectedLog(data || null);
-    } catch {
-      setSelectedLog(null);
-    } finally {
-      setSelectedLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSelectedDateStatus(selectedDate);
-  }, [selectedDate, fetchSelectedDateStatus]);
-
-  const handleAction = async (type) => {
-    setError(null);
+  const handlePunchAction = async (type) => {
+    setPunchLoading(true);
     setSuccessMsg(null);
-    setActionLoading(true);
+    setErrorMsg(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE}/attendance/${type}`,
-        {
-          method: 'POST',
-          headers: getHeaders()
-        }
-      );
+      const res = await fetch(`${API_BASE}/attendance/${type}`, {
+        method: 'POST',
+        headers: getHeaders()
+      });
 
-      const result = await response.json();
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.detail || `Failed to ${type.replace('-', ' ')}.`);
 
-      if (!response.ok) {
-        throw new Error(result.detail || "Action denied");
-      }
+      const text = type === 'check-in' ? 'Check-in recorded' : 'Check-out recorded';
+      setSuccessMsg(`${text} successfully!`);
 
-      setSuccessMsg(`${type.replace('-', ' ')} successful!`);
-
-      await fetchStatus();
-      if (selectedDate === getISTDate()) {
-        fetchSelectedDateStatus(selectedDate);
-      }
-
-      setTimeout(() => {
-        setSuccessMsg(null);
-      }, 3000);
-
+      await fetchPersonalStatus();
+      setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err) {
-      setError(err.message);
-
-      setTimeout(() => {
-        setError(null);
-      }, 5000);
+      setErrorMsg(err.message);
+      setTimeout(() => setErrorMsg(null), 4000);
     } finally {
-      setActionLoading(false);
+      setPunchLoading(false);
     }
   };
 
   const liveWorkingHours = useMemo(() => {
     if (!todayLog?.check_in_time) return "0.00";
-
     if (todayLog?.check_out_time) {
-      return calculateWorkingHours(
-        todayLog.check_in_time,
-        todayLog.check_out_time
-      );
+      return calculateWorkingHours(todayLog.check_in_time, todayLog.check_out_time);
     }
-
-    return calculateWorkingHours(
-      todayLog.check_in_time,
-      currentTime
-    );
+    return calculateWorkingHours(todayLog.check_in_time, currentTime);
   }, [todayLog, currentTime]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#0b0c10] flex items-center justify-center">
-        <Loader2 className="text-indigo-500 animate-spin" size={48} />
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6 lg:p-12 text-slate-600 dark:text-slate-200 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 text-slate-800 dark:text-slate-200">
+      {/* HEADER */}
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            Attendance Log In / Log Out
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Log in and log out your daily shift attendance
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
+            {getISTDate()}
+          </span>
+        </div>
+      </div>
 
-        {/* HEADER */}
-        <header className="flex justify-between items-end mb-16">
-          <div>
-            <motion.h2
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="text-5xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none"
-            >
-              STAFF.
-              <span className="text-indigo-500">
-                LOG
-              </span>
-            </motion.h2>
-
-            <div className="flex items-center gap-2 mt-4">
-              <div
-                className={`h-1.5 w-1.5 rounded-full animate-pulse ${
-                  todayLog?.check_in_time && !todayLog?.check_out_time
-                    ? 'bg-emerald-500'
-                    : 'bg-red-500'
-                }`}
-              />
-
-              <p className="text-[10px] font-bold uppercase tracking-[0.4em]">
-                Network Status:
-                <span className="ml-2">
-                  {todayLog?.check_in_time &&
-                  !todayLog?.check_out_time
-                    ? 'SECURE_ONLINE'
-                    : 'TERMINATED'}
-                </span>
-              </p>
-            </div>
+      {/* ALERTS */}
+      {successMsg && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+            <span>{successMsg}</span>
           </div>
+        </div>
+      )}
 
-          <div className="hidden md:block bg-white dark:bg-slate-900 px-6 py-3 rounded-2xl border">
-            {currentTime.toLocaleDateString('en-IN', {
-              weekday: 'short',
-              day: '2-digit',
-              month: 'short',
-              timeZone: 'Asia/Kolkata'
-            }).toUpperCase()}
+      {errorMsg && (
+        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-rose-500 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
-        </header>
+        </div>
+      )}
 
-        <AnimatePresence mode="wait">
-
-          {error && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="mb-8"
-            >
-              <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 text-[10px] font-black uppercase tracking-widest">
-                <AlertTriangle size={14} />
-                {error}
-              </div>
-            </motion.div>
-          )}
-
-          {successMsg && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="mb-8"
-            >
-              <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-3 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
-                <CheckCircle2 size={14} />
-                {successMsg}
-              </div>
-            </motion.div>
-          )}
-
-        </AnimatePresence>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-
-          {/* LEFT */}
-          <div className="lg:col-span-8 space-y-10">
-
-            {/* MAIN */}
-            <div className="relative group">
-              <div className="relative bg-white dark:bg-slate-900 border rounded-[3rem] p-12 lg:p-24 flex flex-col items-center overflow-hidden shadow-xl">
-
-                <Fingerprint className="absolute -bottom-10 -right-10 text-slate-100 dark:text-slate-950/20 w-64 h-64 -rotate-12" />
-
-                <LiveClock />
-
-                <div className="grid grid-cols-2 gap-6 w-full max-w-md relative z-10">
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={
-                      actionLoading ||
-                      (todayLog?.check_in_time &&
-                        !todayLog?.check_out_time)
-                    }
-                    onClick={() => handleAction('check-in')}
-                    className="bg-emerald-500 disabled:opacity-30 hover:bg-emerald-600 p-6 rounded-3xl text-slate-900 font-bold flex flex-col items-center gap-3 cursor-pointer"
-                  >
-                    <LogIn size={24} />
-                    <span className="text-xs uppercase tracking-widest">
-                      Initialize
-                    </span>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={
-                      actionLoading ||
-                      !todayLog?.check_in_time ||
-                      todayLog?.check_out_time
-                    }
-                    onClick={() => handleAction('check-out')}
-                    className="bg-red-500 disabled:opacity-30 hover:bg-red-600 p-6 rounded-3xl text-white font-bold flex flex-col items-center gap-3 cursor-pointer"
-                  >
-                    <LogOut size={24} />
-                    <span className="text-xs uppercase tracking-widest">
-                      Terminate
-                    </span>
-                  </motion.button>
-
-                </div>
-              </div>
-            </div>
-
-            {/* STATS */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-
-              <StatBlock
-                label="Session Date"
-                value={todayLog?.date || getISTDate()}
-                icon={History}
-                color="text-slate-400"
-              />
-
-              <StatBlock
-                label="In Time"
-                value={formatTime(todayLog?.check_in_time)}
-                icon={Clock}
-                color="text-indigo-400"
-              />
-
-              <StatBlock
-                label="Work Hours"
-                value={`${liveWorkingHours}h`}
-                icon={Timer}
-                color="text-emerald-400"
-              />
-
-              <StatBlock
-                label="Status"
-                value={
-                  todayLog?.is_late
-                    ? "LATE_ENTRY"
-                    : "OPTIMAL"
-                }
-                icon={Activity}
-                color={
-                  todayLog?.is_late
-                    ? "text-orange-500"
-                    : "text-indigo-400"
-                }
-              />
-
-            </div>
-
-          </div>
-
-          {/* RIGHT */}
-          <aside className="lg:col-span-4">
-            
-            {/* SELECTED DATE DETAILS & DROPDOWN CALENDAR */}
-            <div className="bg-white dark:bg-slate-900 border rounded-[2.5rem] p-8 shadow-sm relative">
-              
-              <div className="flex justify-between items-center mb-6 relative">
-                <h2 className="text-[10px] font-black tracking-[0.3em] text-indigo-500 uppercase">
-                  Registry Logs
-                </h2>
-                
-                {/* Date Dropdown Button */}
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowCalendar(!showCalendar)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer transition-all"
-                  >
-                    <Calendar size={13} className="text-indigo-500" />
-                    <span>{selectedDate === getISTDate() ? 'Today' : selectedDate}</span>
-                  </button>
-
-                  {/* Dropdown Calendar Popup */}
-                  {showCalendar && (
-                    <>
-                      {/* Invisible backdrop to close dropdown on click outside */}
-                      <div 
-                        className="fixed inset-0 z-40 cursor-default" 
-                        onClick={() => setShowCalendar(false)}
-                      />
-                      
-                      <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xl z-50">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-[10px] font-black uppercase text-indigo-500">Select Date</span>
-                          <div className="flex gap-1">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); prevMonth(); }} 
-                              className="p-1 hover:bg-slate-105 dark:hover:bg-slate-900 rounded text-slate-600 dark:text-slate-400 cursor-pointer"
-                            >
-                              <ChevronLeft size={14} />
-                            </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); nextMonth(); }} 
-                              className="p-1 hover:bg-slate-105 dark:hover:bg-slate-900 rounded text-slate-600 dark:text-slate-400 cursor-pointer"
-                            >
-                              <ChevronRight size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="text-center font-bold text-slate-800 dark:text-slate-200 mb-2 text-xs">
-                          {MONTH_NAMES[calendarMonth]} {calendarYear}
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 mb-1">
-                          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                            <div key={d} className="py-0.5">{d}</div>
-                          ))}
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-0.5">
-                          {Array.from({ length: firstDayIndex }).map((_, i) => (
-                            <div key={`empty-${i}`} />
-                          ))}
-                          
-                          {Array.from({ length: daysInMonth }).map((_, i) => {
-                            const day = i + 1;
-                            const dateStr = `${calendarYear}-${(calendarMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-                            const isSelected = dateStr === selectedDate;
-                            const isToday = dateStr === getISTDate();
-
-                            return (
-                              <button
-                                key={day}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedDate(dateStr);
-                                  setShowCalendar(false);
-                                }}
-                                className={`text-[11px] p-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                                  isSelected 
-                                    ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20' 
-                                    : isToday
-                                      ? 'border border-indigo-500/50 text-indigo-500 hover:bg-indigo-500/10'
-                                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
-                                }`}
-                              >
-                                {day}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {selectedLoading ? (
-                <div className="py-8 flex justify-center items-center">
-                  <Loader2 className="text-indigo-500 animate-spin" size={24} />
-                </div>
-              ) : selectedLog ? (
-                <div className="space-y-6">
-                  <DetailRow
-                    label="System Check-In"
-                    value={formatToISTFull(selectedLog.check_in_time)}
-                  />
-
-                  <DetailRow
-                    label="System Check-Out"
-                    value={formatToISTFull(selectedLog.check_out_time)}
-                  />
-
-                  <DetailRow
-                    label="Accrued Hours"
-                    value={`${calculateWorkingHours(selectedLog.check_in_time, selectedLog.check_out_time)} HRS`}
-                  />
-
-                  <DetailRow
-                    label="Entry Status"
-                    value={selectedLog.is_late ? "LATE_ENTRY" : "OPTIMAL"}
-                  />
-                </div>
+      {/* PUNCH CARD */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-6">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold flex items-center justify-center text-sm shrink-0 border border-indigo-200 dark:border-indigo-800 overflow-hidden">
+              {currentUser?.avatar ? (
+                <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="text-center py-8">
-                  <Clock size={24} className="mx-auto text-slate-350 dark:text-slate-650 mb-2" />
-                  <p className="text-xs text-slate-550 dark:text-slate-450 font-medium">No record for this date.</p>
-                </div>
+                currentUser?.name?.substring(0, 2)?.toUpperCase() || 'ST'
               )}
-
             </div>
-          </aside>
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{currentUser?.name || 'Staff Member'}</h2>
+              <p className="text-xs text-slate-400 font-normal">{currentUser?.department || currentUser?.designation || 'Staff'}</p>
+            </div>
+          </div>
 
+          <div>
+            {todayLog?.check_in_time && !todayLog?.check_out_time ? (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Active Shift
+              </span>
+            ) : todayLog?.check_out_time ? (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                <CheckCircle2 size={13} /> Completed
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                <UserX size={13} /> Not Checked In
+              </span>
+            )}
+          </div>
+        </div>
+
+        <MinimalClock />
+
+        <div className="flex flex-col items-center justify-center pt-2">
+          {loading ? (
+            <div className="py-4">
+              <Loader2 size={24} className="animate-spin text-indigo-500" />
+            </div>
+          ) : !todayLog?.check_in_time ? (
+            <button
+              onClick={() => handlePunchAction('check-in')}
+              disabled={punchLoading}
+              className="w-full max-w-sm py-3.5 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+            >
+              {punchLoading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
+              <span>Log In (Check In)</span>
+            </button>
+          ) : !todayLog?.check_out_time ? (
+            <button
+              onClick={() => handlePunchAction('check-out')}
+              disabled={punchLoading}
+              className="w-full max-w-sm py-3.5 px-6 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl text-sm transition disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+            >
+              {punchLoading ? <Loader2 size={18} className="animate-spin" /> : <LogOut size={18} />}
+              <span>Log Out (Check Out)</span>
+            </button>
+          ) : (
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-center max-w-sm w-full">
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Shift Completed Today</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Check-in and check-out times logged.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* SHIFT SUMMARY DETAILS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Check-In</span>
+          <span className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200">
+            {todayLog?.check_in_time ? formatTime(todayLog.check_in_time) : '---'}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Check-Out</span>
+          <span className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200">
+            {todayLog?.check_out_time ? formatTime(todayLog.check_out_time) : '---'}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Duration</span>
+          <span className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
+            {liveWorkingHours} hrs
+          </span>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Status</span>
+          <span className="text-xs font-semibold">
+            {todayLog?.is_late ? (
+              <span className="text-amber-600 dark:text-amber-400">Late Arrival</span>
+            ) : todayLog?.check_in_time ? (
+              <span className="text-emerald-600 dark:text-emerald-400">On Time</span>
+            ) : (
+              <span className="text-slate-400">Pending</span>
+            )}
+          </span>
         </div>
       </div>
     </div>
   );
 };
-
-const StatBlock = ({ label, value, icon: Icon, color }) => (
-  <div className="bg-white dark:bg-slate-900 border p-6 rounded-[2rem] shadow-sm">
-    <Icon size={18} className={`mb-4 ${color}`} />
-
-    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-1">
-      {label}
-    </p>
-
-    <p className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
-      {value}
-    </p>
-  </div>
-);
-
-const DetailRow = ({ label, value }) => (
-  <div>
-    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400">
-      {label}
-    </p>
-
-    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-      {value}
-    </p>
-  </div>
-);
 
 export default Attendance;

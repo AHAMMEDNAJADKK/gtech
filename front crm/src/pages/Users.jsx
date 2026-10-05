@@ -1,18 +1,45 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, Edit3, Trash2, Eye, X, Mail, Phone,
   Briefcase, Folder, UserCheck, ShieldAlert, Image as ImageIcon,
   Loader2, User, ChevronRight, CheckCircle2, AlertTriangle, Shield, BarChart3,
-  ShieldCheck, KeyRound, Lock
+  ShieldCheck, KeyRound, Lock, Calendar, DollarSign, MapPin
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 import PerformanceTab from '../components/PerformanceTab';
 import PerformanceDashboard from './PerformanceDashboard';
+
 const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
 const API_BASE = (RAW_API_BASE.endsWith('/') ? RAW_API_BASE.slice(0, -1) : RAW_API_BASE).replace(/\/+$/, '');
+
+const useLockBodyScroll = (isOpen = true) => {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const scrollY = window.scrollY || window.pageYOffset;
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
+};
 const ROLES = [
   { id: "0", name: "superadmin" },
   { id: "1", name: "hr" },
@@ -38,23 +65,25 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards' },
 
   // --- PEOPLE & HR ---
+  { label: 'Staff Attendance', path: '/staff-attendance', category: 'People & HR' },
   { label: 'Users', path: '/users', category: 'People & HR' },
   { label: 'Departments', path: '/departments', category: 'People & HR' },
   { label: 'Recruitment', path: '/recruitment', category: 'People & HR' },
+  { label: 'Training LMS', path: '/hr/training', category: 'People & HR' },
   { label: 'Attendance', path: '/attendance', category: 'People & HR' },
   { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR' },
 
   // --- SALES & CRM ---
   { label: 'Clients', path: '/clients', category: 'Sales & CRM' },
-  { label: 'Leads Directory', path: '/leads', category: 'Sales & CRM' },
   { label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM' },
   { label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM' },
-  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM' },
 
   // --- MARKETING & WORK ---
   { label: 'Projects', path: '/projects', category: 'Marketing & Work' },
   { label: 'Task Assign', path: '/todo', category: 'Marketing & Work' },
   { label: 'Content Calendar', path: '/calendar-work', category: 'Marketing & Work' },
+  { label: 'Daily Operations OS', path: '/daily-operations', category: 'Marketing & Work' },
+  { label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Marketing & Work' },
 
   // --- FINANCE & PAYROLL ---
   { label: 'Accounts', path: '/accounts', category: 'Finance & Payroll' },
@@ -107,9 +136,74 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  useLockBodyScroll(isOpen);
+
+  const loggedInUser = useMemo(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  const isLoggedInSuperAdmin = useMemo(() => {
+    if (!loggedInUser) return false;
+    const role = String(loggedInUser.role_id || loggedInUser.roleId || loggedInUser.role || '').toLowerCase().trim();
+    return Boolean(
+      loggedInUser.isSuperAdmin === true ||
+      loggedInUser.is_super_admin === true ||
+      role === 'superadmin' ||
+      role === 'super_admin' ||
+      role === '0'
+    );
+  }, [loggedInUser]);
+
+  // Restrict selectable options to ONLY the sidebar items the logged-in user has permission for
+  const availableSidebarItems = useMemo(() => {
+    if (isLoggedInSuperAdmin || !loggedInUser) {
+      return ALL_SIDEBAR_ITEMS;
+    }
+
+    if (Array.isArray(loggedInUser.permissions) && loggedInUser.permissions.length > 0) {
+      const allowedSet = new Set(loggedInUser.permissions.map(p => String(p).toLowerCase().trim()));
+
+      const extraPathMappings = {
+        'admin dashboard': '/dashboard',
+        'md dashboard': '/md-dashboard',
+        'accountant dashboard': '/accountant-dashboard',
+        'income': '/accounts/income',
+        'sales': '/accounts/sales',
+        'capital': '/accounts/capital',
+        'purchase': '/accounts/purchase',
+        'create invoice': '/accounts/create-invoice',
+      };
+
+      const extraAllowedPaths = new Set();
+      for (const perm of allowedSet) {
+        if (extraPathMappings[perm]) {
+          extraAllowedPaths.add(extraPathMappings[perm].toLowerCase());
+        }
+      }
+
+      return ALL_SIDEBAR_ITEMS.filter(item => {
+        const itemLabelLower = item.label ? item.label.toLowerCase().trim() : '';
+        const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
+
+        return (
+          allowedSet.has(itemLabelLower) ||
+          allowedSet.has(itemPathLower) ||
+          extraAllowedPaths.has(itemPathLower)
+        );
+      });
+    }
+
+    return ALL_SIDEBAR_ITEMS;
+  }, [loggedInUser, isLoggedInSuperAdmin]);
+
   useEffect(() => {
     if (user) {
-      setSelectedPermissions(user.permissions || []);
+      setSelectedPermissions(Array.isArray(user.permissions) && user.permissions.length > 0 ? user.permissions : ['Task Assign', 'Notifications', 'Attendance', 'Leave Requests']);
       setIsSuperAdmin(Boolean(user.isSuperAdmin || user.role === 'superadmin'));
     }
   }, [user]);
@@ -123,11 +217,13 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   };
 
   const handleSelectAll = () => {
-    setSelectedPermissions(ALL_SIDEBAR_ITEMS.map(i => i.label));
+    const availableLabels = availableSidebarItems.map(i => i.label);
+    setSelectedPermissions(prev => Array.from(new Set([...prev, ...availableLabels])));
   };
 
   const handleDeselectAll = () => {
-    setSelectedPermissions([]);
+    const availableSet = new Set(availableSidebarItems.map(i => i.label));
+    setSelectedPermissions(prev => prev.filter(p => !availableSet.has(p)));
   };
 
   const handleSave = async () => {
@@ -179,16 +275,16 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   };
 
   // Group items by category
-  const categories = [...new Set(ALL_SIDEBAR_ITEMS.map(i => i.category))];
+  const categories = [...new Set(availableSidebarItems.map(i => i.category))];
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[6000] bg-slate-900/50 backdrop-blur-sm flex justify-center items-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex justify-center items-center p-4 overflow-hidden"
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden my-6"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl max-h-[90vh] flex flex-col rounded-3xl shadow-2xl overflow-hidden my-auto"
       >
         {/* Header */}
         <div className="p-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-violet-600 text-white flex justify-between items-center">
@@ -225,7 +321,12 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
               <input
                 type="checkbox"
                 checked={isSuperAdmin}
-                onChange={(e) => setIsSuperAdmin(e.target.checked)}
+                disabled={!isLoggedInSuperAdmin}
+                onChange={(e) => {
+                  if (isLoggedInSuperAdmin) {
+                    setIsSuperAdmin(e.target.checked);
+                  }
+                }}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-slate-600 peer-checked:bg-emerald-500"></div>
@@ -264,7 +365,7 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
           )}
 
           {categories.map(cat => {
-            const catItems = ALL_SIDEBAR_ITEMS.filter(i => i.category === cat);
+            const catItems = availableSidebarItems.filter(i => i.category === cat);
             return (
               <div key={cat} className="space-y-3">
                 <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{cat}</h4>
@@ -316,7 +417,8 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };
 
@@ -376,8 +478,7 @@ const Users = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
-      // Appended roles parameter to query only explicit structural system role IDs
-      const res = await fetch(`${API_BASE}/v1/users?roles=1,2,3`, {
+      const res = await fetch(`${API_BASE}/v1/users`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) {
@@ -393,10 +494,11 @@ const Users = () => {
         incomingUsers = data;
       }
 
-      // Strict structural filtering: ensures only matching target IDs (1, 2, 3) enter UI state
+      // Exclude superadmin users from staff directory listing
       const targetRolesOnly = incomingUsers.filter(user => {
-        const userRoleId = String(user.roleId || user.role || '');
-        return ['1', '2', '3'].includes(userRoleId) || ['hr', 'admin', 'employee'].includes(userRoleId.toLowerCase());
+        const userRoleId = String(user.roleId || user.role_id || user.role || '');
+        const isSuper = user.isSuperAdmin === true || user.role === 'superadmin' || userRoleId === '0' || userRoleId.toLowerCase() === 'superadmin';
+        return !isSuper;
       });
 
       setUsers(targetRolesOnly);
@@ -691,7 +793,7 @@ const Users = () => {
                         className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all duration-200 group"
                       >
                         {/* Profile & Name */}
-                        <td className="py-4.5 px-6">
+                        <td className="py-4.5 px-6 cursor-pointer" onClick={() => handleViewClick(user)}>
                           <div className="flex items-center gap-4">
                             <div className="relative shrink-0">
                               {(user.avatar || user.profile_image || user.profileImage) && !imgErrors[user._id || user.id] ? (
@@ -743,13 +845,13 @@ const Users = () => {
                               {getDesignationName(user)}
                             </span>
                           </div>
-                          {user.isSuperAdmin || user.role === 'superadmin' ? (
+                          {user.isSuperAdmin || String(user.role).toLowerCase() === 'superadmin' || String(user.roleId || user.role_id) === '0' ? (
                             <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded inline-flex items-center gap-1">
                               <Shield size={10} /> Super Admin
                             </span>
                           ) : (
                             <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded inline-block">
-                              {ROLES.find(r => String(r.id) === String(user.roleId || user.role))?.name || user.role || 'employee'}
+                              {ROLES.find(r => String(r.id) === String(user.roleId || user.role) || r.name.toLowerCase() === String(user.role).toLowerCase())?.name || user.role || 'employee'}
                             </span>
                           )}
                         </td>
@@ -948,6 +1050,8 @@ const ManageDesignationsModal = ({ onClose, designations, getAuthHeaders, onDesi
   const [deletingId, setDeletingId] = useState(null);
   const [deleteDesignationConfirm, setDeleteDesignationConfirm] = useState({ isOpen: false, id: null, name: '' });
 
+  useLockBodyScroll(true);
+
   const handleEditStart = (id, currentName) => {
     setEditingId(id);
     setEditName(currentName);
@@ -1013,13 +1117,13 @@ const ManageDesignationsModal = ({ onClose, designations, getAuthHeaders, onDesi
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 pt-16 bg-slate-950/40 backdrop-blur-sm overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md overflow-hidden">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-xl max-h-[85vh] flex flex-col my-auto"
       >
         <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
           <h3 className="font-bold text-base text-slate-900 dark:text-white">Manage Designations</h3>
@@ -1100,7 +1204,8 @@ const ManageDesignationsModal = ({ onClose, designations, getAuthHeaders, onDesi
           type="danger"
         />
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -1198,9 +1303,7 @@ const DesignationSelect = ({
 
 // --- CREATE MODAL ---
 const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesignationCreated, onDesignationUpdated, onDesignationDeleted, departments, showToast }) => {
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, []);
+  useLockBodyScroll(true);
 
   const [form, setForm] = useState({
     employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1252,11 +1355,13 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
       const employeeName = form.name || "";
       const employeePhone = form.phone || "";
 
-      // 2. Generate custom formula: FIRST 3 LETTERS (UPPERCASE) + LAST 3 DIGITS
-      const namePart = employeeName.trim().slice(0, 3).toUpperCase();
-      const phonePart = employeePhone.trim().slice(-3) || "123"; // Fallback if phone is empty
+      // 2. Generate custom formula: FIRST 3 CAPITAL LETTERS + LAST 3 DIGITS
+      const nameClean = employeeName.replace(/[^a-zA-Z]/g, '') || employeeName;
+      const namePart = (nameClean.length >= 3 ? nameClean.slice(0, 3) : nameClean).toUpperCase();
+      const phoneClean = String(employeePhone || '').replace(/[^0-9]/g, '');
+      const phonePart = phoneClean.length >= 3 ? phoneClean.slice(-3) : '123';
 
-      const dynamicPassword = `${namePart}${phonePart}`; // e.g., "ABC454"
+      const dynamicPassword = `${namePart}${phonePart}`; // e.g., "JOH123"
 
       // 3. Append your standard state keys to FormData
       Object.keys(form).forEach(key => {
@@ -1299,14 +1404,14 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex justify-center items-start pt-6 overflow-y-auto p-4"
+      className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex justify-center items-center p-4 overflow-hidden"
     >
       <motion.div
-        initial={{ y: -50, scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: -50, scale: 0.95 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl rounded-3xl p-6 md:p-8 shadow-2xl relative"
+        initial={{ y: 20, scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.95 }}
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl max-h-[90vh] flex flex-col rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden my-auto"
       >
         <button onClick={onClose} className="absolute top-6 right-6 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors"><X size={20} /></button>
 
@@ -1314,7 +1419,7 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
           <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tighter">ADD <span className="text-indigo-600 dark:text-indigo-400">EMPLOYEE FILE</span></h2>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin">
           {/* Input fields — 3-Column Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-1">
@@ -1451,17 +1556,20 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
             )}
             Add Employee
           </button>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center italic mt-1.5 flex items-center justify-center gap-1">
+            <KeyRound size={12} className="text-indigo-500 shrink-0" />
+            <span>* Default temporary password format: <strong>First 3 capital letters of name + last 3 digits of phone number</strong> (e.g. {((form.name || 'John').replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'JOH') + (String(form.phone || '1234567890').replace(/[^0-9]/g, '').slice(-3) || '890')})</span>
+          </p>
         </form>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };
 
 // --- EDIT MODAL ---
 const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDesignationCreated, onDesignationUpdated, onDesignationDeleted, departments, showToast }) => {
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, []);
+  useLockBodyScroll(true);
 
   const [form, setForm] = useState({
     employeeId: user.employeeId || '',
@@ -1508,7 +1616,6 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
       setPreview(URL.createObjectURL(file));
     }
   };
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
@@ -1518,7 +1625,14 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
     e.preventDefault();
     setIsSubmitting(true);
 
+    if (!/^\d{10}$/.test(form.phone || '')) {
+      showToast('Phone number must be exactly 10 digits.', 'warning');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      const userId = user.id || user._id;
       const fd = new FormData();
       Object.keys(form).forEach(key => {
         if (key === 'avatar') {
@@ -1533,19 +1647,18 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
         }
       });
 
-      const res = await fetch(`${API_BASE}/v1/users/update/${user.id || user._id}`, {
+      const res = await fetch(`${API_BASE}/v1/users/${userId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: fd
       });
-
       const data = await res.json();
       if (res.ok || data.success) {
-        showToast('Employee data synchronized successfully.', 'success');
+        showToast('Employee file updated successfully.', 'success');
         await refresh();
         onClose();
       } else {
-        showToast(data.message || data.error || 'Synchronization failed.', 'error');
+        showToast(data.message || data.error || 'Failed to update employee file.', 'error');
       }
     } catch (e) {
       console.error(e);
@@ -1555,24 +1668,22 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex justify-center items-start pt-6 overflow-y-auto p-4"
+      className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex justify-center items-center p-4 overflow-hidden"
     >
       <motion.div
-        initial={{ y: -50, scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: -50, scale: 0.95 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl rounded-3xl p-8 md:p-10 shadow-2xl relative"
+        initial={{ y: 20, scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.95 }}
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl max-h-[90vh] flex flex-col rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden my-auto"
       >
         <button onClick={onClose} className="absolute top-6 right-6 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors"><X size={20} /></button>
 
         <header className="mb-6">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tighter">EDIT <span className="text-indigo-600 dark:text-indigo-400">EMPLOYEE FILE</span></h2>
-          {/* <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-1">Synchronizing Tactical Assets</p> */}
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Fields Grid — full width */}
+        <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Employee ID</label>
@@ -1714,148 +1825,298 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
           </button>
         </form>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };
 
-// --- VIEW DOSSIER MODAL ---
-const ViewModal = ({ user, getDesignationName, getDepartmentName, onClose }) => {
-  const [activeModalTab, setActiveModalTab] = useState('dossier'); // 'dossier' | 'performance'
+// --- VIEW MODAL ---
+const ViewModal = ({ user, onClose, getDesignationName, getDepartmentName }) => {
+  useLockBodyScroll(true);
+
+  const [activeTab, setActiveTab] = useState('dossier');
   const [imgError, setImgError] = useState(false);
+  const [previewImageSrc, setPreviewImageSrc] = useState(null);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, []);
-
-  // Determine status configurations dynamically
+  const avatarUrl = user.avatar || user.profile_image || user.profileImage;
   const statusKey = user.status || (user.isActive ? 'active' : 'inactive');
-  const STATUS_META = {
-    active: { color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:bg-emerald-500/20 dark:text-emerald-400', dot: 'bg-emerald-500' },
-    inactive: { color: 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400', dot: 'bg-amber-500' },
-    blocked: { color: 'bg-rose-500/10 text-rose-500 border-rose-500/20 dark:bg-rose-500/20 dark:text-rose-400', dot: 'bg-rose-500' }
-  };
   const meta = STATUS_META[statusKey] || STATUS_META.active;
 
-  // Mirror the dynamic format: FIRST 3 LETTERS (UPPERCASE) + LAST 3 DIGITS OF PHONE
-  const namePart = (user.name || "").trim().slice(0, 3).toUpperCase();
-  const phonePart = (user.phone || "").trim().slice(-3) || "123";
-  const implicitPassword = `${namePart}${phonePart}`;
-
-  return (
+  return createPortal(
     <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex justify-center items-start pt-6 overflow-y-auto p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex justify-center items-center p-4 overflow-hidden"
     >
       <motion.div
-        initial={{ y: -30, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: -30, scale: 0.97 }}
-        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full ${activeModalTab === 'performance' ? 'max-w-6xl' : 'max-w-3xl'} rounded-3xl shadow-2xl transition-all duration-300`}
+        initial={{ y: 20, scale: 0.95 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: 20, scale: 0.95 }}
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl max-h-[90vh] flex flex-col rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden my-auto text-slate-800 dark:text-slate-100"
       >
-        {/* ── Modal Header ── */}
-        <div className="px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">Employee <span className="text-indigo-600 dark:text-indigo-400">File</span></h2>
-            </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
-              <X size={18} />
-            </button>
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors z-10"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Modal Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-800/80 pr-10">
+          <div className="relative group shrink-0">
+            {avatarUrl && !imgError ? (
+              <img
+                src={avatarUrl}
+                alt={user.name}
+                onClick={() => setPreviewImageSrc(avatarUrl)}
+                onError={() => setImgError(true)}
+                className="w-16 h-16 md:w-20 md:h-20 rounded-2xl object-cover border-2 border-indigo-500/20 shadow-md cursor-pointer hover:opacity-90 transition"
+                title="Click to view full image"
+              />
+            ) : (
+              <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-indigo-500/10 border-2 border-indigo-500/20 text-indigo-500 flex items-center justify-center shadow-md">
+                <User size={32} />
+              </div>
+            )}
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${meta.dot}`} />
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              {(user.avatar || user.profile_image || user.profileImage) && !imgError ? (
-                <img
-                  src={user.avatar || user.profile_image || user.profileImage}
-                  alt={user.name}
-                  className="w-10 h-10 rounded-xl object-cover"
-                  onError={() => setImgError(true)}
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center">
-                  <User size={18} className="text-white" />
-                </div>
-              )}
-              <div>
-                <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 leading-none">{user.name}</h3>
-                <p className="text-[10px] text-indigo-500 dark:text-indigo-400 mt-0.5 uppercase tracking-widest font-semibold">{getDesignationName(user)}</p>
-              </div>
+          <div className="space-y-1 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {user.name}
+              </h2>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.color}`}>
+                {statusKey}
+              </span>
             </div>
 
-            {/* Sub-Tab Selector */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl">
-              <button
-                onClick={() => setActiveModalTab('dossier')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeModalTab === 'dossier'
-                    ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-              >
-                Personnel Details
-              </button>
-              <button
-                onClick={() => setActiveModalTab('performance')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeModalTab === 'performance'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-              >
-                Performance & KPI
-              </button>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <span className="font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider">
+                {user.employeeId || 'NO ID'}
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <Briefcase size={13} className="text-slate-400" />
+                {getDesignationName(user)}
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <Folder size={13} className="text-slate-400" />
+                {getDepartmentName(user)}
+              </span>
             </div>
           </div>
         </div>
 
-        {activeModalTab === 'dossier' ? (
-          <>
-            {/* ── Contact Row ── */}
-            <div className="flex items-center gap-6 px-6 py-3 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><Mail size={12} className="text-slate-400" />{user.email || 'N/A'}</span>
-              {user.phone && <span className="flex items-center gap-1.5"><Phone size={12} className="text-slate-400" />{user.phone}</span>}
-            </div>
+        {/* Modal Navigation Tabs */}
+        <div className="flex items-center gap-2 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800/80 mb-4">
+          <button
+            onClick={() => setActiveTab('dossier')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+              activeTab === 'dossier'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+            }`}
+          >
+            Employee File
+          </button>
+          <button
+            onClick={() => setActiveTab('performance')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+              activeTab === 'performance'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+            }`}
+          >
+            Performance Metrics
+          </button>
+        </div>
 
-            {/* ── Details Grid ── */}
-            <div className="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-5">
-              {[
-                { label: 'Employee ID', value: user.employeeId },
-                { label: 'System Role', value: user.role, upper: true },
-                { label: 'Department', value: getDepartmentName(user) },
-                { label: 'Rep. Manager', value: user.reportingManager || 'Unassigned' },
-                { label: 'Monthly Salary', value: `₹${user.salary || '0'}` },
-                { label: 'Joining Date', value: user.joining_date ? new Date(user.joining_date).toLocaleDateString() : 'N/A' },
-                { label: 'Identity Type', value: user.identityType, upper: true },
-                { label: 'ID Number', value: user.identityNumber },
-              ].map(({ label, value, upper }) => (
-                <div key={label}>
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{label}</p>
-                  <p className={`text-xs font-semibold text-slate-700 dark:text-slate-200 ${upper ? 'uppercase' : ''}`}>{value || 'N/A'}</p>
+        {/* Scrollable Content Container */}
+        <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-6">
+          {activeTab === 'dossier' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+              {/* General & Identity Info */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 space-y-3">
+                <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest block border-b border-slate-200/40 dark:border-slate-800/40 pb-1">
+                  General & Identity
+                </span>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Full Name</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{user.name || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Employee ID</span>
+                    <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{user.employeeId || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Identity Type</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200 uppercase">{user.identityType || 'Aadhaar'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">ID Number</span>
+                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">{user.identityNumber || 'N/A'}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Profile Photo</span>
+                    <div className="flex items-center gap-2">
+                      {avatarUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImageSrc(avatarUrl)}
+                          className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1.5"
+                        >
+                          <ImageIcon size={14} /> Click to enlarge profile photo
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">No profile photo uploaded</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Default Temporary Password */}
+                  <div className="col-span-2 pt-2 border-t border-slate-200/40 dark:border-slate-800/40">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                      Default Temporary Password
+                    </span>
+                    <div className="flex items-center justify-between p-2.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200/60 dark:border-indigo-800/60">
+                      <div className="flex items-center gap-2">
+                        <KeyRound size={15} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 text-xs tracking-wider">
+                          {((user.name || '').replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'KOD') + (String(user.phone || '').replace(/[^0-9]/g, '').slice(-3) || '123')}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                        (First 3 capital letters of name + last 3 digits of phone)
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-              <div className="col-span-2 sm:col-span-3 lg:col-span-4">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Residential Address</p>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{user.address || 'N/A'}</p>
               </div>
-            </div>
 
-            {/* ── Password Footer ── */}
-            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/40 rounded-b-2xl">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-indigo-500 dark:text-lime-400">Initial System Password</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">First 3 letters of name + last 3 digits of phone</p>
+              {/* Contact Details */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 space-y-3">
+                <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest block border-b border-slate-200/40 dark:border-slate-800/40 pb-1">
+                  Contact Details
+                </span>
+                <div className="space-y-2.5 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Corporate Email</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Mail size={13} className="text-slate-400 shrink-0" />
+                      <span className="font-semibold text-slate-800 dark:text-slate-100 truncate" title={user.email}>{user.email || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Phone Number</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Phone size={13} className="text-slate-400 shrink-0" />
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{user.phone || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Residential Address</span>
+                    <div className="flex items-start gap-1.5 mt-0.5">
+                      <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{user.address || 'No address specified'}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-sm font-bold tracking-wider text-slate-800 dark:text-slate-100 select-all shadow-sm">
-                {implicitPassword}
+
+              {/* Organization & Hierarchy */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 space-y-3">
+                <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest block border-b border-slate-200/40 dark:border-slate-800/40 pb-1">
+                  Organization & Role
+                </span>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Corporate Designation</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{getDesignationName(user)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Department</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{getDepartmentName(user)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Reporting Manager</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">{user.reportingManager || 'Unassigned'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">System Role</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase">{user.role || 'employee'}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">System Status</span>
+                    <span className={`inline-flex items-center gap-1.5 mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.color}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                      {statusKey}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Employment & Payroll */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 space-y-3">
+                <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest block border-b border-slate-200/40 dark:border-slate-800/40 pb-1">
+                  Employment & Payroll
+                </span>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Joining Date</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                      {user.joining_date ? new Date(user.joining_date).toLocaleDateString() : 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Monthly Salary</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                      {user.salary ? `₹${Number(user.salary).toLocaleString()}` : 'N/A'}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </>
-        ) : (
-          <div className="p-6">
-            <PerformanceTab user={user} />
-          </div>
+          ) : (
+            <div className="pt-2">
+              <PerformanceTab employeeId={user.id || user._id} employeeName={user.name} />
+            </div>
+          )}
+        </div>
+
+        {/* Image Lightbox Modal */}
+        {previewImageSrc && (
+          createPortal(
+            <div
+              className="fixed inset-0 z-[100000] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+              onClick={() => setPreviewImageSrc(null)}
+            >
+              <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => setPreviewImageSrc(null)}
+                  className="absolute -top-4 -right-4 p-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition shadow-lg"
+                >
+                  <X size={20} />
+                </button>
+                <img
+                  src={previewImageSrc}
+                  alt="Avatar Preview"
+                  className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl border border-white/20"
+                />
+              </div>
+            </div>,
+            document.body
+          )
         )}
-
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };
 
+
 export default Users;
+

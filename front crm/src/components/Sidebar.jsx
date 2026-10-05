@@ -111,15 +111,15 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/common-dashboard', category: 'Dashboards', isCommonDashboardFallback: true },
 
   // --- PEOPLE & HR ---
+  { icon: UserCheck, label: 'Staff Attendance', path: '/staff-attendance', category: 'People & HR' },
   { icon: UserCheck, label: 'Recruitment', path: '/recruitment', category: 'People & HR', allowedRoles: ['0', '1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'recruiter'], allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager'] },
   { icon: Users, label: 'Users', path: '/users', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
   { icon: Building, label: 'Departments', path: '/departments', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ShieldCheck, label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR', allowedRoles: ['0', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  { icon: BookOpenCheck, label: 'Employee Training', path: '/hr/training', category: 'People & HR', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin'] },
 
   // --- SALES & CRM ---
-  { icon: Magnet, label: 'Leads Directory', path: '/leads', category: 'Sales & CRM', allowedDepartmentNames: ['marketing', 'digital', 'counselor', 'sales'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'] },
   { icon: PhoneCall, label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM', allowedDesignationNames: ['counselor', 'telecaller', 'ops'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin'] },
-  { icon: Contact, label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM', allowedDesignationNames: ['ops', 'counselor', 'sales'], allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin'] },
   { icon: Briefcase, label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
   { icon: Building2, label: 'Clients', path: '/clients', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
 
@@ -146,11 +146,12 @@ const menuItems = [
   { icon: CreditCard, label: 'Personal Payslip', path: '/my-payslip', category: 'Finance & Payroll' },
 
   // --- ACADEMY & LMS ---
-  { icon: BookOpen, label: 'Course Management', path: '/academy/courses', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: Layers, label: 'Batches', path: '/academy/batches', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: School, label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: GraduationCap, label: 'My LMS Learning', path: '/academy/learning', category: 'Academy & LMS', allowedRoles: ['10', 'student', '1', '2', 'admin', 'superadmin'] },
-  { icon: Clipboard, label: 'Student Attendance', path: '/student-attendance', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: BookOpen, label: 'Course Management', path: '/academy/courses', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
+  { icon: Layers, label: 'Batches', path: '/academy/batches', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
+  { icon: School, label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
+  { icon: BookOpenCheck, label: 'Training LMS', path: '/training-lms', category: 'Academy & LMS' },
+  { icon: GraduationCap, label: 'My LMS Learning', path: '/academy/learning', category: 'Academy & LMS' },
+  { icon: Clipboard, label: 'Student Attendance', path: '/student-attendance', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
 
   // --- REPORTS ---
   { icon: ClipboardCheck, label: 'HR Shift Report', path: '/hr-report', category: 'Reports', allowedDesignationNames: ['hr', 'recruiter'] },
@@ -160,7 +161,7 @@ const menuItems = [
   { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports', allowedRoles: ['hr', 'admin'] },
   { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports', isTeamLeadOnly: true },
   { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev', 'junior', 'jr', 'software', 'engineer', 'react', 'node', 'flutter', 'coder', 'programmer', 'frontend', 'backend', 'fullstack', 'web'] },
-  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod', 'r&d', 'research'] },
+  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod'] },
   { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
   { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports', allowedDesignationNames: ['video', 'editor', 'media'] },
   { icon: BookOpenCheck, label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
@@ -168,9 +169,12 @@ const menuItems = [
   { icon: PieChart, label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', allowedDesignationNames: ['marketing', 'marketer', 'digital'] },
   { icon: Megaphone, label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports', allowedRoles: ['1', '2', 'admin', 'hr', 'superadmin', 'manager'], allowedDesignationNames: ['marketing', 'marketer', 'hod', 'head', 'cmo', 'digital'] },
   { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports', isBasicReportFallback: true },
+  { icon: FileText, label: 'Daily Shift Report', path: '/daily-shift-report', category: 'Reports' },
 
   // --- DAILY OPERATIONS ---
-  { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations', excludeRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: Clock, label: 'Daily Operations OS', path: '/daily-operations', category: 'Daily Operations' },
+  { icon: UsersRound, label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Daily Operations', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDesignationNames: ['team lead', 'teamlead', 'tl', 'lead', 'manager', 'supervisor', 'hod'] },
+  { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations' },
   { icon: ListCheck, label: 'Task Assign', path: '/todo', category: 'Daily Operations' },
 ];
 
@@ -401,6 +405,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           'capital': '/accounts/capital',
           'purchase': '/accounts/purchase',
           'create invoice': '/accounts/create-invoice',
+          'daily operations os': '/daily-operations',
+          'daily operations': '/daily-operations',
+          'tl daily operations': '/tl-daily-operations',
         };
         const extraAllowedPaths = [];
         for (const perm of allowedSet) {
@@ -492,6 +499,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         currentUserDesignation = String(userObj.designation_id).trim();
       }
       
+      const isPrivilegedUser = ['0', '1', '2', '10', 'admin', 'hr', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl', 'md'].includes(currentUserRole) || !!userObj.isTeamLead;
+      const DEFAULT_EMPLOYEE_LABELS = ['Dashboard', 'Task Assign', 'Notifications', 'Attendance', 'Leave Requests', 'My LMS Learning', 'Employee Training'];
+
       const visible = menuItems.filter(item => {
         if (item.excludeRoles && item.excludeRoles.includes(currentUserRole)) {
           return false;
@@ -507,10 +517,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           return false;
         }
         if (item.label === 'Clients' || item.label === 'Projects' || item.label === 'Client Leads' || item.label === 'KPI Analytics' || item.label === 'Lead Dashboard' || item.label === 'Marketing Dashboard') {
-          const isAdminHrOrTeamLead = ['1', '2', '3', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl', 'marketing'].includes(currentUserRole) || !!userObj.isTeamLead;
-          return isAdminHrOrTeamLead;
+          return isPrivilegedUser;
         }
-        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames) return true;
+
+        const hasNoRoleRestrictions = !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames;
+        
+        if (hasNoRoleRestrictions) {
+          if (isPrivilegedUser) return true;
+          // Standard employees without custom permissions only get default items
+          return DEFAULT_EMPLOYEE_LABELS.includes(item.label);
+        }
+
         const roleMatch = item.allowedRoles && item.allowedRoles.includes(currentUserRole);
         const deptMatch = item.allowedDepartments && item.allowedDepartments.includes(currentUserDept);
         const designationMatch = item.allowedDesignations && item.allowedDesignations.includes(currentUserDesignation);

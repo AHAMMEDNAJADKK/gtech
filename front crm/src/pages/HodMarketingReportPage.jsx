@@ -1071,14 +1071,7 @@ const HodMarketingReportPage = () => {
         </div>
       </div>
 
-      {/* Sidebar Toggle Arrow Button */}
-      <button
-        type="button"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="mt-6 z-30 flex items-center justify-center w-8 h-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-full shadow-md transition-all shrink-0 cursor-pointer active:scale-95"
-      >
-        {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-      </button>
+
 
       {/* RIGHT PANEL: Main Report Content */}
       <div className="flex-1 w-full space-y-5">
@@ -1154,8 +1147,6 @@ const HodMarketingReportPage = () => {
           >
             <RefreshCw size={14} className={fetchingTasks ? 'animate-spin text-amber-600' : ''} />
           </button>
-
-          <AiAnalyzeButton onClick={() => setIsAiModalOpen(true)} />
 
           <button
             onClick={handleSaveReport}

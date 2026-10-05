@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ShoppingCart, 
   PlusCircle, 
@@ -50,6 +51,47 @@ const PurchaseTab = () => {
   const [viewMode, setViewMode] = useState('list');
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // Background scroll lock when modal is open
+  useEffect(() => {
+    if (isViewModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isViewModalOpen]);
+
+  // Automatic sync for offline purchase records when network restores
+  useEffect(() => {
+    const handleOnlineSync = async () => {
+      try {
+        const savedLocal = JSON.parse(localStorage.getItem('crm_purchase_records') || '[]');
+        const offlineEntries = savedLocal.filter(p => String(p._id || p.id || '').startsWith('pur_'));
+        if (offlineEntries.length > 0) {
+          for (const entry of offlineEntries) {
+            try {
+              await fetch(getApiEndpoint('/accounts/expenses'), {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(entry)
+              });
+            } catch (err) {}
+          }
+          showToast(`Synced ${offlineEntries.length} offline purchase record(s) to server!`, 'success');
+        }
+      } catch (e) {
+        console.warn('Error syncing offline purchase records:', e);
+      } finally {
+        fetchPurchasesData();
+      }
+    };
+
+    window.addEventListener('online', handleOnlineSync);
+    return () => window.removeEventListener('online', handleOnlineSync);
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -527,7 +569,7 @@ const PurchaseTab = () => {
       )}
 
       {/* VIEW PURCHASE DETAILS MODAL */}
-      {isViewModalOpen && selectedPurchase && (
+      {isViewModalOpen && selectedPurchase && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -580,7 +622,8 @@ const PurchaseTab = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

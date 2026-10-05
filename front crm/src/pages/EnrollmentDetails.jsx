@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, GraduationCap, BookOpen, Users, CheckCircle2, BarChart3, 
   Clock, AlertCircle, Loader2, Calendar, ShieldCheck, UserCheck, Percent,
-  X, Check, Sparkles
+  X, Check, Sparkles, Trash2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
@@ -14,6 +14,26 @@ const EnrollmentDetails = () => {
   const { enrollmentId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+
+  const isSuperAdmin = useMemo(() => {
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (!rawUser) return false;
+      const u = JSON.parse(rawUser);
+      const roleStr = String(u.role || '').toLowerCase();
+      const roleIdStr = String(u.role_id || u.roleId || '');
+      return Boolean(
+        u.isSuperAdmin === true ||
+        u.is_super_admin === true ||
+        roleStr === 'superadmin' ||
+        roleStr === 'super_admin' ||
+        roleIdStr === '0' ||
+        roleStr.includes('superadmin')
+      );
+    } catch (e) {
+      return false;
+    }
+  }, []);
 
   const [enrollment, setEnrollment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -132,6 +152,34 @@ const EnrollmentDetails = () => {
     }
   };
 
+  const handleDeleteEnrollment = async () => {
+    if (!enrollmentId) return;
+    const studentName = enrollment?.studentId?.name || 'this student';
+    if (!window.confirm(`Are you sure you want to permanently delete the enrollment record for ${studentName}? This SuperAdmin operation cannot be undone.`)) return;
+
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/enrollments/${enrollmentId}`
+        : `${cleanBase}/v1/academy/enrollments/${enrollmentId}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      if (res.ok) {
+        showToast("Enrollment record deleted successfully!", "success");
+        navigate('/academy/enrollments');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || errData.error || errData.detail || "Failed to delete enrollment.", "error");
+      }
+    } catch (err) {
+      showToast("Network error.", "error");
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-white dark:bg-slate-950 min-h-screen flex flex-col items-center justify-center py-40 gap-4">
@@ -194,20 +242,32 @@ const EnrollmentDetails = () => {
               </p>
             </div>
 
-            {/* Status Switcher */}
-            <div className="flex items-center gap-3 self-center bg-white dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 pl-2">Status:</span>
-              <select
-                value={enrollment.status}
-                disabled={isSubmittingStatus}
-                onChange={(e) => handleUpdateStatus(e.target.value)}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100 outline-none cursor-pointer"
-              >
-                <option value="active" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Active</option>
-                <option value="paused" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Paused</option>
-                <option value="completed" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Completed</option>
-                <option value="dropped" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Dropped</option>
-              </select>
+            {/* Status Switcher & Delete Action */}
+            <div className="flex items-center gap-3 self-center">
+              <div className="flex items-center gap-3 bg-white dark:bg-slate-950 p-2 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 pl-2">Status:</span>
+                <select
+                  value={enrollment.status}
+                  disabled={isSubmittingStatus}
+                  onChange={(e) => handleUpdateStatus(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100 outline-none cursor-pointer"
+                >
+                  <option value="active" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Active</option>
+                  <option value="paused" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Paused</option>
+                  <option value="completed" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Completed</option>
+                  <option value="dropped" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Dropped</option>
+                </select>
+              </div>
+
+              {isSuperAdmin && (
+                <button
+                  onClick={handleDeleteEnrollment}
+                  className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-2xl transition-all cursor-pointer font-black text-xs inline-flex items-center gap-2"
+                  title="Delete Enrollment (SuperAdmin Only)"
+                >
+                  <Trash2 size={16} /> Delete Enrollment
+                </button>
+              )}
             </div>
           </div>
         </div>

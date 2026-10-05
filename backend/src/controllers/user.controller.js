@@ -137,8 +137,10 @@ export const userController = {
       
       let queryFilter = {
         isActive: true,
-        role: { $nin: ['student', 'Student'] },
-        role_id: { $nin: ['10', 10] }
+        isSuperAdmin: { $ne: true },
+        is_super_admin: { $ne: true },
+        role: { $nin: ['student', 'Student', 'superadmin', 'Superadmin', 'Super Admin'] },
+        role_id: { $nin: ['10', 10, '0', 0] }
       };
 
       if (!isPrivileged && loggedInUserId) {
@@ -238,7 +240,14 @@ export const userController = {
         status
       } = req.query;
 
-      const conditions = [];
+      const conditions = [
+        {
+          isSuperAdmin: { $ne: true },
+          is_super_admin: { $ne: true },
+          role: { $nin: ['superadmin', 'Superadmin', 'Super Admin'] },
+          role_id: { $nin: ['0', 0] }
+        }
+      ];
 
       if (role) {
         const roleLower = String(role).toLowerCase().trim();
@@ -496,8 +505,13 @@ export const userController = {
         throw new AppError(message, 409);
       }
 
-      const tempPass =
-        password || 'WelcomeKOD123!';
+      const nameClean = (name || '').replace(/[^a-zA-Z]/g, '');
+      const namePart = (nameClean.length >= 3 ? nameClean.slice(0, 3) : (name || 'KOD')).toUpperCase();
+      const phoneClean = String(phone || '').replace(/[^0-9]/g, '');
+      const phonePart = phoneClean.length >= 3 ? phoneClean.slice(-3) : '123';
+      const autoTempPass = `${namePart}${phonePart}`;
+
+      const tempPass = password || autoTempPass;
 
       const passwordHash =
         await hashPassword(tempPass);
@@ -696,7 +710,8 @@ export const userController = {
 
       if (role) {
         updateFields.role = role;
-        updateFields.role_id = role === 'admin' ? '1' : (role === 'manager' ? '2' : '3');
+        updateFields.role_id = role === 'superadmin' ? '0' : (role === 'hr' ? '1' : (role === 'admin' ? '2' : '3'));
+        updateFields.isSuperAdmin = role === 'superadmin';
       }
 
       if (status !== undefined) {
@@ -779,10 +794,13 @@ export const userController = {
         );
       }
 
+      const role_id = role === 'superadmin' ? '0' : (role === 'hr' ? '1' : (role === 'admin' ? '2' : '3'));
+      const isSuperAdmin = role === 'superadmin';
+
       const updatedUser =
         await User.findByIdAndUpdate(
           id,
-          { role },
+          { role, role_id, isSuperAdmin },
           { new: true }
         );
 
@@ -880,6 +898,36 @@ export const userController = {
           'Employee profile not found.',
           404
         );
+      }
+
+      // Delete associated student attendance, enrollment, and batch roster records if any
+      try {
+        const StudentAttendance = (await import('../models/studentattendance.js')).default;
+        const Enrollment = (await import('../models/enrollment.model.js')).default;
+        const Batch = (await import('../models/batch.model.js')).default;
+        if (StudentAttendance) await StudentAttendance.deleteMany({ user_id: id });
+        if (Enrollment) {
+          await Enrollment.deleteMany({
+            $or: [
+              { studentId: id },
+              ...(mongoose.Types.ObjectId.isValid(id) ? [{ studentId: new mongoose.Types.ObjectId(id) }] : [])
+            ]
+          });
+        }
+        if (Batch) {
+          await Batch.updateMany(
+            { students: id },
+            { $pull: { students: id } }
+          );
+          if (mongoose.Types.ObjectId.isValid(id)) {
+            await Batch.updateMany(
+              { students: new mongoose.Types.ObjectId(id) },
+              { $pull: { students: new mongoose.Types.ObjectId(id) } }
+            );
+          }
+        }
+      } catch (cleanErr) {
+        console.warn('Student data cleanup warning during user delete:', cleanErr.message);
       }
 
       await User.findByIdAndDelete(id);
@@ -980,6 +1028,9 @@ export const userController = {
         if (user.isSuperAdmin) {
           user.role = 'superadmin';
           user.role_id = '0';
+        } else if (user.role === 'superadmin') {
+          user.role = 'admin';
+          user.role_id = '2';
         }
       }
       if (role !== undefined && role) {
@@ -987,6 +1038,9 @@ export const userController = {
         if (role === 'superadmin') {
           user.isSuperAdmin = true;
           user.role_id = '0';
+        } else {
+          user.isSuperAdmin = false;
+          user.role_id = role === 'hr' ? '1' : (role === 'admin' ? '2' : '3');
         }
       }
 

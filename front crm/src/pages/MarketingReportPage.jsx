@@ -1495,21 +1495,6 @@ const MarketingReportPage = () => {
                   Monthly Report
                 </button>
 
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Marketing & Digital Strategy',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, taskSummary, keyNumbers, blockersTomorrowPlan, marketingComments: comments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
-
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -1668,169 +1653,222 @@ const MarketingReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">2</span>
                   Task Summary
                 </h2>
-                <button
-                  type="button"
-                  onClick={addTaskRow}
-                  className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('taskSummary')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addTaskRow}
+                    className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[280px]">Task</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Due Date</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Start Date</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">End Date</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Details / Notes</th>
-                      <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
-                      <th className="px-3 py-3 text-center w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {taskSummary.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.task || ''}
-                            onChange={(e) => handleTaskChange(idx, 'task', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="e.g. Stories uploaded"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.dueDate || ''}
-                            onChange={(e) => handleTaskChange(idx, 'dueDate', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="Due date"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.startDate || ''}
-                            onChange={(e) => handleTaskChange(idx, 'startDate', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="DD-MM-YYYY HH:mm"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.endDate || ''}
-                            onChange={(e) => handleTaskChange(idx, 'endDate', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="DD-MM-YYYY HH:mm"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.detailsNotes || ''}
-                            onChange={(e) => handleTaskChange(idx, 'detailsNotes', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.status || ''}
-                            onChange={(e) => handleTaskChange(idx, 'status', e.target.value)}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.remarks || ''}
-                            onChange={(e) => handleTaskChange(idx, 'remarks', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeTaskRow(idx)}
-                            className="text-rose-500 hover:text-rose-600 transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+              {hiddenSections.taskSummary ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Task Summary (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('taskSummary')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={13} /> Include Table
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[280px]">Task</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Due Date</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Start Date</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">End Date</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Details / Notes</th>
+                        <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
+                        <th className="px-3 py-3 text-center w-12"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {taskSummary.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.task || ''}
+                              onChange={(e) => handleTaskChange(idx, 'task', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="e.g. Stories uploaded"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.dueDate || ''}
+                              onChange={(e) => handleTaskChange(idx, 'dueDate', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="Due date"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.startDate || ''}
+                              onChange={(e) => handleTaskChange(idx, 'startDate', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="DD-MM-YYYY HH:mm"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.endDate || ''}
+                              onChange={(e) => handleTaskChange(idx, 'endDate', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="DD-MM-YYYY HH:mm"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.detailsNotes || ''}
+                              onChange={(e) => handleTaskChange(idx, 'detailsNotes', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.status || ''}
+                              onChange={(e) => handleTaskChange(idx, 'status', e.target.value)}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.remarks || ''}
+                              onChange={(e) => handleTaskChange(idx, 'remarks', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => removeTaskRow(idx)}
+                              className="text-rose-500 hover:text-rose-600 transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 3. KEY NUMBERS (KPIs) */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
-                Key Numbers (KPIs)
-              </h2>
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">KPI</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Target</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Achieved Today</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {keyNumbers.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.kpi}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.target || ''}
-                            onChange={(e) => {
-                              const updated = [...keyNumbers];
-                              updated[idx].target = e.target.value;
-                              setKeyNumbers(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.achievedToday || ''}
-                            onChange={(e) => {
-                              const updated = [...keyNumbers];
-                              updated[idx].achievedToday = e.target.value;
-                              setKeyNumbers(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.notes || ''}
-                            onChange={(e) => {
-                              const updated = [...keyNumbers];
-                              updated[idx].notes = e.target.value;
-                              setKeyNumbers(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
+                  Key Numbers (KPIs)
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('keyNumbers')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.keyNumbers ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Key Numbers (KPIs) (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('keyNumbers')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={13} /> Include Table
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">KPI</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Target</th>
+                        <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Achieved Today</th>
+                        <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {keyNumbers.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.kpi}</td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.target || ''}
+                              onChange={(e) => {
+                                const updated = [...keyNumbers];
+                                updated[idx].target = e.target.value;
+                                setKeyNumbers(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.achievedToday || ''}
+                              onChange={(e) => {
+                                const updated = [...keyNumbers];
+                                updated[idx].achievedToday = e.target.value;
+                                setKeyNumbers(updated);
+                              }}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="text"
+                              value={item.notes || ''}
+                              onChange={(e) => {
+                                const updated = [...keyNumbers];
+                                updated[idx].notes = e.target.value;
+                                setKeyNumbers(updated);
+                              }}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 4. BLOCKERS & TOMORROW'S PLAN */}
@@ -1840,77 +1878,103 @@ const MarketingReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
                   Blockers & Tomorrow's Plan
                 </h2>
-                <button
-                  type="button"
-                  onClick={addBlockerRow}
-                  className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('blockersTomorrowPlan')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addBlockerRow}
+                    className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-lime-400 dark:hover:text-lime-500 uppercase tracking-wider"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-950">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Any blockers today?</th>
-                      <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Priority</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tomorrow's main task</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Notes</th>
-                      <th className="px-3 py-3 text-center w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {blockersTomorrowPlan.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.blockersToday || ''}
-                            onChange={(e) => handleBlockerChange(idx, 'blockersToday', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="e.g. None"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.priority || ''}
-                            onChange={(e) => handleBlockerChange(idx, 'priority', e.target.value)}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="High / Med / Low"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.tomorrowMainTask || ''}
-                            onChange={(e) => handleBlockerChange(idx, 'tomorrowMainTask', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={item.notes || ''}
-                            onChange={(e) => handleBlockerChange(idx, 'notes', e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeBlockerRow(idx)}
-                            className="text-rose-500 hover:text-rose-600 transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+              {hiddenSections.blockersTomorrowPlan ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Blockers & Tomorrow's Plan (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('blockersTomorrowPlan')}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={13} /> Include Table
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-950">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Any blockers today?</th>
+                        <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Priority</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tomorrow's main task</th>
+                        <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Notes</th>
+                        <th className="px-3 py-3 text-center w-12"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {blockersTomorrowPlan.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.blockersToday || ''}
+                              onChange={(e) => handleBlockerChange(idx, 'blockersToday', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="e.g. None"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.priority || ''}
+                              onChange={(e) => handleBlockerChange(idx, 'priority', e.target.value)}
+                              className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                              placeholder="High / Med / Low"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.tomorrowMainTask || ''}
+                              onChange={(e) => handleBlockerChange(idx, 'tomorrowMainTask', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={item.notes || ''}
+                              onChange={(e) => handleBlockerChange(idx, 'notes', e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => removeBlockerRow(idx)}
+                              className="text-rose-500 hover:text-rose-600 transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 5. APPROVAL */}

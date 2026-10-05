@@ -36,11 +36,11 @@ const DEFAULT_SALES_ACTIVITY = [
   { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', remarks: '' },
-  // { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', remarks: '' },
-  // { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', remarks: '' }
@@ -55,6 +55,11 @@ const DEFAULT_CLIENT_SALES_ACTIVITY = [
   { activity: 'Hot Client Leads (High Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Warm Client Leads (Medium Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Cold Client Leads (Low Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Call back Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'RNT Client Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Switch Off Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Wrong Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Client Follow-ups', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Total Pending Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client Closings / Onboarding Done', count: '', digitalMktg: '', web: '', remarks: '' }
@@ -79,7 +84,7 @@ const DEFAULT_PERFORMANCE_KPIS = [
 const AcademicCounselorReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -905,12 +910,10 @@ const AcademicCounselorReportPage = () => {
 
       drawSectionHeader("2. STUDENT LEADS UPDATE (CONSOLIDATED)");
       
-      const salesHeaders = [["Activity", "Count", "Digital Mktg", "Web", "Remarks"]];
+      const salesHeaders = [["Activity", "Count", "Remarks"]];
       const salesRows = monthlySalesActivity.map(t => [
         t.activity || '',
         t.count || '',
-        t.digitalMktg || '',
-        t.web || '',
         t.remarks || ''
       ]);
 
@@ -922,11 +925,9 @@ const AcademicCounselorReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 60 },
-          1: { width: 18, halign: 'center' },
-          2: { width: 22, halign: 'center' },
-          3: { width: 22, halign: 'center' },
-          4: { width: 60 }
+          0: { width: 75 },
+          1: { width: 25, halign: 'center' },
+          2: { width: 82 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -938,8 +939,6 @@ const AcademicCounselorReportPage = () => {
       const clientSalesRows = (monthlyClientSalesActivity || []).map(t => [
         t.activity || '',
         t.count || '',
-        t.digitalMktg || '',
-        t.web || '',
         t.remarks || ''
       ]);
 
@@ -951,11 +950,9 @@ const AcademicCounselorReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 60 },
-          1: { width: 18, halign: 'center' },
-          2: { width: 22, halign: 'center' },
-          3: { width: 22, halign: 'center' },
-          4: { width: 60 }
+          0: { width: 75 },
+          1: { width: 25, halign: 'center' },
+          2: { width: 82 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1684,6 +1681,7 @@ const AcademicCounselorReportPage = () => {
         {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
       </button>
 
+
       {/* RIGHT PANEL: Main Report Form */}
       <div className="flex-1 w-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-6 lg:p-8 shadow-sm">
         
@@ -1728,21 +1726,6 @@ const AcademicCounselorReportPage = () => {
                   <CalendarDays size={16} />
                   Weekly Report
                 </button>
-
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Academic Counseling & Sales',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, salesActivity, leadConversion, admissionMetrics, counselorComments: comments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
 
                 <button
                   type="button"
@@ -1923,10 +1906,8 @@ const AcademicCounselorReportPage = () => {
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-3 py-3 w-[45%]">Activity</th>
-                          <th className="px-2 py-3 text-center">Count</th>
-                          <th className="px-2 py-3 text-center">Digital Mktg</th>
-                          <th className="px-2 py-3 text-center">Web</th>
+                          <th className="px-3 py-3 w-[50%]">Activity</th>
+                          <th className="px-2 py-3 text-center w-20">Count</th>
                           <th className="px-3 py-3">Remarks</th>
                         </tr>
                       </thead>
@@ -1945,32 +1926,6 @@ const AcademicCounselorReportPage = () => {
                                 }}
                                 placeholder="-"
                                 className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200 font-bold"
-                              />
-                            </td>
-                            <td className="px-2 py-2.5 text-center">
-                              <input
-                                type="text"
-                                value={item.digitalMktg}
-                                onChange={(e) => {
-                                  const updated = [...salesActivity];
-                                  updated[index].digitalMktg = e.target.value;
-                                  setSalesActivity(updated);
-                                }}
-                                placeholder="-"
-                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
-                              />
-                            </td>
-                            <td className="px-2 py-2.5 text-center">
-                              <input
-                                type="text"
-                                value={item.web}
-                                onChange={(e) => {
-                                  const updated = [...salesActivity];
-                                  updated[index].web = e.target.value;
-                                  setSalesActivity(updated);
-                                }}
-                                placeholder="-"
-                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
                               />
                             </td>
                             <td className="px-3 py-2.5">
@@ -2003,10 +1958,8 @@ const AcademicCounselorReportPage = () => {
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-3 py-3 w-[45%]">Activity</th>
-                          <th className="px-2 py-3 text-center">Count</th>
-                          <th className="px-2 py-3 text-center">Digital Mktg</th>
-                          <th className="px-2 py-3 text-center">Web</th>
+                          <th className="px-3 py-3 w-[50%]">Activity</th>
+                          <th className="px-2 py-3 text-center w-20">Count</th>
                           <th className="px-3 py-3">Remarks</th>
                         </tr>
                       </thead>
@@ -2025,32 +1978,6 @@ const AcademicCounselorReportPage = () => {
                                 }}
                                 placeholder="-"
                                 className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200 font-bold"
-                              />
-                            </td>
-                            <td className="px-2 py-2.5 text-center">
-                              <input
-                                type="text"
-                                value={item.digitalMktg}
-                                onChange={(e) => {
-                                  const updated = [...clientSalesActivity];
-                                  updated[index].digitalMktg = e.target.value;
-                                  setClientSalesActivity(updated);
-                                }}
-                                placeholder="-"
-                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
-                              />
-                            </td>
-                            <td className="px-2 py-2.5 text-center">
-                              <input
-                                type="text"
-                                value={item.web}
-                                onChange={(e) => {
-                                  const updated = [...clientSalesActivity];
-                                  updated[index].web = e.target.value;
-                                  setClientSalesActivity(updated);
-                                }}
-                                placeholder="-"
-                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
                               />
                             </td>
                             <td className="px-3 py-2.5">

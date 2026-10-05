@@ -485,7 +485,7 @@ export const DepartmentsPage = () => {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className={`fixed bottom-8 right-8 z-[200] px-5 py-3.5 rounded-2xl shadow-2xl border text-xs font-black uppercase tracking-wider flex items-center gap-2
+            className={`fixed bottom-8 right-8 z-[999999] px-5 py-3.5 rounded-2xl shadow-2xl border text-xs font-black uppercase tracking-wider flex items-center gap-2
               ${toastType === 'success'
                 ? 'bg-emerald-500 border-emerald-400 text-white shadow-emerald-500/10'
                 : 'bg-rose-500 border-rose-400 text-white shadow-rose-500/10'

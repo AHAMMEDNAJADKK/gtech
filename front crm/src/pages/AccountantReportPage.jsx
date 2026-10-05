@@ -2774,14 +2774,7 @@ const AccountantReportPage = () => {
         </div>
       </div>
 
-      {/* Sidebar Toggle Arrow Button */}
-      <button
-        type="button"
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="mt-6 z-30 flex items-center justify-center w-8 h-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-lime-500 text-slate-600 dark:text-slate-350 hover:text-indigo-600 dark:hover:text-lime-400 rounded-full shadow-md transition-all shrink-0 cursor-pointer active:scale-95"
-      >
-        {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-      </button>
+
 
       {/* RIGHT PANEL: Form Details */}
       <div className="flex-1 w-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-6 lg:p-8 shadow-sm">
@@ -2825,21 +2818,6 @@ const AccountantReportPage = () => {
                   <Calendar size={16} />
                   Monthly Report
                 </button>
-
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Accounts & Finance',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, dailyAccountingSummary, dailyTasks, transactionReport, payrollPaymentStatus, expenseTracking, documentationCompliance, accountantComments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
 
                 <button
                   type="button"

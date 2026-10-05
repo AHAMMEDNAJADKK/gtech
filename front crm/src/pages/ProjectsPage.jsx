@@ -11,8 +11,22 @@ import EditProjectModal from '../components/EditProjectModal';
 
 const STAGES = [
   'Planning', 'Requirement Gathering', 'UI Design', 'Development', 
-  'Testing', 'Client Review', 'Changes', 'Deployment', 'Completed'
+  'Testing', 'Client Review', 'Changes', 'Deployment', 'Completed',
+  'On Hold', 'Cancelled'
 ];
+
+const STAGE_PROGRESS_MAP = {
+  'Planning': 10,
+  'Requirement Gathering': 20,
+  'UI Design': 35,
+  'Development': 55,
+  'Testing': 70,
+  'Client Review': 80,
+  'Changes': 85,
+  'Deployment': 95,
+  'Completed': 100,
+  'Cancelled': 0
+};
 
 const ProjectsPage = () => {
   const [projects, setProjects] = useState([]);
@@ -189,7 +203,7 @@ const ProjectsPage = () => {
                   <th className="p-4">Manager / Lead</th>
                   <th className="p-4">Stage</th>
                   <th className="p-4">Assigned Team</th>
-                  <th className="p-4">Progress</th>
+                  <th className="p-4">Completion Rate</th>
                   <th className="p-4">Deadline</th>
                   <th className="p-4 text-center">Actions</th>
                 </tr>
@@ -204,6 +218,9 @@ const ProjectsPage = () => {
                 ) : (
                   projects.map((project) => {
                     const id = project._id || project.id;
+                    const completionPct = STAGE_PROGRESS_MAP[project.status] !== undefined 
+                      ? STAGE_PROGRESS_MAP[project.status] 
+                      : (project.progress || 0);
                     return (
                       <tr key={id} className="hover:bg-indigo-50/40 dark:hover:bg-slate-800/50 transition-colors">
                         <td className="p-4">
@@ -258,11 +275,11 @@ const ProjectsPage = () => {
                         <td className="p-4 w-36">
                           <div className="flex flex-col gap-1">
                             <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                              <span>Progress</span>
-                              <span>{project.progress || 0}%</span>
+                              <span>Completion Rate</span>
+                              <span>{completionPct}%</span>
                             </div>
                             <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${project.progress || 0}%` }} />
+                              <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${completionPct}%` }} />
                             </div>
                           </div>
                         </td>
@@ -317,6 +334,9 @@ const ProjectsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {projects.map((project) => {
             const id = project._id || project.id;
+            const completionPct = STAGE_PROGRESS_MAP[project.status] !== undefined 
+              ? STAGE_PROGRESS_MAP[project.status] 
+              : (project.progress || 0);
             return (
               <div
                 key={id}
@@ -348,11 +368,11 @@ const ProjectsPage = () => {
                   {/* Progress & Deadline */}
                   <div className="flex flex-col gap-1.5 my-3">
                     <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-                      <span>Completion</span>
-                      <span>{project.progress || 0}%</span>
+                      <span>Completion Rate</span>
+                      <span>{completionPct}%</span>
                     </div>
                     <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full" style={{ width: `${project.progress || 0}%` }} />
+                      <div className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full" style={{ width: `${completionPct}%` }} />
                     </div>
                   </div>
 

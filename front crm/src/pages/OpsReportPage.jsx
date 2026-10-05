@@ -1854,21 +1854,6 @@ const OpsReportPage = () => {
                   Monthly Report
                 </button>
 
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Operations & Management',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, kpiTracking, projectOperations, clientInteractions, taskDelegation, teamPerformance, issuesEscalation, nextDayPlanning, opsComments: comments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
-
                 <button
                   type="button"
                   onClick={handleDownloadPDF}

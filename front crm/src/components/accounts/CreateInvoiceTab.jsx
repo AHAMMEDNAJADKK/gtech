@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Loader2, FileText, GraduationCap, Coins, Users, CheckCircle2, Receipt, Eye } from 'lucide-react';
 import { getClients } from '../../services/clientService';
@@ -146,89 +146,73 @@ const CreateInvoiceTab = () => {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState('');
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      setLoadingStudents(true);
+  const fetchStudents = useCallback(async () => {
+    setLoadingStudents(true);
+    try {
+      const studentMap = new Map();
+
+      // 1. Fetch Students using /users?role=student&limit=500 API
       try {
-        const studentMap = new Map();
-
-        // 1. Fetch Academy Enrollments
-        try {
-          const res = await fetch(getApiEndpoint('/academy/enrollments?limit=1000'), {
-            headers: getAuthHeaders()
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const items = data?.data?.enrollments || data?.data || data?.enrollments || (Array.isArray(data) ? data : []);
-            if (Array.isArray(items)) {
-              items.forEach(item => {
-                const st = item.studentId || {};
-                const stId = st._id || st.id || item._id;
-                const name = st.name || item.studentName || st.fullName || '';
-                const code = st.studentId || item.enrollmentNo || '';
-                const course = item.courseId?.courseName || st.coursePreference || '';
-                if (name && !studentMap.has(name.toLowerCase())) {
-                  studentMap.set(name.toLowerCase(), { id: stId, name, code, course });
-                }
-              });
-            }
+        const resUsers = await fetch(getApiEndpoint('/users?role=student&limit=500'), {
+          headers: getAuthHeaders()
+        });
+        if (resUsers.ok) {
+          const dataUsers = await resUsers.json();
+          const rawUsers = dataUsers?.data?.users || dataUsers?.data || dataUsers?.users || (Array.isArray(dataUsers) ? dataUsers : []);
+          if (Array.isArray(rawUsers)) {
+            rawUsers.forEach(u => {
+              const uId = u._id || u.id;
+              const name = u.name || u.fullName || u.username || '';
+              const code = u.studentId || u.employeeId || u.userCode || '';
+              const course = u.course || u.department || '';
+              if (name && !studentMap.has(name.toLowerCase())) {
+                studentMap.set(name.toLowerCase(), { id: uId, name, code, course });
+              }
+            });
           }
-        } catch (e) {
-          console.warn('Enrollments fetch warning:', e);
         }
-
-        // 2. Fetch Users (/users) - strictly filter for students only
-        try {
-          const resUsers = await fetch(getApiEndpoint('/users?limit=1000'), {
-            headers: getAuthHeaders()
-          });
-          if (resUsers.ok) {
-            const dataUsers = await resUsers.json();
-            const rawUsers = dataUsers?.data?.users || dataUsers?.data || dataUsers?.users || (Array.isArray(dataUsers) ? dataUsers : []);
-            if (Array.isArray(rawUsers)) {
-              rawUsers.forEach(u => {
-                const uRole = (u.role || '').toLowerCase();
-                const uDept = (u.department || '').toLowerCase();
-                const uId = u._id || u.id;
-                const name = u.name || u.fullName || u.username || '';
-                const code = u.studentId || u.userCode || '';
-                // Strictly match students only (role contains student, department contains academy/lms, or has studentId)
-                if (name && (uRole.includes('student') || uDept.includes('academy') || uDept.includes('lms') || Boolean(u.studentId))) {
-                  if (!studentMap.has(name.toLowerCase())) {
-                    studentMap.set(name.toLowerCase(), { id: uId, name, code, course: u.course || '' });
-                  }
-                }
-              });
-            }
-          }
-        } catch (e) {
-          console.warn('Users fetch warning:', e);
-        }
-
-        let studentList = Array.from(studentMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-
-        // If no student records found in DB yet, provide fallback active student profiles
-        if (studentList.length === 0) {
-          studentList = [
-            { id: 'STU1001', name: 'Alex Johnson', code: 'STU1001', course: 'Full Stack Development' },
-            { id: 'STU1002', name: 'Rahul Sharma', code: 'STU1002', course: 'UI/UX Design Masterclass' },
-            { id: 'STU1003', name: 'Ananya Verma', code: 'STU1003', course: 'Data Science & AI' }
-          ];
-        }
-
-        setStudents(studentList);
-      } catch (err) {
-        console.error('Error fetching all students for Academy invoice:', err);
-        setStudents([
-          { id: 'STU1001', name: 'Alex Johnson', code: 'STU1001', course: 'Full Stack Development' },
-          { id: 'STU1002', name: 'Rahul Sharma', code: 'STU1002', course: 'UI/UX Design Masterclass' }
-        ]);
-      } finally {
-        setLoadingStudents(false);
+      } catch (e) {
+        console.warn('Users role=student fetch warning:', e);
       }
-    };
-    fetchStudents();
+
+      // 2. Fetch Academy Enrollments as supplementary
+      try {
+        const resEnroll = await fetch(getApiEndpoint('/academy/enrollments?limit=500'), {
+          headers: getAuthHeaders()
+        });
+        if (resEnroll.ok) {
+          const dataEnroll = await resEnroll.json();
+          const items = dataEnroll?.data?.enrollments || dataEnroll?.data || dataEnroll?.enrollments || (Array.isArray(dataEnroll) ? dataEnroll : []);
+          if (Array.isArray(items)) {
+            items.forEach(item => {
+              const st = item.studentId || {};
+              const stId = st._id || st.id || item._id;
+              const name = st.name || item.studentName || st.fullName || '';
+              const code = st.studentId || item.enrollmentNo || '';
+              const course = item.courseId?.courseName || st.coursePreference || '';
+              if (name && !studentMap.has(name.toLowerCase())) {
+                studentMap.set(name.toLowerCase(), { id: stId, name, code, course });
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Enrollments fetch warning:', e);
+      }
+
+      let studentList = Array.from(studentMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+      setStudents(studentList);
+      return studentList;
+    } catch (err) {
+      console.error('Error fetching all students for Academy invoice:', err);
+    } finally {
+      setLoadingStudents(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
 
   useEffect(() => {
     const populateForm = (rec) => {
@@ -392,14 +376,16 @@ const CreateInvoiceTab = () => {
       setSelectedClientId('');
       setDepartment('Academy & LMS');
       setLineItems([{ description: 'Course Program Fee', quantity: 1.00, unitPrice: 0.00, amount: 0.00 }]);
-      if (students.length > 0) {
-        const first = students[0];
-        setSelectedStudentId(first.id);
-        setClientName(first.name);
-      } else {
-        setSelectedStudentId('');
-        setClientName('');
-      }
+      fetchStudents().then(list => {
+        if (list && list.length > 0) {
+          const first = list[0];
+          setSelectedStudentId(first.id);
+          setClientName(first.name);
+        } else {
+          setSelectedStudentId('');
+          setClientName('');
+        }
+      });
     } else if (type === 'Client') {
       setSelectedStudentId('');
       setDepartment('Sales & CRM');
@@ -693,11 +679,11 @@ const CreateInvoiceTab = () => {
           </div>
         </div>
 
-        {/* Compact Field Group 1: Customer Name & Invoice# */}
+        {/* Compact Field Group 1: Student Name & Invoice# */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block text-[9px] font-extrabold uppercase text-indigo-600 dark:text-indigo-400 mb-0.5">
-              Customer Name <span className="text-rose-500">*</span>
+              Student Name <span className="text-rose-500">*</span>
             </label>
             {sourceType === 'Client' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -772,7 +758,7 @@ const CreateInvoiceTab = () => {
                 type="text"
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
-                placeholder="Enter Customer Name"
+                placeholder="Enter Student Name"
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-[11px] font-semibold focus:outline-none"
               />
             )}
@@ -1077,14 +1063,31 @@ const CreateInvoiceTab = () => {
                 <Receipt size={14} className="text-emerald-600 dark:text-emerald-400" />
                 Receipt Voucher Details (Auto-Generated & Editable)
               </h3>
-              <button
-                type="button"
-                onClick={() => setIsPreviewModalOpen(true)}
-                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                title="Preview & View Receipt Voucher Document"
-              >
-                <Eye size={13} /> View / Print Receipt Voucher
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to clear receipt details?')) {
+                      setReceiptNo('');
+                      setReceiptAmount(0);
+                      setReceiptNotes('');
+                      showToast('Receipt details cleared.', 'info');
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-rose-200 dark:border-rose-800"
+                  title="Clear / Delete Receipt entries"
+                >
+                  <Trash2 size={13} /> Clear Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewModalOpen(true)}
+                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Preview & View Receipt Voucher Document"
+                >
+                  <Eye size={13} /> View / Print Receipt Voucher
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">

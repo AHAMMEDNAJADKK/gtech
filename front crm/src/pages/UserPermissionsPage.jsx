@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -44,23 +44,26 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & manager assignments' },
   { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'Management', desc: 'Custom user menu permission configuration' },
   { label: 'Task Assign', path: '/todo', category: 'Operations', desc: 'Task assignment & attachment view' },
+  { label: 'Daily Operations OS', path: '/daily-operations', category: 'Operations', desc: 'MD & Management daily operations overview, routines & briefing review' },
+  { label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Operations', desc: 'Team Lead department routine checklist, briefing table & EOD closures' },
 
   // HR & Recruitment
+  { label: 'Staff Attendance', path: '/staff-attendance', category: 'HR', desc: 'Mark and manage daily staff attendance logs & roster' },
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },
   { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & approvals' },
   { label: 'Recruitment', path: '/recruitment', category: 'HR', desc: 'Recruitment directory, candidate pipeline & offer letters' },
+  { label: 'Employee Training', path: '/hr/training', category: 'HR', desc: 'Internal staff training & development courses' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
 
   // Leads & Sales
-  { label: 'Leads Directory', path: '/leads', category: 'Leads', desc: 'Full leads directory & sales pipeline' },
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline & inquiries' },
   { label: 'Student Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
-  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Leads', desc: 'Academic counselor lead assignments' },
 
   // LMS / Academy
   { label: 'Course Management', path: '/academy/courses', category: 'LMS / Academy', desc: 'Course catalog & curriculum management' },
   { label: 'Batches', path: '/academy/batches', category: 'LMS / Academy', desc: 'Student batch creation & schedule tracking' },
   { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'LMS / Academy', desc: 'Student course enrollment & fee status' },
+  { label: 'Training LMS', path: '/training-lms', category: 'LMS / Academy', desc: 'Employee internal staff training LMS portal' },
   { label: 'My LMS Learning', path: '/academy/learning', category: 'LMS / Academy', desc: 'Student LMS portal & course materials' },
 
   // Analytics & Reports
@@ -79,13 +82,14 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', desc: 'Operations shift reports' },
   { label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', desc: 'Accountant shift reports' },
   { label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', desc: 'Marketing shift reports' },
+  { label: 'Daily Shift Report', path: '/daily-shift-report', category: 'Reports', desc: 'Official KOD.BRAND daily shift report & operational log' },
 
   // Finance & Accounts
   { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book overview' },
   { label: 'Sales', path: '/accounts/income', category: 'Finance', desc: 'Revenue, client invoices & payment receipt records' },
   { label: 'Income', path: '/accounts/sales', category: 'Finance', desc: 'Client sales deals, billing invoices & revenue tracking' },
   { label: 'Purchase', path: '/accounts/purchase', category: 'Finance', desc: 'Vendor procurement, purchase orders & stock bills' },
-  { label: 'Create Invoice', path: '/accounts/create-invoice', category: 'Finance', desc: 'Itemized Zoho tax invoice & billing builder' },
+  { label: 'Create Invoice', path: '/accounts/create-invoice', category: 'Finance', desc: 'Itemized tax invoice & billing builder' },
   { label: 'Expense Categories', path: '/accounts/categories', category: 'Finance', desc: 'Account expense categories' },
   { label: 'Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
   { label: 'Salary Payment', path: '/accounts/salary', category: 'Finance', desc: 'Salary payment processing & disbursal' },
@@ -132,7 +136,7 @@ const UserPermissionsPage = () => {
       if (res.ok && data.data) {
         const u = data.data;
         setUser(u);
-        setSelectedPermissions(u.permissions || []);
+        setSelectedPermissions(Array.isArray(u.permissions) && u.permissions.length > 0 ? u.permissions : ['Task Assign', 'Notifications', 'Attendance', 'Leave Requests']);
         setIsSuperAdmin(Boolean(u.isSuperAdmin || u.role === 'superadmin'));
       } else {
         showToast(data.message || "Failed to load user details", "error");
@@ -168,6 +172,69 @@ const UserPermissionsPage = () => {
     }
   }, [userId, fetchUser, navigate, showToast]);
 
+  const loggedInUser = useMemo(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  const isLoggedInSuperAdmin = useMemo(() => {
+    if (!loggedInUser) return false;
+    const role = String(loggedInUser.role_id || loggedInUser.roleId || loggedInUser.role || '').toLowerCase().trim();
+    return Boolean(
+      loggedInUser.isSuperAdmin === true ||
+      loggedInUser.is_super_admin === true ||
+      role === 'superadmin' ||
+      role === 'super_admin' ||
+      role === '0'
+    );
+  }, [loggedInUser]);
+
+  // Restrict selectable options to ONLY the sidebar items the logged-in user has permission for
+  const availableSidebarItems = useMemo(() => {
+    if (isLoggedInSuperAdmin || !loggedInUser) {
+      return ALL_SIDEBAR_ITEMS;
+    }
+
+    if (Array.isArray(loggedInUser.permissions) && loggedInUser.permissions.length > 0) {
+      const allowedSet = new Set(loggedInUser.permissions.map(p => String(p).toLowerCase().trim()));
+
+      const extraPathMappings = {
+        'admin dashboard': '/dashboard',
+        'md dashboard': '/md-dashboard',
+        'accountant dashboard': '/accountant-dashboard',
+        'income': '/accounts/income',
+        'sales': '/accounts/sales',
+        'capital': '/accounts/capital',
+        'purchase': '/accounts/purchase',
+        'create invoice': '/accounts/create-invoice',
+      };
+
+      const extraAllowedPaths = new Set();
+      for (const perm of allowedSet) {
+        if (extraPathMappings[perm]) {
+          extraAllowedPaths.add(extraPathMappings[perm].toLowerCase());
+        }
+      }
+
+      return ALL_SIDEBAR_ITEMS.filter(item => {
+        const itemLabelLower = item.label ? item.label.toLowerCase().trim() : '';
+        const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
+
+        return (
+          allowedSet.has(itemLabelLower) ||
+          allowedSet.has(itemPathLower) ||
+          extraAllowedPaths.has(itemPathLower)
+        );
+      });
+    }
+
+    return ALL_SIDEBAR_ITEMS;
+  }, [loggedInUser, isLoggedInSuperAdmin]);
+
   const togglePermission = (label) => {
     if (isSuperAdmin) return;
     setSelectedPermissions(prev => 
@@ -177,12 +244,14 @@ const UserPermissionsPage = () => {
 
   const handleSelectAll = () => {
     if (isSuperAdmin) return;
-    setSelectedPermissions(ALL_SIDEBAR_ITEMS.map(i => i.label));
+    const availableLabels = availableSidebarItems.map(i => i.label);
+    setSelectedPermissions(prev => Array.from(new Set([...prev, ...availableLabels])));
   };
 
   const handleDeselectAll = () => {
     if (isSuperAdmin) return;
-    setSelectedPermissions([]);
+    const availableSet = new Set(availableSidebarItems.map(i => i.label));
+    setSelectedPermissions(prev => prev.filter(p => !availableSet.has(p)));
   };
 
   const handleSave = async () => {
@@ -234,7 +303,9 @@ const UserPermissionsPage = () => {
     }
   };
 
-  const categories = [...new Set(ALL_SIDEBAR_ITEMS.map(i => i.category))];
+  const categories = useMemo(() => {
+    return [...new Set(availableSidebarItems.map(i => i.category))];
+  }, [availableSidebarItems]);
 
   if (loading) {
     return (
@@ -328,7 +399,7 @@ const UserPermissionsPage = () => {
           <div className="text-left md:text-right">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configured Active Pages</p>
             <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">
-              {isSuperAdmin ? 'All Sidebar Pages (Super Admin)' : `${selectedPermissions.length} / ${ALL_SIDEBAR_ITEMS.length} Allowed`}
+              {isSuperAdmin ? 'All Sidebar Pages (Super Admin)' : `${selectedPermissions.filter(p => availableSidebarItems.some(i => i.label === p)).length} / ${availableSidebarItems.length} Allowed`}
             </p>
           </div>
         </div>
@@ -353,7 +424,12 @@ const UserPermissionsPage = () => {
             <input 
               type="checkbox" 
               checked={isSuperAdmin}
-              onChange={(e) => setIsSuperAdmin(e.target.checked)}
+              disabled={!isLoggedInSuperAdmin}
+              onChange={(e) => {
+                if (isLoggedInSuperAdmin) {
+                  setIsSuperAdmin(e.target.checked);
+                }
+              }}
               className="sr-only peer"
             />
             <div className="w-14 h-7 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
@@ -397,7 +473,7 @@ const UserPermissionsPage = () => {
         )}
 
         {categories.map(category => {
-          const categoryItems = ALL_SIDEBAR_ITEMS.filter(i => i.category === category);
+          const categoryItems = availableSidebarItems.filter(i => i.category === category);
           return (
             <div key={category} className="space-y-3">
               <div className="flex items-center gap-2">

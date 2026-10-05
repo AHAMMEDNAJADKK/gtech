@@ -421,7 +421,7 @@ export const createExpense = async (req, res) => {
 export const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, category, amount, paymentMode, paidTo, description } = req.body;
+    const { date, category, amount, paymentMode, paidTo, description, deleteAttachment, removeAttachment } = req.body;
 
     const expense = await Expense.findById(id);
     if (!expense) {
@@ -448,6 +448,8 @@ export const updateExpense = async (req, res) => {
 
     if (req.file) {
       expense.attachment = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    } else if (deleteAttachment || removeAttachment || req.body.attachment === '' || req.body.attachment === null) {
+      expense.attachment = '';
     }
 
     await expense.save();
@@ -2124,7 +2126,6 @@ export const updateIncome = async (req, res) => {
 
     if (income.status === 'Proforma' || req.body.status === 'Proforma') {
       income.status = 'Proforma';
-      income.receiptAmount = 0;
     } else if (req.body.status === 'Paid') {
       income.status = 'Paid';
       income.receiptAmount = finalTotAmt;
@@ -2345,7 +2346,9 @@ export const recordPaymentSettlement = async (req, res) => {
     const totalBilled = income.totalAmount || income.amount || 0;
     const balanceDue = Math.max(0, totalBilled - totalCollected);
 
-    if (totalCollected <= 0) {
+    if (income.status === 'Proforma') {
+      income.status = 'Proforma';
+    } else if (totalCollected <= 0) {
       income.status = 'Pending';
     } else if (balanceDue <= 0.01 || totalCollected >= (totalBilled - 0.01)) {
       income.status = 'Paid';
@@ -2415,7 +2418,9 @@ export const updatePaymentSettlement = async (req, res) => {
     const totalBilled = income.totalAmount || income.amount || 0;
     const balanceDue = Math.max(0, totalBilled - totalCollected);
 
-    if (totalCollected <= 0) {
+    if (income.status === 'Proforma') {
+      income.status = 'Proforma';
+    } else if (totalCollected <= 0) {
       income.status = 'Pending';
     } else if (balanceDue <= 0.01 || totalCollected >= (totalBilled - 0.01)) {
       income.status = 'Paid';
@@ -2472,7 +2477,9 @@ export const deletePaymentSettlement = async (req, res) => {
     const totalBilled = income.totalAmount || income.amount || 0;
     const balanceDue = Math.max(0, totalBilled - totalCollected);
 
-    if (totalCollected <= 0) {
+    if (income.status === 'Proforma') {
+      income.status = 'Proforma';
+    } else if (totalCollected <= 0) {
       income.status = 'Pending';
     } else if (balanceDue <= 0.01 || totalCollected >= (totalBilled - 0.01)) {
       income.status = 'Paid';

@@ -67,12 +67,24 @@ const calculateShiftMetrics = (
 const serializeAttendance = (record) => {
   if (!record) return null;
 
-  const obj = record.toObject();
+  const obj = record.toObject ? record.toObject() : record;
+
+  let userIdVal = obj.user_id;
+  if (userIdVal && typeof userIdVal === 'object') {
+    if (userIdVal._id) {
+      userIdVal = {
+        ...userIdVal,
+        id: userIdVal._id.toString()
+      };
+    }
+  } else if (userIdVal) {
+    userIdVal = userIdVal.toString();
+  }
 
   return {
     ...obj,
-    id: obj._id.toString(),
-    user_id: obj.user_id.toString()
+    id: obj._id ? obj._id.toString() : (obj.id || ''),
+    user_id: userIdVal
   };
 };
 
@@ -246,10 +258,54 @@ export const getAllAttendanceByDate =
     async (req, res) => {
       try {
         const { date } = req.params;
-        const records = await Attendance.find({ date });
+        const records = await Attendance.find({ date }).populate('user_id', 'name email role department designation employeeId avatar profile_image');
         return res.status(200).json(records.map(serializeAttendance));
       } catch (err) {
         console.error(err);
         return res.status(500).json({ detail: "Server Error" });
       }
     };
+
+export const markUserAttendance = async (req, res) => {
+  try {
+    const { user_id, date, status, check_in_time, check_out_time, working_hours, is_late, overtime } = req.body;
+
+    if (!user_id || !date) {
+      return res.status(400).json({ detail: "User ID and date are required." });
+    }
+
+    let checkInDate = check_in_time ? new Date(check_in_time) : null;
+    let checkOutDate = check_out_time ? new Date(check_out_time) : null;
+
+    let computedHours = working_hours || "0.00";
+    let computedOvertime = overtime || "0.00";
+
+    if (checkInDate && checkOutDate) {
+      const metrics = calculateShiftMetrics(checkInDate, checkOutDate);
+      computedHours = metrics.working_hours;
+      computedOvertime = metrics.overtime;
+    }
+
+    const record = await Attendance.findOneAndUpdate(
+      { user_id, date },
+      {
+        $set: {
+          user_id,
+          date,
+          status: status || (checkInDate ? 'PRESENT' : 'ABSENT'),
+          check_in_time: checkInDate,
+          check_out_time: checkOutDate,
+          working_hours: computedHours,
+          is_late: is_late ?? (checkInDate ? checkIsLate(checkInDate) : false),
+          overtime: computedOvertime
+        }
+      },
+      { upsert: true, new: true }
+    ).populate('user_id', 'name email role department designation employeeId avatar profile_image');
+
+    return res.status(200).json(serializeAttendance(record));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};

@@ -262,12 +262,40 @@ export default function LeavesPage() {
       const res = await fetch(endpoint, { headers: getAuthHeaders() });
       const data = await res.json();
       if (data.success) {
-        setLeaves(data.data || []);
-        if (data.summary) {
-          setHistorySummary(data.summary);
+        const fetchedLeaves = data.data || [];
+        setLeaves(fetchedLeaves);
+
+        const summaryObj = data.summary || data.metrics;
+        if (summaryObj) {
+          setHistorySummary({
+            totalRequests: summaryObj.totalRequests ?? summaryObj.totalCount ?? fetchedLeaves.length,
+            totalDaysApproved: summaryObj.totalDaysApproved || 0,
+            approvedCount: summaryObj.approvedCount || 0,
+            rejectedCount: summaryObj.rejectedCount || 0,
+            cancelledCount: summaryObj.cancelledCount || 0,
+            pendingCount: summaryObj.pendingCount || 0
+          });
+        } else {
+          // Fallback dynamic calculation from returned leave list
+          const calculated = fetchedLeaves.reduce((acc, l) => {
+            acc.totalRequests++;
+            if (l.finalStatus === 'APPROVED') {
+              acc.approvedCount++;
+              acc.totalDaysApproved += Number(l.totalDays || 0);
+            } else if (l.finalStatus === 'REJECTED') {
+              acc.rejectedCount++;
+            } else if (l.finalStatus === 'CANCELLED') {
+              acc.cancelledCount++;
+            } else {
+              acc.pendingCount++;
+            }
+            return acc;
+          }, { totalRequests: 0, totalDaysApproved: 0, approvedCount: 0, rejectedCount: 0, cancelledCount: 0, pendingCount: 0 });
+          setHistorySummary(calculated);
         }
       } else {
         setLeaves([]);
+        setHistorySummary({ totalRequests: 0, totalDaysApproved: 0, approvedCount: 0, rejectedCount: 0, cancelledCount: 0, pendingCount: 0 });
       }
     } catch (err) {
       console.error("Error fetching leave requests:", err);

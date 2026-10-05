@@ -36,7 +36,6 @@ import { getClients } from '../../services/clientService';
 import { getOpeningBalance, setOpeningBalance as saveOpeningBalanceApi } from '../../services/accountsService';
 import ConfirmModal from '../ConfirmModal';
 import IncomeInvoiceModal from './IncomeInvoiceModal';
-import CreateInvoiceModal from './CreateInvoiceModal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -202,9 +201,6 @@ const IncomeTab = ({ mode = 'sales' }) => {
   const [selectedInvoiceRecord, setSelectedInvoiceRecord] = useState(null);
   const [invoiceModalMode, setInvoiceModalMode] = useState('invoice');
 
-  // Create Zoho Invoice Builder Modal State
-  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
-
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
     const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
@@ -302,6 +298,16 @@ const IncomeTab = ({ mode = 'sales' }) => {
     }
   }, [activeIncomeTab, selectedDeptFilter, selectedMethodFilter, searchQuery, startDate, endDate, getAuthHeaders, showToast]);
 
+  const userObj = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }, []);
+  const userRole = String(userObj.role || localStorage.getItem('role') || '').toLowerCase();
+  const isSuperadmin = userRole.includes('superadmin') || userRole.includes('admin') || userRole.includes('owner');
+
   const getNetPayableAmount = useCallback((inc) => {
     if (!inc) return 0;
     
@@ -334,36 +340,7 @@ const IncomeTab = ({ mode = 'sales' }) => {
     return calculatedNetPayable;
   }, []);
 
-  const salesSummaryMetrics = React.useMemo(() => {
-    let totalPayable = 0;
-    let totalReceived = 0;
-    let totalPendingBalance = 0;
-
-    incomes.forEach((inc) => {
-      const netPayable = getNetPayableAmount(inc);
-      totalPayable += netPayable;
-
-      const recStatus = String(inc.status || '').trim().toLowerCase();
-      const isExplicitlyPaid = recStatus === 'paid' || recStatus === 'completed';
-
-      let paid = 0;
-      if (Array.isArray(inc.payments) && inc.payments.length > 0) {
-        paid = inc.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
-      } else if (parseFloat(inc.receiptAmount || 0) > 0) {
-        paid = parseFloat(inc.receiptAmount);
-      } else if (isExplicitlyPaid) {
-        paid = netPayable;
-      }
-
-      const bal = Math.max(0, netPayable - paid);
-      totalReceived += paid;
-      totalPendingBalance += bal;
-    });
-
-    return { totalPayable, totalReceived, totalPendingBalance };
-  }, [incomes, getNetPayableAmount]);
-
-  // Sort and Filter Incomes Client-Side (Excludes Pending for Income tab; Shows all for Sales tab)
+  // Sort and Filter Incomes Client-Side (Excludes Pending for Income tab; Shows all with valid invoice number for Sales tab)
   const sortedAndFilteredIncomes = React.useMemo(() => {
     let result = incomes.filter((inc) => {
       const st = String(inc.status || '').trim().toLowerCase();
@@ -374,7 +351,9 @@ const IncomeTab = ({ mode = 'sales' }) => {
         return st === 'paid' || st === 'partially paid' || st === 'completed';
       }
       if (mode === 'sales') {
-        return st !== 'proforma';
+        const refNo = String(inc.referenceNo || '').trim();
+        const hasInvoiceNo = Boolean(refNo && refNo !== '-' && !inc.isDirectReceipt);
+        return st !== 'proforma' && hasInvoiceNo;
       }
       return true;
     });
@@ -403,6 +382,35 @@ const IncomeTab = ({ mode = 'sales' }) => {
 
     return result;
   }, [incomes, mode, sortBy, sortOrder, getNetPayableAmount]);
+
+  const salesSummaryMetrics = React.useMemo(() => {
+    let totalPayable = 0;
+    let totalReceived = 0;
+    let totalPendingBalance = 0;
+
+    sortedAndFilteredIncomes.forEach((inc) => {
+      const netPayable = getNetPayableAmount(inc);
+      totalPayable += netPayable;
+
+      const recStatus = String(inc.status || '').trim().toLowerCase();
+      const isExplicitlyPaid = recStatus === 'paid' || recStatus === 'completed';
+
+      let paid = 0;
+      if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+        paid = inc.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      } else if (parseFloat(inc.receiptAmount || 0) > 0) {
+        paid = parseFloat(inc.receiptAmount);
+      } else if (isExplicitlyPaid) {
+        paid = netPayable;
+      }
+
+      const bal = Math.max(0, netPayable - paid);
+      totalReceived += paid;
+      totalPendingBalance += bal;
+    });
+
+    return { totalPayable, totalReceived, totalPendingBalance };
+  }, [sortedAndFilteredIncomes, getNetPayableAmount]);
 
   const displayReceiptRows = React.useMemo(() => {
     if (mode !== 'income') return [];
@@ -1362,11 +1370,20 @@ const IncomeTab = ({ mode = 'sales' }) => {
                             </button>
                             <button
                               onClick={() => handleDeleteIncome(inc._id, inc.title)}
-                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                              title="Move Invoice to Inactive Tab"
+                              className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
+                              title="Move Invoice to Inactive Tab (Soft Delete)"
                             >
-                              <Trash2 size={14} />
+                              <Archive size={14} />
                             </button>
+                            {isSuperadmin && (
+                              <button
+                                onClick={() => handlePermanentDeleteIncome(inc._id, inc.title)}
+                                className="p-1 rounded-lg text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition cursor-pointer font-bold"
+                                title="Superadmin Permanent Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -1948,14 +1965,6 @@ const IncomeTab = ({ mode = 'sales' }) => {
           }
           fetchIncomes();
         }}
-        showToast={showToast}
-      />
-
-      {/* Zoho-Style Create Invoice Builder Modal */}
-      <CreateInvoiceModal
-        isOpen={isCreateInvoiceOpen}
-        onClose={() => setIsCreateInvoiceOpen(false)}
-        onInvoiceCreated={fetchIncomes}
         showToast={showToast}
       />
 

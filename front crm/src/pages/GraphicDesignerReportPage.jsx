@@ -42,7 +42,7 @@ const DEFAULT_TOMORROW = [
 const GraphicDesignerReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -1249,6 +1249,8 @@ const GraphicDesignerReportPage = () => {
         {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
       </button>
 
+
+
       {/* RIGHT PANEL: Main Report Form */}
       <div className="flex-1 w-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-6 lg:p-8 shadow-sm">
         
@@ -1284,21 +1286,6 @@ const GraphicDesignerReportPage = () => {
                   <Calendar size={16} />
                   Monthly Report
                 </button>
-
-                
-
-                <AiAnalyzeButton
-                  onClick={() => {
-                    setAiModalContext({
-                      employeeName: basicDetails.employeeName,
-                      department: 'Graphic Design & UI/UX',
-                      designation: basicDetails.designation,
-                      date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, taskLog, designDeliverables, designerComments: comments })
-                    });
-                    setIsAiModalOpen(true);
-                  }}
-                />
 
                 <button
                   type="button"
