@@ -11,7 +11,6 @@ import {
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 import PerformanceTab from '../components/PerformanceTab';
-import PerformanceDashboard from './PerformanceDashboard';
 
 const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
 const API_BASE = (RAW_API_BASE.endsWith('/') ? RAW_API_BASE.slice(0, -1) : RAW_API_BASE).replace(/\/+$/, '');
@@ -427,8 +426,6 @@ const Users = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all'); // all, active, inactive, blocked
-  const [showKpiAnalytics, setShowKpiAnalytics] = useState(false);
-  // Ensure it is initialized like this inside your component:
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteUserConfirm, setDeleteUserConfirm] = useState({ isOpen: false, id: null, name: '' });
@@ -678,42 +675,15 @@ const Users = () => {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
-              type="button"
-              onClick={() => setShowKpiAnalytics(prev => !prev)}
-              className={`group flex items-center justify-center gap-2 px-6 py-3.5 rounded-full font-bold text-[12px] uppercase tracking-wider transition-all duration-300 shadow-md cursor-pointer ${showKpiAnalytics
-                  ? 'bg-indigo-600 text-white shadow-indigo-600/30 ring-2 ring-indigo-400'
-                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-            >
-              <BarChart3 size={16} className={showKpiAnalytics ? 'animate-bounce text-white' : 'text-indigo-500'} />
-              <span>{showKpiAnalytics ? 'Hide KPI Analytics' : 'KPI Analytics'}</span>
-            </button>
-
-            <button
               onClick={() => setIsCreateOpen(true)}
               className="group relative flex items-center justify-center gap-2 px-8 py-4 bg-indigo-600 dark:bg-slate-900 text-white dark:text-slate-100 border border-transparent dark:border-slate-800 shadow-lg hover:shadow-indigo-500/20 dark:hover:shadow-none rounded-full font-bold text-[12px] uppercase tracking-wider transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] overflow-hidden cursor-pointer"
             >
               <div className="absolute inset-0 bg-indigo-700 dark:bg-lime-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               <Plus size={16} className="relative z-10" />
-              <span className="relative z-10">Add Employee</span>
+              <span className="relative z-10">Add User</span>
             </button>
           </div>
         </header>
-
-        {/* Collapsible KPI Analytics Dashboard */}
-        <AnimatePresence>
-          {showKpiAnalytics && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className="overflow-hidden bg-white/50 dark:bg-slate-900/40 p-4 md:p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/40 shadow-inner"
-            >
-              <PerformanceDashboard />
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Filters and Search */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 py-1">

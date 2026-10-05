@@ -50,6 +50,7 @@ router.delete('/enrollments/:id', requireSuperAdmin, enrollmentController.delete
 
 // Student Enrolled Courses Catalog
 router.get('/student/enrolled-courses', lmsController.getStudentEnrolledCourses);
+router.get('/my-courses', lmsController.getStudentEnrolledCourses);
 
 // Course LMS Content Delivery
 router.get('/courses/:courseId/lms-content', lmsController.getCourseLmsContent);

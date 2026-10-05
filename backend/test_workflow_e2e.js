@@ -22,19 +22,51 @@ async function runWorkflowTest() {
     console.log(`\n🚀 Workflow Pipeline Test Server on http://localhost:${PORT}\n`);
 
     try {
-      // Step A: Fetch an existing course & batch
-      console.log('--- STEP 1: Fetch Existing Course & Batch ---');
-      const coursesRes = await fetch(`http://localhost:${PORT}/api/v1/academy/courses`, { headers });
-      const coursesData = await coursesRes.json();
-      const course = coursesData.data?.[0];
-      if (!course) throw new Error('No course found in database to test.');
-      console.log(`Found Course: ${course.courseName} (${course._id})`);
+      // Step A: Fetch or create an existing course & batch
+      console.log('--- STEP 1: Fetch or Create Course & Batch ---');
+      let coursesRes = await fetch(`http://localhost:${PORT}/api/v1/academy/courses`, { headers });
+      let coursesData = await coursesRes.json();
+      let course = coursesData.data?.[0];
+      if (!course) {
+        console.log('No existing course found. Creating seed course for test...');
+        const createCourseRes = await fetch(`http://localhost:${PORT}/api/v1/academy/courses`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            courseName: 'Full Stack Web Development Bootcamp',
+            category: 'DEVELOPMENT',
+            shortDescription: 'Master modern full stack web development with MERN.',
+            baseFee: 45000,
+            durationWeeks: 12
+          })
+        });
+        const createdCourseData = await createCourseRes.json();
+        course = createdCourseData.data;
+      }
+      console.log(`Found/Created Course: ${course.courseName} (${course._id || course.id})`);
 
-      const batchesRes = await fetch(`http://localhost:${PORT}/api/v1/academy/batches`, { headers });
-      const batchesData = await batchesRes.json();
-      const batch = batchesData.data?.[0];
-      if (!batch) throw new Error('No batch found in database to test.');
-      console.log(`Found Batch: ${batch.batchName} (${batch._id})`);
+      let batchesRes = await fetch(`http://localhost:${PORT}/api/v1/academy/batches`, { headers });
+      let batchesData = await batchesRes.json();
+      let batch = batchesData.data?.[0];
+      if (!batch) {
+        console.log('No existing batch found. Creating seed batch for test...');
+        const createBatchRes = await fetch(`http://localhost:${PORT}/api/v1/academy/batches`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            batchName: 'Cohort 2026-A',
+            courseId: course._id || course.id,
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 90 * 86400000).toISOString(),
+            maxStudents: 30,
+            scheduleTime: '09:00 AM - 12:00 PM',
+            status: 'ONGOING'
+          })
+        });
+        const createdBatchData = await createBatchRes.json();
+        batch = createdBatchData.data;
+      }
+      console.log(`Found/Created Batch: ${batch.batchName} (${batch._id || batch.id})`);
 
       // Step B: Create a prospective lead
       console.log('\n--- STEP 2: Create Prospective Lead / Enquiry ---');

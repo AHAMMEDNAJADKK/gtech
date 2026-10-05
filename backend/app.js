@@ -18,12 +18,10 @@ try {
 import authRoutes from './src/routes/auth.routes.js';
 import userRoutes from './src/routes/user.routes.js';
 import attendanceRoutes from './src/routes/attendance.routes.js';
-import taskRoutes from './src/routes/task.routes.js';
 import studentRoutes from './src/routes/student.routes.js';
 import crmRoutes from './src/routes/index.js';
 import apiRoutes from './src/routes/api.js';
 import aiRoutes from './src/routes/ai.routes.js';
-import mdDashboardRoutes from './src/routes/mdDashboard.routes.js';
 import accountRoutes from './src/routes/account.routes.js';
 import academyRoutes from './src/routes/academy.routes.js';
 import studentFeeRoutes from './src/routes/studentFee.routes.js';
@@ -31,8 +29,6 @@ import liveClassRoutes from './src/routes/liveClass.routes.js';
 import certificateRoutes from './src/routes/certificate.routes.js';
 import edtechDashboardRoutes from './src/routes/edtechDashboard.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
-import leaveRoutes from './src/routes/leave.routes.js';
-import recruitmentRoutes from './src/routes/recruitment.routes.js';
 import { servePublicPdf } from './src/controllers/account.controller.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
@@ -55,11 +51,15 @@ const __dirname = path.dirname(__filename);
 // 1. CORS Configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['https://crm-test.vercel.app', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'];
+  : ['https://crm-test.vercel.app', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:3000'];
+
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.includes('localhost')) {
       callback(null, true);
     } else {
       callback(null, true);
@@ -73,9 +73,6 @@ app.use(cors({
 app.options('*', cors());
 
 // 2. Parsers Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -90,56 +87,59 @@ app.get('/api/public/pdf/:token', servePublicPdf);
 app.get('/public/pdf/:token/raw', servePublicPdf);
 app.get('/public/pdf/:token', servePublicPdf);
 
-// 4. Specific/Dedicated API Routers
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Health Check & Monitoring Endpoints (Unauthenticated for Render/Vercel)
+app.get(['/', '/health', '/api/health', '/api/v1/health'], (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    success: true,
+    service: 'EdTech CRM API',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 4. EdTech Specific/Dedicated API Routers
 app.use('/api/auth', authRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes); 
 app.use('/api/v1/attendance', attendanceRoutes); 
 app.use('/api/user', userRoutes); 
 app.use('/api/v1/user', userRoutes); 
-app.use('/api/tasks', taskRoutes);
-app.use('/api/v1/tasks', taskRoutes);
-// app.use('/api/v1/leaves', leaveRoutes);
-app.use('/api/leaves', leaveRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api/v1/ai', aiRoutes);
-app.use('/api/v1/md-dashboard', mdDashboardRoutes);
-app.use('/api/md-dashboard', mdDashboardRoutes);
-app.use('/api/v1/accounts', accountRoutes);
-app.use('/api/accounts', accountRoutes);
+
+// EdTech Student Fees & Accounts (All /accounts and /student-fees point to EdTech fee tracking)
 app.use('/api/v1/student-fees', studentFeeRoutes);
 app.use('/api/student-fees', studentFeeRoutes);
+app.use('/api/v1/accounts', studentFeeRoutes);
+app.use('/api/accounts', studentFeeRoutes);
+
+// Academic LMS, Batches, Courses & Live Classrooms
+app.use('/api/v1/academy', academyRoutes);
+app.use('/api/academy', academyRoutes);
 app.use('/api/v1/live-classes', liveClassRoutes);
 app.use('/api/live-classes', liveClassRoutes);
 app.use('/api/v1/certificates', certificateRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/v1/edtech-dashboard', edtechDashboardRoutes);
 app.use('/api/edtech-dashboard', edtechDashboardRoutes);
-app.use('/api/v1/academy', academyRoutes);
-app.use('/api/academy', academyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/v1/notifications', notificationRoutes);
 app.use('/notifications', notificationRoutes);
-app.use('/api/v1/recruitment', recruitmentRoutes);
-app.use('/api/recruitment', recruitmentRoutes);
 
-// 4. Broad, Versioned, & Catch-all Fallbacks (Broadest matching paths go lower)
+// Legacy account route fallback
+app.use('/api/v1/legacy-accounts', accountRoutes);
+app.use('/api/legacy-accounts', accountRoutes);
+
+// Broad, Versioned, & Catch-all Fallbacks
 app.use('/api/v1', studentRoutes);
 app.use('/api/v1', crmRoutes);
 app.use('/api', studentRoutes); 
 app.use('/api', crmRoutes);
 app.use('/v1', studentRoutes);
 app.use('/v1', crmRoutes);
-app.use('/api', apiRoutes);      // Legacy base fallback route handler
-
-// Welcome / Root Health Check Route
-app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "CRM Backend Server is running successfully."
-  });
-});
+app.use('/api', apiRoutes);
 
 // 5. Global 404 Route Catch-All
 // Prevents missing endpoints from crashing headers or responding with standard Express HTML
