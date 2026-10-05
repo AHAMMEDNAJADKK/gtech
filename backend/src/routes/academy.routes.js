@@ -61,6 +61,7 @@ router.delete('/lessons/:lessonId', requireAdminOrStaff, lmsController.deleteLes
 router.post('/lessons/:lessonId/complete', lmsController.completeLesson);
 
 // Assignment Management
+router.get('/assignments', lmsController.getAllAssignments);
 router.post('/courses/:courseId/assignments', requireAdminOrStaff, lmsController.createAssignment);
 router.patch('/assignments/:assignmentId', requireAdminOrStaff, lmsController.updateAssignment);
 router.delete('/assignments/:assignmentId', requireAdminOrStaff, lmsController.deleteAssignment);

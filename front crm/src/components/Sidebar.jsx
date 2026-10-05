@@ -6,176 +6,174 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { resolveUserDashboardPath } from '../utils/userDashboard';
 import { 
   LayoutDashboard, 
-  UserCheck, 
-  ListCheck, 
-  Users, 
   GraduationCap,
   Settings, 
   LogOut,
-  Building,
-  Building2,
-  TrendingUp,
-  BarChart3,
-  BarChart2,
-  FileText,
-  Sparkles,
+  Bell, 
+  ChevronLeft, 
+  ChevronRight, 
+  Wallet, 
+  BookOpen, 
+  ChevronDown, 
+  CheckCircle2, 
+  Target, 
+  PhoneCall, 
+  Video, 
+  Clipboard, 
+  Layers, 
+  School, 
   Award,
-  Bell,
-  ChevronLeft,
-  ChevronRight,
-  FolderKanban,
-  Briefcase,
-  ShieldCheck,
-  Wallet,
-  PlusCircle,
-  DollarSign,
-  BookOpen,
-  Tag,
-  ShoppingBag,
-  ShoppingCart,
-  Coins,
-  ChevronDown,
-  Calendar,
-  CheckCircle2,
-  Receipt,
-  CreditCard,
-  Target,
-  Megaphone,
-  Magnet,
-  PhoneCall,
-  Contact,
-  Code2,
-  Palette,
-  FileCode,
-  Lightbulb,
-  Paintbrush,
-  BookOpenCheck,
-  Video,
-  FileVideo,
-  ClipboardCheck,
-  Sliders,
-  Calculator,
-  PieChart,
-  ClipboardList,
-  Clock,
-  Clipboard,
-  Layers,
-  School,
-  UsersRound,
-  UserCog,
-  BookCheck,
-  X
+  X 
 } from 'lucide-react';
 
 const CATEGORY_ORDER = [
   'Overview',
-  'Dashboards',
-  'People & HR',
-  'Sales & CRM',
-  'Marketing & Work',
-  'Finance & Payroll',
-  'Academy & LMS',
-  'Reports',
-  'Daily Operations'
+  'Admissions',
+  'Academics',
+  'Attendance',
+  'Assignments',
+  'Accounts',
+  'Live Classes',
+  'Certificates',
+  'Settings'
 ];
 
 const CATEGORY_CONFIG = {
   'Overview': { label: 'Overview', icon: LayoutDashboard },
-  'Dashboards': { label: 'Dashboards', icon: LayoutDashboard },
-  'People & HR': { label: 'People & HR', icon: Users },
-  'Sales & CRM': { label: 'Sales & CRM', icon: Target },
-  'Marketing & Work': { label: 'Marketing & Work', icon: Megaphone },
-  'Finance & Payroll': { label: 'Finance & Payroll', icon: Wallet },
-  'Academy & LMS': { label: 'Academy & LMS', icon: GraduationCap },
-  'Reports': { label: 'Reports', icon: BarChart3 },
-  'Daily Operations': { label: 'Daily Operations', icon: Clock }
+  'Admissions': { label: 'Admissions', icon: Target },
+  'Academics': { label: 'Academics', icon: GraduationCap },
+  'Attendance': { label: 'Attendance', icon: Clipboard },
+  'Assignments': { label: 'Assignments', icon: CheckCircle2 },
+  'Accounts': { label: 'Accounts', icon: Wallet },
+  'Live Classes': { label: 'Live Classes', icon: Video },
+  'Certificates': { label: 'Certificates', icon: Award },
+  'Settings': { label: 'Settings', icon: Settings }
 };
 
 const menuItems = [
   // --- OVERVIEW ---
-  { icon: CheckCircle2, label: 'Approvals', path: '/approvals', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
-  { icon: Calendar, label: 'Leave Requests', path: '/leaves', category: 'Overview' },
-  { icon: Bell, label: 'Notifications', path: '/notifications', category: 'Overview' },
-
-  // --- DASHBOARDS ---
-  { icon: LayoutDashboard, label: 'Admin Dashboard', path: '/dashboard', category: 'Dashboards', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
-  { icon: TrendingUp, label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
-  { icon: UserCog, label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards', allowedDesignationNames: ['hr', 'recruiter'] },
-  { icon: Target, label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDepartmentNames: ['counselor', 'sales', 'ops', 'marketing'], allowedDesignationNames: ['counselor', 'telecaller', 'ops'] },
-  { icon: Megaphone, label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'marketing', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDepartmentNames: ['marketing', 'digital'] },
-  { icon: Video, label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', allowedDesignationNames: ['video', 'editor', 'media'] },
-  { icon: Palette, label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
-  { icon: Code2, label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', allowedDepartmentNames: ['r&d', 'dev', 'developer', 'development'] },
-  { icon: GraduationCap, label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
-  { icon: Wallet, label: 'Accountant Dashboard', path: '/accountant-dashboard', category: 'Dashboards', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['accounts', 'finance'], allowedDesignationNames: ['accountant', 'accounts', 'finance'] },
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/common-dashboard', category: 'Dashboards', isCommonDashboardFallback: true },
-
-  // --- PEOPLE & HR ---
-  { icon: UserCheck, label: 'Staff Attendance', path: '/staff-attendance', category: 'People & HR' },
-  { icon: UserCheck, label: 'Recruitment', path: '/recruitment', category: 'People & HR', allowedRoles: ['0', '1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'recruiter'], allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager'] },
-  { icon: Users, label: 'Users', path: '/users', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
-  { icon: Building, label: 'Departments', path: '/departments', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'] },
-  { icon: ShieldCheck, label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR', allowedRoles: ['0', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
-  { icon: BookOpenCheck, label: 'Employee Training', path: '/hr/training', category: 'People & HR', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin'] },
-
-  // --- SALES & CRM ---
-  { icon: PhoneCall, label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM', allowedDesignationNames: ['counselor', 'telecaller', 'ops'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin'] },
-  { icon: Briefcase, label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
-  { icon: Building2, label: 'Clients', path: '/clients', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
-
-  // --- MARKETING & WORK ---
-  { icon: Calendar, label: 'Content Calendar', path: '/calendar-work', category: 'Marketing & Work' },
-  { icon: FolderKanban, label: 'Projects', path: '/projects', category: 'Marketing & Work', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
-
-  // --- FINANCE & PAYROLL ---
-  { icon: Wallet, label: 'Accounts', path: '/accounts', category: 'Finance & Payroll', children: [
-      { icon: Coins, label: 'Capital', path: '/accounts/capital' },
-      { icon: TrendingUp, label: 'Sales', path: '/accounts/sales' },
-      { icon: ShoppingBag, label: 'Income', path: '/accounts/income' },
-      { icon: ShoppingCart, label: 'Purchase', path: '/accounts/purchase' },
-      { icon: Tag, label: 'Expense Categories', path: '/accounts/categories' },
-      { icon: PlusCircle, label: 'Expense', path: '/accounts/expenses' },
-      { icon: DollarSign, label: 'Salary Payment', path: '/accounts/salary' },
-      { icon: BookCheck, label: 'Cash & Bank', path: '/accounts/cash-book' },
-      { icon: Layers, label: 'Operation', path: '/accounts/operation' },
-      { icon: BarChart3, label: 'Profit and Loss', path: '/accounts/reports' }
-    ]
+  { 
+    icon: LayoutDashboard, 
+    label: 'Dashboard', 
+    path: '/dashboard', 
+    category: 'Overview', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor'] 
   },
-  { icon: TrendingUp, label: 'Income', path: '/accounts/income', category: 'Finance & Payroll', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'], allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts'] },
-  { icon: Receipt, label: 'Payslips', path: '/payslips', category: 'Finance & Payroll', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'], allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts'] },
-  { icon: CreditCard, label: 'Personal Payslip', path: '/my-payslip', category: 'Finance & Payroll' },
+  { 
+    icon: Bell, 
+    label: 'Notifications', 
+    path: '/notifications', 
+    category: 'Overview' 
+  },
 
-  // --- ACADEMY & LMS ---
-  { icon: BookOpen, label: 'Course Management', path: '/academy/courses', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
-  { icon: Layers, label: 'Batches', path: '/academy/batches', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
-  { icon: School, label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
-  { icon: BookOpenCheck, label: 'Training LMS', path: '/training-lms', category: 'Academy & LMS' },
-  { icon: GraduationCap, label: 'My LMS Learning', path: '/academy/learning', category: 'Academy & LMS' },
-  { icon: Clipboard, label: 'Student Attendance', path: '/student-attendance', category: 'Academy & LMS', allowedRoles: ['0', '1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin', 'academy', 'academic'] },
+  // --- ADMISSIONS ---
+  { 
+    icon: Target, 
+    label: 'Leads & Enquiries', 
+    path: '/leads', 
+    category: 'Admissions', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller'],
+    allowedDesignationNames: ['counselor', 'telecaller', 'admission', 'academic']
+  },
+  { 
+    icon: PhoneCall, 
+    label: 'Counselor Follow-ups', 
+    path: '/leads-telecaller', 
+    category: 'Admissions', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller'],
+    allowedDesignationNames: ['counselor', 'telecaller', 'admission', 'academic']
+  },
 
-  // --- REPORTS ---
-  { icon: ClipboardCheck, label: 'HR Shift Report', path: '/hr-report', category: 'Reports', allowedDesignationNames: ['hr', 'recruiter'] },
-  { icon: Calculator, label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', allowedDesignationNames: ['accountant', 'accounts', 'finance'] },
-  { icon: Sparkles, label: 'AI Reports', path: '/ai-report', category: 'Reports' },
-  { icon: Award, label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'] },
-  { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports', allowedRoles: ['hr', 'admin'] },
-  { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports', isTeamLeadOnly: true },
-  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev', 'junior', 'jr', 'software', 'engineer', 'react', 'node', 'flutter', 'coder', 'programmer', 'frontend', 'backend', 'fullstack', 'web'] },
-  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod'] },
-  { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
-  { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports', allowedDesignationNames: ['video', 'editor', 'media'] },
-  { icon: BookOpenCheck, label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
-  { icon: Sliders, label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', allowedDesignationNames: ['ops', 'operation', 'sales'] },
-  { icon: PieChart, label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', allowedDesignationNames: ['marketing', 'marketer', 'digital'] },
-  { icon: Megaphone, label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports', allowedRoles: ['1', '2', 'admin', 'hr', 'superadmin', 'manager'], allowedDesignationNames: ['marketing', 'marketer', 'hod', 'head', 'cmo', 'digital'] },
-  { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports', isBasicReportFallback: true },
-  { icon: FileText, label: 'Daily Shift Report', path: '/daily-shift-report', category: 'Reports' },
+  // --- ACADEMICS ---
+  { 
+    icon: BookOpen, 
+    label: 'Course Management', 
+    path: '/academy/courses', 
+    category: 'Academics', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin'] 
+  },
+  { 
+    icon: Layers, 
+    label: 'Batches', 
+    path: '/academy/batches', 
+    category: 'Academics', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher'],
+    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer']
+  },
+  { 
+    icon: School, 
+    label: 'Enrollments', 
+    path: '/academy/enrollments', 
+    category: 'Academics', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller'],
+    allowedDesignationNames: ['counselor', 'telecaller', 'admission']
+  },
+  { 
+    icon: GraduationCap, 
+    label: 'My Learning LMS', 
+    path: '/academy/learning', 
+    category: 'Academics', 
+    allowedRoles: ['10', 'student', 'instructor', 'faculty', 'teacher', '0', '1', '2', 'admin', 'superadmin'],
+    allowedDesignationNames: ['student', 'instructor', 'teacher', 'faculty', 'trainer']
+  },
 
-  // --- DAILY OPERATIONS ---
-  { icon: Clock, label: 'Daily Operations OS', path: '/daily-operations', category: 'Daily Operations' },
-  { icon: UsersRound, label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Daily Operations', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDesignationNames: ['team lead', 'teamlead', 'tl', 'lead', 'manager', 'supervisor', 'hod'] },
-  { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations' },
-  { icon: ListCheck, label: 'Task Assign', path: '/todo', category: 'Daily Operations' },
+  // --- ATTENDANCE ---
+  { 
+    icon: Clipboard, 
+    label: 'Student Attendance', 
+    path: '/student-attendance', 
+    category: 'Attendance', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', '10', 'student'],
+    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'student']
+  },
+
+  // --- ASSIGNMENTS ---
+  { 
+    icon: CheckCircle2, 
+    label: 'Assignments & Grading', 
+    path: '/assignments', 
+    category: 'Assignments', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', '10', 'student'],
+    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'student']
+  },
+
+  // --- ACCOUNTS ---
+  { 
+    icon: Wallet, 
+    label: 'Student Fees & Receipts', 
+    path: '/accounts', 
+    category: 'Accounts', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', '10', 'student'],
+    allowedDesignationNames: ['student', 'accountant', 'accounts']
+  },
+
+  // --- LIVE CLASSES ---
+  { 
+    icon: Video, 
+    label: 'Live Classrooms', 
+    path: '/live-classes', 
+    category: 'Live Classes', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', '10', 'student'],
+    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'student']
+  },
+
+  // --- CERTIFICATES ---
+  { 
+    icon: Award, 
+    label: 'Certificates', 
+    path: '/certificates', 
+    category: 'Certificates', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', '10', 'student'],
+    allowedDesignationNames: ['student']
+  },
+
+  // --- SETTINGS ---
+  { 
+    icon: Settings, 
+    label: 'Settings', 
+    path: '/settings', 
+    category: 'Settings' 
+  }
 ];
 
 // Simple Portal implementation to render the badge safely outside of parent overflow cropping
@@ -372,223 +370,96 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       }
 
       if (!userObj) {
-        return menuItems.filter(item => !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations);
+        return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/settings');
       }
 
       const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+      const currentDesigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
+      const isStudent = currentUserRole === '10' || currentUserRole === 'student' || currentDesigName === 'student';
+      
       const isSuperAdminUser = 
         userObj.isSuperAdmin === true ||
         userObj.is_super_admin === true ||
         currentUserRole === 'superadmin' || 
         currentUserRole === 'super_admin' || 
-        currentUserRole === 'super admin' || 
         currentUserRole === '0' || 
         String(userObj.role || '').toLowerCase() === 'superadmin' ||
         String(userObj.role || '').toLowerCase() === '0';
 
-      // 1. Super Admin access: Full access to all sidebar items for Super Admin
-      if (isSuperAdminUser) {
-        return menuItems.filter(item => !item.isCommonDashboardFallback && !item.isBasicReportFallback);
+      const isAdminUser = isSuperAdminUser || ['1', '2', 'admin'].includes(currentUserRole) || currentDesigName.includes('admin');
+
+      // 1. Admin & SuperAdmin: Full access to all EdTech tools
+      if (isAdminUser) {
+        return menuItems;
       }
 
-      // 2. Custom Sidebar Permissions set by Super Admin for this user
+      // 2. Student: Strictly allowed only Student modules
+      if (isStudent) {
+        const studentAllowedPaths = [
+          '/academy/learning',
+          '/live-classes',
+          '/assignments',
+          '/student-attendance',
+          '/accounts',
+          '/certificates',
+          '/notifications',
+          '/settings'
+        ];
+        return menuItems.filter(item => studentAllowedPaths.includes(item.path));
+      }
+
+      // 3. Custom permissions if defined
       if (Array.isArray(userObj.permissions) && userObj.permissions.length > 0) {
         const allowedSet = userObj.permissions.map(p => String(p).toLowerCase().trim());
-        
-        // Map extra permission labels to sidebar paths
-        const extraPathMappings = {
-          'admin dashboard': '/dashboard',
-          'md dashboard': '/md-dashboard',
-          'accountant dashboard': '/accountant-dashboard',
-          'income': '/accounts/income',
-          'sales': '/accounts/sales',
-          'capital': '/accounts/capital',
-          'purchase': '/accounts/purchase',
-          'create invoice': '/accounts/create-invoice',
-          'daily operations os': '/daily-operations',
-          'daily operations': '/daily-operations',
-          'tl daily operations': '/tl-daily-operations',
-        };
-        const extraAllowedPaths = [];
-        for (const perm of allowedSet) {
-          if (extraPathMappings[perm]) {
-            extraAllowedPaths.push(extraPathMappings[perm].toLowerCase());
-          }
-        }
-        
-        let customVisible = menuItems
-          .map(item => {
-            const itemLabelLower = item.label.toLowerCase().trim();
-            const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
-
-            const isParentAllowed = 
-              item.path === '/leaves' ||
-              allowedSet.includes(itemLabelLower) || 
-              allowedSet.includes(itemPathLower) ||
-              extraAllowedPaths.includes(itemPathLower);
-
-            if (item.children) {
-              const allowedChildren = item.children.filter(child => {
-                const childLabelLower = child.label.toLowerCase().trim();
-                const childPathLower = child.path ? child.path.toLowerCase().trim() : '';
-                return isParentAllowed || allowedSet.includes(childLabelLower) || allowedSet.includes(childPathLower);
-              });
-
-              if (allowedChildren.length > 0) {
-                return { ...item, children: allowedChildren };
-              }
-              return isParentAllowed ? item : null;
-            }
-
-            return isParentAllowed ? item : null;
-          })
-          .filter(Boolean);
-
-        // If MD Dashboard permission is granted, override Dashboard path to /md-dashboard
-        if (allowedSet.includes('md dashboard') && !allowedSet.includes('dashboard') && !allowedSet.includes('admin dashboard')) {
-          customVisible = customVisible.map(item => {
-            if (item.label === 'Dashboard' && item.path === '/dashboard') {
-              return { ...item, path: '/md-dashboard' };
-            }
-            return item;
-          });
-        }
-
-        if (customVisible.length > 0) {
-          // Fallback dashboard: if user has no dashboard in custom permissions
-          const hasDashboard = customVisible.some(item => item.label.toLowerCase().includes('dashboard'));
-          if (!hasDashboard) {
-            const fallbackDashboard = menuItems.find(item => item.isCommonDashboardFallback);
-            if (fallbackDashboard) customVisible.unshift(fallbackDashboard);
-          }
-
-          // Fallback report: if user has no report page in custom permissions
-          const hasReport = customVisible.some(item => item.label.toLowerCase().includes('report'));
-          if (!hasReport) {
-            const fallbackReport = menuItems.find(item => item.isBasicReportFallback);
-            if (fallbackReport) customVisible.push(fallbackReport);
-          }
-
-          return customVisible;
-        }
-      }
-      
-      const deptName = userObj.department || userObj.departmentId?.name || '';
-      const isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
-      if (isNonOperational) {
-        return menuItems.filter(item => item.label === 'Employee Reports' || item.label === 'Dashboard' || item.path === '/leaves');
+        const customVisible = menuItems.filter(item => {
+          const itemLabelLower = item.label.toLowerCase().trim();
+          const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
+          return (
+            item.path === '/notifications' ||
+            item.path === '/settings' ||
+            allowedSet.includes(itemLabelLower) ||
+            allowedSet.includes(itemPathLower)
+          );
+        });
+        if (customVisible.length > 0) return customVisible;
       }
 
-      let currentUserDept = '';
-      if (userObj.departmentId) {
-        if (typeof userObj.departmentId === 'object' && userObj.departmentId._id) {
-          currentUserDept = String(userObj.departmentId._id).trim();
-        } else {
-          currentUserDept = String(userObj.departmentId).trim();
-        }
-      }
-
-      let currentUserDesignation = '';
-      if (userObj.designationId) {
-        if (typeof userObj.designationId === 'object' && userObj.designationId._id) {
-          currentUserDesignation = String(userObj.designationId._id).trim();
-        } else {
-          currentUserDesignation = String(userObj.designationId).trim();
-        }
-      } else if (userObj.designation_id) {
-        currentUserDesignation = String(userObj.designation_id).trim();
-      }
-      
-      const isPrivilegedUser = ['0', '1', '2', '10', 'admin', 'hr', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl', 'md'].includes(currentUserRole) || !!userObj.isTeamLead;
-      const DEFAULT_EMPLOYEE_LABELS = ['Dashboard', 'Task Assign', 'Notifications', 'Attendance', 'Leave Requests', 'My LMS Learning', 'Employee Training'];
+      // 4. Role / Designation Based Matching for Counselor, Instructor, etc.
+      const isCounselor = currentUserRole === 'counselor' || currentDesigName.includes('counselor') || currentDesigName.includes('tele');
+      const isInstructor = currentUserRole === 'instructor' || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher') || currentDesigName.includes('trainer');
 
       const visible = menuItems.filter(item => {
-        if (item.excludeRoles && item.excludeRoles.includes(currentUserRole)) {
-          return false;
-        }
-        // Show Team Reports page only for non-HR department team leads
-        if (item.isTeamLeadOnly) {
-          const desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-          const isHrUser = currentUserRole === 'hr' || desigName.includes('hr');
-          if (isHrUser) return false;
-          return !!userObj.isTeamLead;
-        }
-        if (item.isCommonDashboardFallback || item.isBasicReportFallback) {
-          return false;
-        }
-        if (item.label === 'Clients' || item.label === 'Projects' || item.label === 'Client Leads' || item.label === 'KPI Analytics' || item.label === 'Lead Dashboard' || item.label === 'Marketing Dashboard') {
-          return isPrivilegedUser;
+        // If item has no role restrictions, allow it
+        if (!item.allowedRoles && !item.allowedDesignationNames) {
+          return true;
         }
 
-        const hasNoRoleRestrictions = !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames;
-        
-        if (hasNoRoleRestrictions) {
-          if (isPrivilegedUser) return true;
-          // Standard employees without custom permissions only get default items
-          return DEFAULT_EMPLOYEE_LABELS.includes(item.label);
-        }
-
-        const roleMatch = item.allowedRoles && item.allowedRoles.includes(currentUserRole);
-        const deptMatch = item.allowedDepartments && item.allowedDepartments.includes(currentUserDept);
-        const designationMatch = item.allowedDesignations && item.allowedDesignations.includes(currentUserDesignation);
-        
-        // Name-based department matching (works across environments)
-        const currentDeptName = String(deptName).toLowerCase().trim();
-        const deptNameMatch = item.allowedDepartmentNames && item.allowedDepartmentNames.some(name => 
-          currentDeptName.includes(name) || name.includes(currentDeptName)
+        const roleMatch = item.allowedRoles && (
+          item.allowedRoles.includes(currentUserRole) ||
+          (isCounselor && item.allowedRoles.includes('counselor')) ||
+          (isInstructor && item.allowedRoles.includes('instructor'))
         );
 
-        // Name-based designation matching (works across environments)
-        const currentDesigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-        const desigNameMatch = item.allowedDesignationNames && item.allowedDesignationNames.some(name => 
+        const desigMatch = item.allowedDesignationNames && item.allowedDesignationNames.some(name =>
           currentDesigName.includes(name) || name.includes(currentDesigName)
         );
-        
-        const matches = [];
-        if (item.allowedRoles) matches.push(roleMatch);
-        if (item.allowedDepartments) matches.push(deptMatch);
-        if (item.allowedDesignations) matches.push(designationMatch);
-        if (item.allowedDepartmentNames) matches.push(deptNameMatch);
-        if (item.allowedDesignationNames) matches.push(desigNameMatch);
-        
-        return matches.some(m => m === true);
+
+        return roleMatch || desigMatch;
       });
 
-      // Fallback dashboard: if user has no other dashboard in visible items
-      const hasOtherDashboard = visible.some(item => item.label.toLowerCase().includes('dashboard'));
-      if (!hasOtherDashboard) {
-        const fallbackDashboard = menuItems.find(item => item.isCommonDashboardFallback);
-        if (fallbackDashboard) visible.unshift(fallbackDashboard);
-      }
-
-      // Fallback report: if user has no other report page in visible items
-      const hasOtherReport = visible.some(item => item.label.toLowerCase().includes('report'));
-      if (!hasOtherReport) {
-        const fallbackReport = menuItems.find(item => item.isBasicReportFallback);
-        if (fallbackReport) {
-          visible.push(fallbackReport);
-        }
-      }
-
-      // Determine the user's primary dashboard and place it at the VERY TOP of the sidebar under Overview
+      // Place user's primary dashboard at top if resolved
       const userDashboardPath = resolveUserDashboardPath(userObj);
-      let primaryDash = menuItems.find(item => item.path === userDashboardPath);
-      if (!primaryDash) {
-        primaryDash = visible.find(item => item.label.toLowerCase().includes('dashboard'));
-      }
-
+      let primaryDash = visible.find(item => item.path === userDashboardPath);
       let finalVisible = [...visible];
-      if (primaryDash) {
-        // Remove existing copy if present
-        finalVisible = finalVisible.filter(item => item.path !== primaryDash.path && item.label !== primaryDash.label);
-        // Unshift primary dashboard at the top under Overview category
+      if (primaryDash && primaryDash.path !== '/dashboard') {
+        finalVisible = finalVisible.filter(item => item.path !== primaryDash.path);
         finalVisible.unshift({ ...primaryDash, category: 'Overview' });
       }
 
       return finalVisible;
     } catch (e) {
       console.error("Error reading operator authorization layout paths:", e);
-      return menuItems.filter(item => !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations);
+      return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/settings');
     }
   };
 
@@ -623,9 +494,19 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         <div className="h-16 flex items-center justify-between px-5 shrink-0 overflow-hidden border-b border-slate-100 dark:border-slate-800/40">
           <div className="flex items-center gap-3">
             {!isCollapsed ? (
-              <img src="/logo3.png" alt="StaffHQ Logo" className="h-8 w-auto object-contain" />
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-indigo-500/20">
+                  <GraduationCap size={18} />
+                </div>
+                <div>
+                  <span className="font-black text-sm tracking-tight text-slate-900 dark:text-white uppercase block leading-none">EdTech CRM</span>
+                  <span className="text-[9px] font-bold text-indigo-500 tracking-wider uppercase">Academy Portal</span>
+                </div>
+              </div>
             ) : (
-              <img src="/logo2.png" alt="StaffHQ Logo Icon" className="h-8 w-8 object-contain shrink-0" />
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black shadow-md shadow-indigo-500/20">
+                <GraduationCap size={18} />
+              </div>
             )}
           </div>
           <button
@@ -656,25 +537,27 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           ))}
         </div>
 
-        {/* Logout (Bottom-aligned) */}
-        <div className="p-3.5 border-t border-slate-100 dark:border-slate-800/80 shrink-0">
-          <NavItem 
-            icon={<LogOut size={20} />} 
-            label="Logout" 
-            to="/" 
-            active={false} 
-            isLogout={true}
-            isCollapsed={isCollapsed}
+        {/* User profile / Logout bottom container */}
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800/50 shrink-0">
+          <Link
+            to="/login"
             onClick={() => {
               localStorage.removeItem('token');
               localStorage.removeItem('user');
               localStorage.removeItem('user_id');
             }}
-          />
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-all font-medium ${
+              isCollapsed ? 'justify-center' : ''
+            }`}
+            title="Logout"
+          >
+            <LogOut size={18} className="shrink-0" />
+            {!isCollapsed && <span className="text-xs font-semibold">Sign Out</span>}
+          </Link>
         </div>
       </aside>
 
-      {/* 2. Mobile Sidebar Slide-over Backdrop */}
+      {/* 2. Mobile Backdrop */}
       <AnimatePresence>
         {isMobileOpen && (
           <motion.div
@@ -694,7 +577,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
-          <img src="/logo3.png" alt="StaffHQ Logo" className="h-8 w-auto object-contain" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black">
+              <GraduationCap size={18} />
+            </div>
+            <span className="font-black text-sm tracking-tight text-slate-900 dark:text-white uppercase">EdTech CRM</span>
+          </div>
           <button 
             onClick={() => setIsMobileOpen(false)}
             className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -717,7 +605,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
 
         <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 shrink-0">
           <Link
-            to="/"
+            to="/login"
             onClick={() => {
               localStorage.removeItem('token');
               localStorage.removeItem('user');
@@ -727,7 +615,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
             className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-all font-medium"
           >
             <LogOut size={20} className="shrink-0" />
-            <span className="text-sm font-medium">Logout</span>
+            <span className="text-sm font-medium">Sign Out</span>
           </Link>
         </div>
       </aside>
@@ -759,36 +647,35 @@ const NavItem = ({ icon, label, to, active, isLogout, isCollapsed, onClick, chil
     setIsHovered(true);
   };
 
-  const isParentActive = active || (childrenItems && childrenItems.some(c => location.pathname.startsWith(c.path)));
+  const isParentActive = active || (childrenItems && childrenItems.some(c => location.pathname === c.path));
 
   if (childrenItems && childrenItems.length > 0) {
     return (
-      <div className="w-full space-y-1 select-none">
+      <div 
+        className="w-full relative"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setIsHovered(false)}
+        ref={itemRef}
+      >
         <div
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={() => setIsHovered(false)}
-          ref={itemRef}
-          className="relative w-full flex items-center justify-between group"
+          className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
+            isParentActive
+              ? 'text-white bg-indigo-600 shadow-md shadow-indigo-500/15'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+          }`}
+          onClick={() => {
+            if (isCollapsed && onClick) onClick();
+            else setIsOpen(!isOpen);
+          }}
         >
-          <Link
-            to={to}
-            onClick={(e) => {
-              setIsOpen(true);
-              if (onClick) onClick(e);
-            }}
-            className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 
-              ${isParentActive 
-                ? 'text-white bg-indigo-600 shadow-md shadow-indigo-500/15 font-semibold' 
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium'
-              }`}
-          >
+          <div className="flex items-center gap-3 min-w-0">
             <span className="flex items-center justify-center shrink-0">
               {icon}
             </span>
-            <span className={`text-sm transition-all duration-200 whitespace-nowrap overflow-hidden ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
+            <span className={`text-sm font-medium transition-all duration-200 whitespace-nowrap overflow-hidden ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>
               {label}
             </span>
-          </Link>
+          </div>
 
           {!isCollapsed && (
             <button

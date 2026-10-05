@@ -89,6 +89,36 @@ const StudentLmsPortal = () => {
           </div>
         </div>
 
+        {/* Student Quick Navigation Hub */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {[
+            { label: "Live Classes", desc: "Join Google Meet / Zoom", path: "/live-classes", icon: PlayCircle, color: "text-sky-600 bg-sky-50 dark:bg-sky-950/40" },
+            { label: "My Assignments", desc: "Submissions & marks", path: "/assignments", icon: CheckCircle2, color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
+            { label: "My Attendance", desc: "Attendance records", path: "/student-attendance", icon: Clock, color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
+            { label: "Fee Accounts", desc: "Installments & receipts", path: "/accounts", icon: Sparkles, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" },
+            { label: "Certificates", desc: "Graduation awards", path: "/certificates", icon: Award, color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
+          ].map(hub => {
+            const HIcon = hub.icon;
+            return (
+              <button
+                key={hub.label}
+                onClick={() => navigate(hub.path)}
+                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 transition text-left group cursor-pointer flex items-center gap-3.5"
+              >
+                <div className={`p-2.5 rounded-xl ${hub.color} group-hover:scale-110 transition-transform`}>
+                  <HIcon size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-tight text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 transition">
+                    {hub.label}
+                  </p>
+                  <p className="text-[10px] text-slate-400">{hub.desc}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Enrolled Courses Cards Grid */}
         {enrolledCourses.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-16 rounded-[2.5rem] text-center space-y-4">

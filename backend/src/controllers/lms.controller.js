@@ -376,6 +376,27 @@ const lmsController = {
   },
 
   /**
+   * GET /api/v1/academy/assignments
+   * Get all assignments with optional ?courseId filter
+   */
+  getAllAssignments: async (req, res, next) => {
+    try {
+      const { courseId } = req.query;
+      const query = {};
+      if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
+        query.courseId = courseId;
+      }
+      const assignments = await Assignment.find(query)
+        .populate('courseId', 'courseName courseCode')
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: assignments });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * POST /api/v1/academy/courses/:courseId/assignments
    * Create new course assignment
    */

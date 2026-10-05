@@ -8,7 +8,11 @@ try {
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.DATABASE_URL);
+    const mongoUri = process.env.MONGO_URI || process.env.DATABASE_URL;
+    if (!mongoUri) {
+      throw new Error('Neither MONGO_URI nor DATABASE_URL is defined in environment variables.');
+    }
+    const conn = await mongoose.connect(mongoUri);
     console.log(`MongoDB Connected Safely: ${conn.connection.host}`);
   } catch (error) {
     console.error(`Database Connection Error: ${error.message}`);

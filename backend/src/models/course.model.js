@@ -91,6 +91,11 @@ const courseSchema = new mongoose.Schema({
     enum: ['Days', 'Weeks', 'Months', 'Years'],
     default: 'Months'
   },
+  courseFee: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   status: {
     type: String,
     enum: ['DRAFT', 'ACTIVE', 'ARCHIVED', 'INACTIVE'],

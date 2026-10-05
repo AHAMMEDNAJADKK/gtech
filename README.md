@@ -1,200 +1,112 @@
-# KODBRAND Enterprise CRM & Operations Management System
+# gtech - Production-Ready EdTech CRM & Learning Management System
 
-A full-stack, enterprise-grade Customer Relationship Management (CRM) and Operations Tracking System built with **React 19**, **Vite 8**, **Node.js/Express**, and **MongoDB Atlas**. Designed for multi-department organizations with role-based access control (RBAC), executive analytics, lead pipeline management, task tracking, and automated shift reporting.
+A minimal, professional, production-ready Customer Relationship Management (CRM) and Learning Management System (LMS) purpose-built for EdTech institutes, training academies, and coding bootcamps. Built on the modern **MERN stack** (MongoDB Atlas, Express.js, React 19, Node.js, Vite 8, Tailwind CSS).
+
+---
+
+## 🚀 Core EdTech Workflow
+
+```
+PROSPECT / ENQUIRY
+       ↓ (Lead capture with course interest, source, and counselor assignment)
+ACADEMIC COUNSELOR
+       ↓ (Call tracking, follow-up dates, notes, status: New → Follow Up → Interested)
+CONVERSION TO STUDENT
+       ↓ (Auto-generates student ID STD-YYYY-XXXXXX, creates student user account)
+COURSE & BATCH ALLOCATION
+       ↓ (Assigns instructor, schedule timings, enrolls in cohort)
+STUDENT LMS LEARNING PORTAL
+       ↓ (/academy/learning: curriculum syllabus, lessons, video player, resources)
+STUDENT ATTENDANCE
+       ↓ (/student-attendance: daily attendance recording, Present/Absent, percentage overview)
+ASSIGNMENTS & GRADING
+       ↓ (/assignments: instructor creates tasks, student submissions, scoring & feedback)
+FEES & INSTALLMENTS
+       ↓ (/accounts: tuition fee plans, installment schedules, Razorpay checkout, PDF receipts)
+COURSE COMPLETION
+       ↓ (Completion criteria check: 100% lessons & passing assignments)
+AUTOMATED CERTIFICATE
+       ↓ (/certificates: landscape vector PDF, unique verification code, public QR verification)
+```
 
 ---
 
 ## 🌟 Key Features
 
-### 📊 Role-Based Dashboards & Analytics
-- **Admin Dashboard**: Core metrics, project statistics, lead funnels, and department workload analytics.
-- **MD / Executive Dashboard**: Executive-level overview and high-level KPIs.
-- **HR Dashboard**: Real-time employee attendance, task completion rates, and workforce analytics.
-- **Specialized Department Dashboards**: Custom views for Developers, Graphic Designers, Videographers, Telecallers, and Counselors.
+### 1. 🎓 Admissions & Academic Counselor Pipeline
+- Prospect & lead capture with course preference and source tracking.
+- Academic counselor ownership, call reminders, follow-up scheduling, and call logs.
+- 1-click lead-to-student conversion (`POST /api/v1/leads/:id/convert-to-student`).
 
-### 🎯 Lead Pipeline & Management
-- **Telecaller & Client Lead Directories**: Track leads across stages (*New, Contacted, Follow Up, Interested, Converted, Lost*).
-- **Lead Classification**: Filter leads by temperature rating (*Hot Lead, Warm Lead, Cold Lead, RNT, Switched Off, Call Back*).
-- **Import / Export Engine**: Bulk import/export using Excel (`.xlsx`) and formatted PDF report downloads.
-- **Inline Editing & Activity Tracking**: Real-time status updates, assignment shifts, and follow-up logging.
+### 2. 📚 Course & Batch Management
+- Structured course builder: curriculum modules, syllabi, text lessons, materials, tuition fees.
+- Batch scheduling: cohort timings, instructors, student capacities, enrolled rosters.
 
-### 📋 Task & Attendance Tracking
-- **Task Management**: Assign tasks, monitor progress, attach documents, and view real-time completion status.
-- **Employee & Student Attendance**: Clock-in/clock-out tracking and attendance history.
+### 3. 💻 Student Learning Portal (LMS)
+- `/academy/learning`: Clean student portal displaying enrolled courses and progress percentage.
+- Course syllabus viewer with video lessons, document attachments, and topic checklists.
 
-### 📄 Shift Reporting & AI Intelligence
-- **Shift Reports**: Automated reporting for Developers, Designers, Videographers, Counselors, Ops, HR, and Accountants.
-- **AI-Powered Insights**: AI summary reports integrated with the **Groq API**.
+### 4. 📅 Student Attendance Tracking
+- `/student-attendance`: Batch-wise date selection, 1-click Present/Absent marking.
+- Student attendance percentage tracking and historical attendance logs.
 
-### 🔐 Granular Role-Based Access Control (RBAC)
-- **Roles**: Super Admin, Admin, MD, HR, Manager, Team Lead, Employee.
-- **Custom Sidebar Permissions**: Dynamically toggle sidebar module access per user.
-- **View-Only Safeguards**: Restrict sensitive operational modifications for HR and Admin views on specific directories.
+### 5. 📝 Assignments & Grading
+- `/assignments`: Create batch assignments with due dates and submission formats.
+- Student submission portal with instructor grade evaluation and feedback notes.
 
----
+### 6. 💳 Student Fees & Online Payments
+- `/accounts`: Student tuition ledger with custom installment schedules.
+- Razorpay payment gateway integration for online tuition payments.
+- Automatic receipt generation (`RCP-YYYY-XXXXXX`) and downloadable vector PDF receipts.
 
-## 🛠️ Technology Stack
+### 7. 📹 Virtual Classrooms (Google Meet & Zoom)
+- `/live-classes`: Schedule and manage live video lectures.
+- Direct "Join Class" buttons for students and instructors.
 
-### Frontend (`front crm`)
-- **Core**: React 19, Vite 8, JavaScript (ES6+)
-- **Styling**: Tailwind CSS v4, Framer Motion
-- **Icons**: Lucide React
-- **Document Processing**: `xlsx`, `jspdf`, `jspdf-autotable`, `html2pdf.js`
+### 8. 🏆 Automated Certificate Generation & Public QR Verification
+- `/certificates`: Issues verified certificates upon course completion.
+- Vector landscape PDF certificate generator built with PDFKit.
+- Public QR code verification page (`/verify-certificate/:code`) for credential validation.
 
-### Backend (`backend`)
-- **Runtime & Server**: Node.js, Express.js
-- **Database**: MongoDB Atlas (via Mongoose ORM)
-- **Authentication**: JSON Web Tokens (JWT), Bcrypt password hashing
-- **File & Media Storage**: Cloudinary CDN Engine
-- **Mailing Engine**: Nodemailer / SMTP
-- **AI Engine**: Groq SDK (`groq-sdk`)
+### 9. 📊 Focused EdTech Dashboard
+- 13 real-time operational KPIs: Total Enquiries, Active Leads, Follow-ups Due, Converted Students, Active Students, Active Courses, Active Batches, Upcoming Classes, Today's Attendance, Pending Assignments, Tuition Collected, Tuition Due, Certificates Issued.
 
----
-
-## 📁 Repository Structure
-
-```
-crm-test/
-├── backend/                  # Express.js REST API Server
-│   ├── src/
-│   │   ├── controllers/      # Route controllers (Auth, Leads, Tasks, Users, Reports)
-│   │   ├── models/           # Mongoose Database Schemas
-│   │   ├── routes/           # API Endpoint Route Handlers
-│   │   └── middleware/       # JWT Auth & Upload Middlewares
-│   ├── app.js                # Express App Setup & CORS Configuration
-│   ├── server.js             # HTTP Server Entry Point
-│   └── .env                  # Backend Environment Variables
-│
-├── front crm/                # React Vite SPA Frontend
-│   ├── src/
-│   │   ├── components/       # Reusable UI (Sidebar, Navbar, Toast, Modals)
-│   │   ├── pages/            # Page Views (Dashboards, Leads, Tasks, Users)
-│   │   ├── services/         # API Service Fetch Layers
-│   │   ├── contexts/         # User Context Provider
-│   │   ├── App.jsx           # App Routes & Protected Guards
-│   │   └── main.jsx          # App Entry Point
-│   ├── vite.config.js        # Vite Build & Reverse Proxy Settings
-│   └── .env                  # Frontend Environment Variables
-│
-└── README.md                 # Project Documentation
-```
+### 10. 🔐 Role-Based Access Control (RBAC)
+- **ADMIN**: Full system control.
+- **COUNSELOR**: Lead pipeline, follow-ups, and conversions.
+- **INSTRUCTOR**: Assigned batches, attendance, live classes, assignments, and grading.
+- **STUDENT**: Isolated access to own courses, attendance, fees, submissions, and certificates.
 
 ---
 
-## 🚀 Quick Start & Local Setup
+## 🛠️ Tech Stack
 
-### Prerequisites
-- **Node.js**: v18.0.0 or higher
-- **npm**: v9.0.0 or higher
-- **MongoDB Atlas** account (or local MongoDB server)
+- **Backend**: Node.js, Express.js, MongoDB Atlas (Mongoose), JWT, Bcrypt, PDFKit, QRCode, Razorpay.
+- **Frontend**: React 19, Vite 8, Tailwind CSS, Framer Motion, Lucide Icons, React Router DOM 7.
+- **Database**: MongoDB Atlas Cluster.
 
 ---
 
-### 1. Clone the Repository
+## ⚙️ Quick Start
+
+### 1. Clone the repository
 ```bash
-git clone https://github.com/your-organization/crm-project.git
-cd crm-project
+git clone https://github.com/AHAMMEDNAJADKK/gtech.git
+cd gtech
 ```
 
----
-
-### 2. Configure Backend Setup
-
+### 2. Backend Setup
 ```bash
 cd backend
 npm install
-```
-
-Create a `.env` file inside the `backend/` directory:
-
-```env
-# Server Core Settings
-PORT=5000
-NODE_ENV=development
-
-# Security & CORS Origins
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
-
-# Database Connection (MongoDB Atlas)
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/crm
-
-# Security Token Key
-JWT_SECRET=your_jwt_secret_key_here
-
-# Cloudinary Storage CDN
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-
-# AI Engine
-Groq_API_KEY=your_groq_api_key
-```
-
-Run the backend server:
-```bash
 npm run dev
-# Server will start at http://localhost:5000
 ```
 
----
-
-### 3. Configure Frontend Setup
-
-Open a new terminal window:
-
+### 3. Frontend Setup
 ```bash
 cd "front crm"
 npm install
-```
-
-Create a `.env` file inside the `front crm/` directory:
-
-```env
-VITE_API_URL=/api
-```
-
-Run the Vite development server:
-```bash
 npm run dev
-# Frontend will start at http://localhost:5173
 ```
 
----
-
-## 📡 API Endpoint Overview
-
-| Method | Endpoint | Description | Access |
-|---|---|---|---|
-| **POST** | `/api/auth/login` | User authentication & JWT issuance | Public |
-| **GET** | `/api/v1/users` | List all system users | Admin / HR |
-| **PUT** | `/api/v1/users/:id/permissions` | Configure user sidebar permissions | Admin |
-| **GET** | `/api/v1/client-leads` | Fetch client lead directory | Authorized Roles |
-| **POST** | `/api/v1/client-leads` | Create new client lead | Authorized Roles |
-| **GET** | `/api/v1/leads` | Fetch telecaller leads | Authorized Roles |
-| **GET** | `/api/v1/tasks` | List operational tasks | All Users |
-| **GET** | `/api/v1/md-dashboard` | Fetch MD executive summary metrics | MD / Admin |
-| **GET** | `/api/v1/attendance` | Get attendance logs | All Users |
-
----
-
-## 🌐 Production Deployment
-
-### Building for Production
-To build the frontend SPA for production deployment:
-
-```bash
-cd "front crm"
-npm run build
-```
-
-This creates an optimized production bundle in `front crm/dist`.
-
-### Deployment Instructions
-- **Frontend**: Deploy `front crm/dist` to **Vercel**, **Netlify**, or an **Nginx** static server with React SPA fallback enabled (`try_files $uri $uri/ /index.html`).
-- **Backend**: Deploy `backend/` to **Render**, **DigitalOcean**, **AWS EC2**, or **Heroku**.
-- Refer to `domain_migration_guide.md` for detailed instructions on domain transfers, SSL setup, and CORS configuration.
-
----
-
-## 📄 License
-Privately developed for **KODBRAND Command HQ**. All rights reserved.
+Visit `http://localhost:5173` to access the application.

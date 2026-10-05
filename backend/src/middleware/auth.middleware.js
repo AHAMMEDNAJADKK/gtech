@@ -152,14 +152,95 @@ export const requireAdminOrStaff = (req, res, next) => {
   }
 
   const isStaffOrAdmin = 
-    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager'].includes(roleId) ||
-    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager'].includes(roleName) ||
+    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager', 'counselor'].includes(roleId) ||
+    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager', 'counselor'].includes(roleName) ||
     roleName.toUpperCase() === 'MD' || roleName.toUpperCase() === 'COO';
 
   if (!isStaffOrAdmin) {
     return res.status(403).json({
       success: false,
       detail: 'Access denied. Insufficient permissions for administrative operation.'
+    });
+  }
+
+  next();
+};
+
+/**
+ * Strict Admin Authorization Middleware for Courses, Batches, Fees, and Settings
+ */
+export const requireAdmin = (req, res, next) => {
+  const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+  const roleName = String(req.user?.role || '').toLowerCase().trim();
+
+  const isAdmin = 
+    req.user?.isSuperAdmin === true ||
+    roleId === '0' ||
+    roleId === '1' ||
+    roleId === '2' ||
+    roleName === 'admin' ||
+    roleName === 'superadmin' ||
+    roleName.includes('admin') ||
+    roleName.toUpperCase() === 'MD';
+
+  if (!isAdmin) {
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. Administrator privileges required.'
+    });
+  }
+
+  next();
+};
+
+/**
+ * Instructor or Admin Authorization Middleware for Batch teaching, attendance, assignments, live classes
+ */
+export const requireInstructorOrAdmin = (req, res, next) => {
+  const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+  const roleName = String(req.user?.role || '').toLowerCase().trim();
+
+  const isAllowed = 
+    req.user?.isSuperAdmin === true ||
+    roleId === '0' ||
+    roleId === '1' ||
+    roleId === '2' ||
+    ['admin', 'superadmin', 'instructor', 'teacher', 'faculty', 'trainer'].includes(roleName) ||
+    roleName.includes('instructor') ||
+    roleName.includes('teach') ||
+    roleName.includes('admin');
+
+  if (!isAllowed) {
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. Instructor or Admin privileges required.'
+    });
+  }
+
+  next();
+};
+
+/**
+ * Counselor or Admin Authorization Middleware for Admissions pipeline
+ */
+export const requireCounselorOrAdmin = (req, res, next) => {
+  const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+  const roleName = String(req.user?.role || '').toLowerCase().trim();
+
+  const isAllowed = 
+    req.user?.isSuperAdmin === true ||
+    roleId === '0' ||
+    roleId === '1' ||
+    roleId === '2' ||
+    ['admin', 'superadmin', 'counselor', 'telecaller', 'admissions'].includes(roleName) ||
+    roleName.includes('counsel') ||
+    roleName.includes('admiss') ||
+    roleName.includes('admin');
+
+  if (!isAllowed) {
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. Counselor or Admin privileges required.'
     });
   }
 

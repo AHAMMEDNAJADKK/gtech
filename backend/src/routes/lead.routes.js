@@ -91,7 +91,8 @@ router.get('/', apiRateLimiter, leadController.getLeads);
 // GET SINGLE LEAD BY ID - View access allowed for Admin
 router.get('/:id', apiRateLimiter, leadController.getLeadById);
 
-// CREATE LEAD (with Zod validation, rate limiting, blocked for Admin)
+// CREATE LEAD (with Zod validation, rate limiting)
+router.post('/', leadMutationRateLimiter, restrictAdminMutations, validateBody(createLeadSchema), leadController.createLead);
 router.post('/create', leadMutationRateLimiter, restrictAdminMutations, validateBody(createLeadSchema), leadController.createLead);
 
 // BULK UPDATE LEAD STATUS (blocked for Admin)
@@ -121,5 +122,8 @@ router.post('/delete', leadMutationRateLimiter, restrictAdminMutations, leadCont
 
 // BULK IMPORT LEADS (blocked for Admin)
 router.post('/import', leadMutationRateLimiter, restrictAdminMutations, leadController.importLeads);
+
+// CONVERT LEAD TO STUDENT
+router.post('/:id/convert-to-student', leadMutationRateLimiter, leadController.convertToStudent);
 
 export default router;

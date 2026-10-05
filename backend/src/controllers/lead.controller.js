@@ -1,6 +1,11 @@
 import Lead from '../models/lead.model.js';
 import LeadFollowup from '../models/leadFollowup.model.js';
 import User from '../models/user.model.js';
+import Counter from '../models/counter.model.js';
+import Batch from '../models/batch.model.js';
+import Course from '../models/course.model.js';
+import Enrollment from '../models/enrollment.model.js';
+import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import logger from '../utils/logger.util.js';
 import redis from '../config/redis.js';
@@ -260,11 +265,13 @@ export const leadController = {
       let createdLead;
       const createdById = req.user?.id || req.user?._id;
       const {
-        leadName, companyName, email, phone, city, source,
+        leadName: rawLeadName, name, companyName, email, phone, city, source,
         interestedService, campaignName, leadPlatform, assignedTo, status, priority, remarks, nextFollowUpDate,
         clientMeetingFixed, admissionYesNo, leadsReceivedDate,
         followUpDate1, followUpDate2, followUpDate3, followUpDate4, followUpDate5
       } = req.body;
+
+      const leadName = rawLeadName || name;
 
       if (!leadName || !phone) {
         return res.status(400).json({ success: false, message: 'Lead Name and Phone Number are required.' });
@@ -800,6 +807,121 @@ export const leadController = {
     } catch (error) {
       console.error('Error executing bulk state variations:', error);
       return res.status(500).json({ success: false, message: 'Failed operational pipeline execution.', error: error.message });
+    }
+  },
+
+  /**
+   * Convert an Enquiry/Lead into an Enrolled Student
+   */
+  convertToStudent: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { courseId, batchId, password } = req.body || {};
+
+      const lead = await Lead.findById(id);
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found.' });
+      }
+
+      // 1. Check if user already exists
+      let studentUser = await User.findOne({
+        $or: [
+          { email: lead.email ? lead.email.toLowerCase().trim() : 'nonexistent@nowhere.com' },
+          { phone: lead.phone ? lead.phone.trim() : '0000000000' }
+        ]
+      });
+
+      if (!studentUser) {
+        const currentYear = new Date().getFullYear();
+        const counter = await Counter.findOneAndUpdate(
+          { id: `student_${currentYear}` },
+          { $inc: { seq: 1 } },
+          { new: true, upsert: true }
+        );
+        const generatedStudentId = `STD-${currentYear}-${String(counter.seq).padStart(6, '0')}`;
+        const rawPassword = password || 'Student@123';
+        const hashedPassword = await bcrypt.hash(rawPassword, 10);
+
+        studentUser = await User.create({
+          name: lead.leadName,
+          email: lead.email || `${generatedStudentId.toLowerCase()}@student.local`,
+          phone: lead.phone,
+          password: hashedPassword,
+          passwordHash: hashedPassword,
+          role: 'student',
+          role_id: '10',
+          studentId: generatedStudentId,
+          employeeId: generatedStudentId,
+          city: lead.city || '',
+          coursePreference: lead.interestedService || '',
+          status: 'active',
+          isActive: true
+        });
+      } else {
+        // Ensure student role is assigned
+        if (studentUser.role !== 'student' && studentUser.role_id !== '10') {
+          studentUser.role = 'student';
+          studentUser.role_id = '10';
+        }
+        if (!studentUser.studentId) {
+          const currentYear = new Date().getFullYear();
+          const counter = await Counter.findOneAndUpdate(
+            { id: `student_${currentYear}` },
+            { $inc: { seq: 1 } },
+            { new: true, upsert: true }
+          );
+          studentUser.studentId = `STD-${currentYear}-${String(counter.seq).padStart(6, '0')}`;
+        }
+        await studentUser.save();
+      }
+
+      // 2. Mark lead as Converted
+      lead.status = 'Converted';
+      lead.convertedAt = new Date();
+      await lead.save();
+
+      // 3. If batchId is provided, enroll student into batch and course
+      let enrollment = null;
+      if (batchId && mongoose.Types.ObjectId.isValid(batchId)) {
+        const batch = await Batch.findById(batchId);
+        if (batch) {
+          const studentIdStr = String(studentUser._id);
+          const alreadyInBatch = (batch.students || []).some(s => String(s) === studentIdStr);
+          if (!alreadyInBatch) {
+            batch.students.push(studentUser._id);
+            await batch.save();
+          }
+
+          const targetCourseId = courseId || batch.courseId;
+          enrollment = await Enrollment.findOneAndUpdate(
+            { studentId: studentUser._id, batchId: batch._id },
+            {
+              studentId: studentUser._id,
+              batchId: batch._id,
+              courseId: targetCourseId,
+              status: 'active',
+              enrolledAt: new Date()
+            },
+            { upsert: true, new: true }
+          );
+        }
+      }
+
+      await clearAnalyticsCache();
+      logAudit('CONVERT_LEAD_TO_STUDENT', req, id, { studentId: studentUser._id, studentCode: studentUser.studentId });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Lead successfully converted to Student!',
+        data: {
+          lead,
+          student: studentUser,
+          enrollment
+        }
+      });
+    } catch (error) {
+      console.error('Error converting lead to student:', error);
+      return res.status(500).json({ success: false, message: 'Failed to convert lead to student.', error: error.message });
     }
   }
 };

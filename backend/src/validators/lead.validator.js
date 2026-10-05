@@ -6,7 +6,8 @@ const objectIdSchema = (fieldName) =>
   z.string().regex(objectIdRegex, { message: `Invalid format for ${fieldName}` });
 
 export const createLeadSchema = z.object({
-  leadName: z.string({ required_error: 'Lead Name is required.' }).trim().min(1, 'Lead Name is required.'),
+  leadName: z.string().trim().optional(),
+  name: z.string().trim().optional(),
   companyName: z.string().trim().optional(),
   email: z.string().trim().email('Invalid email address.').optional().or(z.literal('')),
   phone: z.string({ required_error: 'Phone Number is required.' }).trim().min(1, 'Phone Number is required.'),

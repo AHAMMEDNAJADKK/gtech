@@ -1,77 +1,36 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes.js';
 import userRoutes from './user.routes.js';
-import taskRoutes from './task.routes.js';
-import attendanceRoutes from './attendance.routes.js';
-import departmentRoutes from '../modules/departments/department.routes.js';
-import designationRoutes from './designation.routes.js';
 import leadRoutes from './lead.routes.js';
-import analyticsRoutes from './analytics.routes.js';
-import developerReportRoutes from './developerReport.routes.js';
-import hrReportRoutes from './hrReport.routes.js';
-import opsReportRoutes from './opsReport.routes.js';
-import accountantReportRoutes from './accountantReport.routes.js';
-import marketingReportRoutes from './marketingReport.routes.js';
-import hodRdReportRoutes from './hodRdReport.routes.js';
-import hodMarketingReportRoutes from './hodMarketingReport.routes.js';
-import graphicDesignerReportRoutes from './graphicDesignerReport.routes.js';
-import academicCounselorReportRoutes from './academicCounselorReport.routes.js';
-import videographerReportRoutes from './videographerReport.routes.js';
-import employeeReportPDFRoutes from './employeeReportPDF.routes.js';
-import notificationRoutes from './notification.routes.js';
-import clientLeadRoutes from './clientLead.routes.js';
-import performanceRoutes from './performance.routes.js';
-import clientRoutes from './client.routes.js';
-import projectRoutes from './project.routes.js';
-import mdDashboardRoutes from './mdDashboard.routes.js';
-import accountRoutes from './account.routes.js';
 import academyRoutes from './academy.routes.js';
-import leaveRoutes from './leave.routes.js';
-import recruitmentRoutes from './recruitment.routes.js';
-import calendarRoutes from './calendar.routes.js';
-import dailyOperationsRoutes from './dailyOperations.routes.js';
-import dailyShiftReportRoutes from './dailyShiftReport.routes.js';
-import weeklyPerformanceReportRoutes from './weeklyPerformanceReport.routes.js';
-import monthlyPerformanceReportRoutes from './monthlyPerformanceReport.routes.js';
-import employeeTrainingRoutes from './employeeTraining.routes.js';
+import studentFeeRoutes from './studentFee.routes.js';
+import liveClassRoutes from './liveClass.routes.js';
+import certificateRoutes from './certificate.routes.js';
+import edtechDashboardRoutes from './edtechDashboard.routes.js';
+import attendanceRoutes from './attendance.routes.js';
+import notificationRoutes from './notification.routes.js';
+import accountRoutes from './account.routes.js';
+import academicCounselorReportRoutes from './academicCounselorReport.routes.js';
 
 const router = Router();
 
-// Mount all available route packages
+// ============================================================
+// CORE EDTECH ROUTE MOUNT POINTS
+// ============================================================
 router.use('/auth', authRoutes);
-router.use('/academy', academyRoutes);
-router.use('/accounts', accountRoutes);
-router.use('/leaves', leaveRoutes);
-router.use('/recruitment', recruitmentRoutes);
 router.use('/users', userRoutes);
-router.use('/tasks', taskRoutes);
-router.use('/attendance', attendanceRoutes);
-router.use('/departments', departmentRoutes);
-router.use('/designations', designationRoutes);
 router.use('/leads', leadRoutes);
-router.use('/client-leads', clientLeadRoutes);
-router.use('/clients', clientRoutes);
-router.use('/projects', projectRoutes);
-router.use('/analytics', analyticsRoutes);
-router.use('/md-dashboard', mdDashboardRoutes);
-router.use('/developer-reports', developerReportRoutes);
-router.use('/hr-reports', hrReportRoutes);
-router.use('/ops-reports', opsReportRoutes);
-router.use('/accountant-reports', accountantReportRoutes);
-router.use('/marketing-reports', marketingReportRoutes);
-router.use('/hod-rd-reports', hodRdReportRoutes);
-router.use('/hod-marketing-reports', hodMarketingReportRoutes);
-router.use('/graphic-designer-reports', graphicDesignerReportRoutes);
-router.use('/academic-counselor-reports', academicCounselorReportRoutes);
-router.use('/videographer-reports', videographerReportRoutes);
-router.use('/employee-reports', employeeReportPDFRoutes);
+router.use('/academy', academyRoutes);
+router.use('/student-fees', studentFeeRoutes);
+router.use('/accounts', studentFeeRoutes); // Point /accounts directly to Student Fees & Receipts
+router.use('/live-classes', liveClassRoutes);
+router.use('/certificates', certificateRoutes);
+router.use('/edtech-dashboard', edtechDashboardRoutes);
+router.use('/attendance', attendanceRoutes);
 router.use('/notifications', notificationRoutes);
-router.use('/performance', performanceRoutes);
-router.use('/calendar-work', calendarRoutes);
-router.use('/daily-operations', dailyOperationsRoutes);
-router.use('/daily-shift-reports', dailyShiftReportRoutes);
-router.use('/weekly-performance-reports', weeklyPerformanceReportRoutes);
-router.use('/monthly-performance-reports', monthlyPerformanceReportRoutes);
-router.use('/employee-training', employeeTrainingRoutes);
+router.use('/academic-counselor-reports', academicCounselorReportRoutes);
+
+// Fallback legacy account endpoints maintained for backwards compatibility
+router.use('/legacy-accounts', accountRoutes);
 
 export default router;

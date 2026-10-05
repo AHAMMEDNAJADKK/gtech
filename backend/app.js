@@ -26,6 +26,10 @@ import aiRoutes from './src/routes/ai.routes.js';
 import mdDashboardRoutes from './src/routes/mdDashboard.routes.js';
 import accountRoutes from './src/routes/account.routes.js';
 import academyRoutes from './src/routes/academy.routes.js';
+import studentFeeRoutes from './src/routes/studentFee.routes.js';
+import liveClassRoutes from './src/routes/liveClass.routes.js';
+import certificateRoutes from './src/routes/certificate.routes.js';
+import edtechDashboardRoutes from './src/routes/edtechDashboard.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
 import leaveRoutes from './src/routes/leave.routes.js';
 import recruitmentRoutes from './src/routes/recruitment.routes.js';
@@ -103,6 +107,14 @@ app.use('/api/v1/md-dashboard', mdDashboardRoutes);
 app.use('/api/md-dashboard', mdDashboardRoutes);
 app.use('/api/v1/accounts', accountRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/v1/student-fees', studentFeeRoutes);
+app.use('/api/student-fees', studentFeeRoutes);
+app.use('/api/v1/live-classes', liveClassRoutes);
+app.use('/api/live-classes', liveClassRoutes);
+app.use('/api/v1/certificates', certificateRoutes);
+app.use('/api/certificates', certificateRoutes);
+app.use('/api/v1/edtech-dashboard', edtechDashboardRoutes);
+app.use('/api/edtech-dashboard', edtechDashboardRoutes);
 app.use('/api/v1/academy', academyRoutes);
 app.use('/api/academy', academyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
@@ -168,7 +180,7 @@ app.use((err, req, res, next) => {
 });
 
 // 7. Database Connection Section
-const MONGO_URI = process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb+srv://shabeeba:9995982324@cluster0.i23tzbf.mongodb.net/crm?appName=Cluster0';
+const MONGO_URI = process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb+srv://najadahammed34_db_user:ow6ksDT7QjbkGFyr@cluster0.atnioc0.mongodb.net/edtech_crm?retryWrites=true&w=majority';
 
 mongoose.connect(MONGO_URI)
   .then(async () => {

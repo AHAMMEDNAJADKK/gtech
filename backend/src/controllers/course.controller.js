@@ -181,6 +181,7 @@ export const courseController = {
         description,
         durationValue,
         durationUnit,
+        courseFee,
         status,
         syllabus
       } = req.body;
@@ -210,6 +211,7 @@ export const courseController = {
         description: description || '',
         durationValue: parseInt(durationValue, 10) || 6,
         durationUnit: durationUnit || 'Months',
+        courseFee: parseFloat(courseFee) || 0,
         status: status || 'ACTIVE',
         syllabus: Array.isArray(syllabus) ? syllabus : [],
         createdBy: req.user?.id || req.user?._id
@@ -252,6 +254,7 @@ export const courseController = {
         description,
         durationValue,
         durationUnit,
+        courseFee,
         status,
         syllabus
       } = req.body;
@@ -267,6 +270,7 @@ export const courseController = {
       if (description !== undefined) existingCourse.description = description;
       if (durationValue !== undefined) existingCourse.durationValue = parseInt(durationValue, 10) || existingCourse.durationValue;
       if (durationUnit !== undefined) existingCourse.durationUnit = durationUnit;
+      if (courseFee !== undefined) existingCourse.courseFee = Math.max(0, parseFloat(courseFee) || 0);
       if (status !== undefined) existingCourse.status = status;
       if (Array.isArray(syllabus)) existingCourse.syllabus = syllabus;
 
