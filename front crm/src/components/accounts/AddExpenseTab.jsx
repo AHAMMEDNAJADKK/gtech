@@ -309,6 +309,48 @@ const AddExpenseTab = () => {
     return count;
   }, [filterCategory, filterMode, filterStatus, startDate, endDate, sortBy, sortOrder]);
 
+  // Top Expense Summary Metrics Calculation
+  const expenseSummaryMetrics = React.useMemo(() => {
+    let totalOutflow = 0;
+    let count = expenses.length;
+    let approvedCount = 0;
+    let approvedAmount = 0;
+    let pendingCount = 0;
+    let pendingAmount = 0;
+
+    expenses.forEach(e => {
+      const amt = Number(e.totalAmount || e.amount || 0);
+      totalOutflow += amt;
+      const st = (e.status || 'PENDING').toUpperCase();
+      if (st === 'APPROVED' || st === 'PAID') {
+        approvedCount++;
+        approvedAmount += amt;
+      } else if (st === 'PENDING') {
+        pendingCount++;
+        pendingAmount += amt;
+      }
+    });
+
+    return { totalOutflow, count, approvedCount, approvedAmount, pendingCount, pendingAmount };
+  }, [expenses]);
+
+  const handleRemoveReceiptAttachment = async () => {
+    if (!editingExpense) return;
+    if (!window.confirm('Are you sure you want to remove the receipt attachment from this expense entry?')) return;
+    try {
+      const res = await updateExpense(editingExpense._id, { removeAttachment: true });
+      if (res.success || res.data) {
+        showToast('Receipt attachment removed successfully!', 'success');
+        setEditingExpense(prev => prev ? { ...prev, attachment: '' } : null);
+        setExpenses(prev => prev.map(item => String(item._id) === String(editingExpense._id) ? { ...item, attachment: '' } : item));
+      } else {
+        showToast(res.message || 'Failed to remove receipt.', 'warning');
+      }
+    } catch (err) {
+      showToast('Error removing receipt attachment.', 'error');
+    }
+  };
+
   const sortedAndFilteredExpenses = React.useMemo(() => {
     let result = [...expenses];
     if (searchTerm) {
@@ -548,6 +590,53 @@ const AddExpenseTab = () => {
         <ExpenseCategoriesTab />
       ) : (
         <>
+          {/* Top Summary Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Expense Outflow">Total Expense Outflow</p>
+                <DollarSign size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
+              </div>
+              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono min-w-0 truncate" title={`₹${expenseSummaryMetrics.totalOutflow.toLocaleString('en-IN')}`}>
+                ₹{expenseSummaryMetrics.totalOutflow.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Total Operational Expenses Outflow">Total Expenses Recorded</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Expense Count">Expense Count</p>
+                <Receipt size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
+              </div>
+              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono min-w-0 truncate" title={`${expenseSummaryMetrics.count}`}>
+                {expenseSummaryMetrics.count} Entries
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Total Expense Vouchers">Total Expense Vouchers</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Approved Expenses">Approved Expenses</p>
+                <CheckCircle size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+              </div>
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono min-w-0 truncate" title={`₹${expenseSummaryMetrics.approvedAmount.toLocaleString('en-IN')} (${expenseSummaryMetrics.approvedCount})`}>
+                ₹{expenseSummaryMetrics.approvedAmount.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title={`${expenseSummaryMetrics.approvedCount} Approved Vouchers`}>{expenseSummaryMetrics.approvedCount} Vouchers Approved</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Pending Approval">Pending Approval</p>
+                <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              </div>
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono min-w-0 truncate" title={`₹${expenseSummaryMetrics.pendingAmount.toLocaleString('en-IN')} (${expenseSummaryMetrics.pendingCount})`}>
+                ₹{expenseSummaryMetrics.pendingAmount.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title={`${expenseSummaryMetrics.pendingCount} Pending Vouchers`}>{expenseSummaryMetrics.pendingCount} Pending Approval</p>
+            </div>
+          </div>
+
           {/* Sleek 1-Row Toolbar Header */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Left Title */}
@@ -1532,6 +1621,24 @@ const AddExpenseTab = () => {
                   className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
+
+              {/* Attached Receipt Action */}
+              {editingExpense.attachment && (
+                <div className="p-3 bg-rose-50/60 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-rose-800 dark:text-rose-300 min-w-0 truncate">
+                    <Paperclip size={14} className="shrink-0 text-rose-600" />
+                    <span className="truncate">Attached Receipt File</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveReceiptAttachment}
+                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0 transition cursor-pointer"
+                    title="Delete attached receipt file"
+                  >
+                    <Trash2 size={13} /> Delete Receipt
+                  </button>
+                </div>
+              )}
 
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button

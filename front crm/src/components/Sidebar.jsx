@@ -166,8 +166,11 @@ const menuItems = [
   { icon: PieChart, label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', allowedDesignationNames: ['marketing', 'marketer', 'digital'] },
   { icon: Megaphone, label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports', allowedRoles: ['1', '2', 'admin', 'hr', 'superadmin', 'manager'], allowedDesignationNames: ['marketing', 'marketer', 'hod', 'head', 'cmo', 'digital'] },
   { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports', isBasicReportFallback: true },
+  { icon: FileText, label: 'Daily Shift Report', path: '/daily-shift-report', category: 'Reports' },
 
   // --- DAILY OPERATIONS ---
+  { icon: Clock, label: 'Daily Operations OS', path: '/daily-operations', category: 'Daily Operations' },
+  { icon: UsersRound, label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Daily Operations', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDesignationNames: ['team lead', 'teamlead', 'tl', 'lead', 'manager', 'supervisor', 'hod'] },
   { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations', excludeRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ListCheck, label: 'Task Assign', path: '/todo', category: 'Daily Operations' },
 ];
@@ -399,6 +402,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           'capital': '/accounts/capital',
           'purchase': '/accounts/purchase',
           'create invoice': '/accounts/create-invoice',
+          'daily operations os': '/daily-operations',
+          'daily operations': '/daily-operations',
+          'tl daily operations': '/tl-daily-operations',
         };
         const extraAllowedPaths = [];
         for (const perm of allowedSet) {

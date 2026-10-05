@@ -12,6 +12,7 @@ import Register from './pages/Register';
 import Attendance from './pages/Attendance';
 import Todo from './pages/Todo';
 import Users from './pages/Users';
+import UserDetailPage from './pages/UserDetailPage';
 import Leads from './pages/Leads';
 import LeadsTelecaller from './pages/LeadsTelecaller';
 import LeadCounselor from './pages/LeadCounselor';
@@ -61,6 +62,9 @@ import PayslipsPage from './pages/PayslipsPage';
 import PersonalPayslipPage from './pages/PersonalPayslipPage';
 import RecruitmentPage from './pages/RecruitmentPage';
 import CalendarWorkPage from './pages/CalendarWorkPage';
+import DailyOperationsPage from './pages/DailyOperationsPage';
+import TeamLeadDailyOperationsPage from './pages/TeamLeadDailyOperationsPage';
+import DailyShiftReportPage from './pages/DailyShiftReportPage';
 
 // Client & Project Management Module Pages
 import ClientsPage from './pages/ClientsPage';
@@ -186,6 +190,7 @@ function App() {
         <Route path="/attendance" element={<ProtectedRoute><MainLayout><Attendance /></MainLayout></ProtectedRoute>} />
         <Route path="/todo" element={<ProtectedRoute><MainLayout><RestrictedRoute><Todo /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><MainLayout><RestrictedRoute><Users /></RestrictedRoute></MainLayout></ProtectedRoute>} />
+        <Route path="/users/:userId" element={<ProtectedRoute><MainLayout><RestrictedRoute><UserDetailPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/sidebar-permissions" element={<ProtectedRoute><MainLayout><RestrictedRoute><SidebarPermissionsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/permissions/:userId" element={<ProtectedRoute><MainLayout><RestrictedRoute><UserPermissionsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/leads" element={<ProtectedRoute><MainLayout><RestrictedRoute><Leads /></RestrictedRoute></MainLayout></ProtectedRoute>} />
@@ -225,6 +230,7 @@ function App() {
         <Route path="/common-dashboard" element={<ProtectedRoute><MainLayout><CommonDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/md-dashboard" element={<ProtectedRoute><MainLayout><RestrictedRoute><MdDashboard /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/basic-report" element={<ProtectedRoute><MainLayout><BasicReportPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/daily-shift-report" element={<ProtectedRoute><MainLayout><DailyShiftReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
         <Route path="/performance-dashboard" element={<ProtectedRoute><MainLayout><PerformanceDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/leaves" element={<ProtectedRoute><MainLayout><LeavesPage /></MainLayout></ProtectedRoute>} />
@@ -266,6 +272,10 @@ function App() {
 
         {/* Content Calendar Module Route */}
         <Route path="/calendar-work" element={<ProtectedRoute><MainLayout><CalendarWorkPage /></MainLayout></ProtectedRoute>} />
+
+        {/* Daily Operations OS Routes */}
+        <Route path="/daily-operations" element={<ProtectedRoute><MainLayout><DailyOperationsPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/tl-daily-operations" element={<ProtectedRoute><MainLayout><TeamLeadDailyOperationsPage /></MainLayout></ProtectedRoute>} />
 
         {/* Default Landing Route */}
         <Route path="/" element={<LandingRoute />} />

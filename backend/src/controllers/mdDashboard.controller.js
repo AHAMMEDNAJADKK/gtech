@@ -5,6 +5,10 @@ import Lead from '../models/lead.model.js';
 import Task from '../models/task.model.js';
 import Attendance from '../models/attendance.model.js';
 import Student from '../models/student.js';
+import Project from '../models/project.model.js';
+import Expense from '../models/expense.model.js';
+import Income from '../models/income.model.js';
+import OpeningBalance from '../models/openingBalance.model.js';
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -249,13 +253,101 @@ export const mdDashboardController = {
         done: allMdTasks.filter(t => t.status === 'done' || t.status === 'completed').length
       };
 
+      // 5. ADDITIONAL CONSOLIDATED EXECUTIVE METRICS
+      let totalProjectsCount = 0;
+      let activeProjectsCount = 0;
+      let totalTasksCount = 0;
+      let completedTasksCount = 0;
+      let totalExpenses = 0;
+      let totalPurchases = 0;
+      let totalIncome = 0;
+      let accountBalance = 0;
+
+      try {
+        if (Project) {
+          totalProjectsCount = await Project.countDocuments({});
+          activeProjectsCount = await Project.countDocuments({ status: { $ne: 'Completed' } });
+        }
+      } catch (e) {
+        console.error('MD metrics Project query error:', e);
+      }
+
+      try {
+        if (Task) {
+          totalTasksCount = await Task.countDocuments({});
+          completedTasksCount = await Task.countDocuments({ status: { $in: ['done', 'Completed', 'completed', 'Done', 'DONE'] } });
+        }
+      } catch (e) {
+        console.error('MD metrics Task query error:', e);
+      }
+
+      try {
+        if (Expense) {
+          const expAgg = await Expense.aggregate([
+            { $match: { isPurchase: { $ne: true }, entryType: { $ne: 'Purchase' } } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]);
+          totalExpenses = expAgg[0]?.total || 0;
+
+          const purAgg = await Expense.aggregate([
+            { $match: { $or: [{ isPurchase: true }, { entryType: 'Purchase' }] } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+          ]);
+          totalPurchases = purAgg[0]?.total || 0;
+        }
+      } catch (e) {
+        console.error('MD metrics Expense query error:', e);
+      }
+
+      try {
+        if (Income) {
+          const incAgg = await Income.aggregate([
+            { $match: { isDeleted: { $ne: true } } },
+            { $group: { _id: null, total: { $sum: { $ifNull: ['$totalAmount', '$amount'] } } } }
+          ]);
+          totalIncome = incAgg[0]?.total || 0;
+        }
+      } catch (e) {
+        console.error('MD metrics Income query error:', e);
+      }
+
+      try {
+        if (OpeningBalance) {
+          const ob = await OpeningBalance.findOne().sort({ date: -1 });
+          if (ob) accountBalance = ob.balance || ob.amount || 0;
+        }
+      } catch (e) {
+        console.error('MD metrics OpeningBalance query error:', e);
+      }
+
       return res.status(200).json({
         success: true,
         data: {
+          activeClientsCount,
+          activeStudentsCount,
+          newStudentsThisMonthCount,
+          activeEmployeesCount,
+          totalEmployeesCount,
+          totalProjectsCount,
+          activeProjectsCount,
+          totalTasksCount,
+          completedTasksCount,
+          accountBalance,
+          totalExpenses,
+          totalIncome,
+          totalPurchases,
           summary: {
             activeClients: activeClientsCount,
             activeStudents: activeStudentsCount,
-            activeEmployees: activeEmployeesCount
+            activeEmployees: activeEmployeesCount,
+            totalProjects: totalProjectsCount,
+            activeProjects: activeProjectsCount,
+            totalTasks: totalTasksCount,
+            completedTasks: completedTasksCount,
+            accountBalance,
+            totalExpenses,
+            totalIncome,
+            totalPurchases
           },
           sales: {
             totalLeads,

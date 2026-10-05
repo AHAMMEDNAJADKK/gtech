@@ -554,105 +554,105 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
-          {/* Comprehensive 9-Column Profit & Loss Metric Cards for Daily View */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3">
-            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Sales (Billed)</p>
-                <DollarSign size={16} className="text-blue-600 dark:text-blue-400" />
+          {/* Comprehensive Responsive Profit & Loss Metric Cards for Daily View */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-9 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Sales (Billed)">Total Sales (Billed)</p>
+                <DollarSign size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.totalBilledIncome !== undefined ? reportData.summary.totalBilledIncome : dayTotalSales).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.totalBilledIncome !== undefined ? reportData.summary.totalBilledIncome : dayTotalSales).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Total Invoiced Sales</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Total Invoiced Sales">Total Invoiced Sales</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Income Received</p>
-                <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Income Received">Total Income Received</p>
+                <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono min-w-0 truncate" title={`+₹${((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal).toLocaleString('en-IN')}`}>
                 +₹{((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Inc. OB ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title={`Inc. OB ₹${(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}`}>Inc. OB ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Capital Account</p>
-                <Coins size={16} className="text-amber-600 dark:text-amber-400" />
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Capital Account">Capital Account</p>
+                <Coins size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono min-w-0 truncate" title={`+₹${dayCapitalTotal.toLocaleString('en-IN')}`}>
                 +₹{dayCapitalTotal.toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Capital Inflow</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Capital Inflow">Capital Inflow</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Purchases</p>
-                <ShoppingCart size={16} className="text-amber-600 dark:text-amber-400" />
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Purchases">Total Purchases</p>
+                <ShoppingCart size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.purchaseTotal !== undefined ? reportData.summary.purchaseTotal : purchases.filter(p => (p.date ? new Date(p.date).toISOString().split('T')[0] : '') === dailyDate).reduce((s, p) => s + (Number(p.amount || p.totalAmount) || 0), 0)).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.purchaseTotal !== undefined ? reportData.summary.purchaseTotal : purchases.filter(p => (p.date ? new Date(p.date).toISOString().split('T')[0] : '') === dailyDate).reduce((s, p) => s + (Number(p.amount || p.totalAmount) || 0), 0)).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Vendor Procurement</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Vendor Procurement">Vendor Procurement</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">General Expenses</p>
-                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="General Expenses">General Expenses</p>
+                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-purple-600 dark:text-purple-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-purple-600 dark:text-purple-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.generalExpenseTotal !== undefined ? reportData.summary.generalExpenseTotal : dayExpenseTotal).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.generalExpenseTotal !== undefined ? reportData.summary.generalExpenseTotal : dayExpenseTotal).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Ops & Utilities Outflow</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Ops & Utilities Outflow">Ops & Utilities Outflow</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Opening</p>
-                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Income Opening">Income Opening</p>
+                <Coins size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">As of Day Start</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="As of Day Start">As of Day Start</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Expense Opening</p>
-                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Expense Opening">Expense Opening</p>
+                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">As of Day Start</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="As of Day Start">As of Day Start</p>
             </div>
 
-            <div className={`bg-white dark:bg-slate-900 border ${dayNetSurplus >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-3.5 shadow-2xs`}>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Period Net Profit</p>
-                <Coins size={16} className={dayNetSurplus >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
+            <div className={`bg-white dark:bg-slate-900 border ${dayNetSurplus >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-3.5 shadow-2xs min-w-0`}>
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Period Net Profit">Period Net Profit</p>
+                <Coins size={16} className={`${dayNetSurplus >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} shrink-0`} />
               </div>
-              <h4 className={`text-base font-black mt-1 font-mono ${dayNetSurplus >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <h4 className={`text-base font-black mt-1 font-mono min-w-0 truncate ${dayNetSurplus >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`} title={`${dayNetSurplus >= 0 ? '+' : ''}₹${dayNetSurplus.toLocaleString('en-IN')}`}>
                 {dayNetSurplus >= 0 ? '+' : ''}₹{dayNetSurplus.toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">{dayNetSurplus >= 0 ? 'Period Surplus' : 'Period Deficit'}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title={dayNetSurplus >= 0 ? 'Period Surplus' : 'Period Deficit'}>{dayNetSurplus >= 0 ? 'Period Surplus' : 'Period Deficit'}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Closing Net Balance</p>
-                <Wallet size={16} className="text-indigo-600 dark:text-indigo-400" />
+            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Closing Net Balance">Closing Net Balance</p>
+                <Wallet size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono min-w-0 truncate" title={`₹${(((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal + dayCapitalTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + dayTotalOutflow)).toLocaleString('en-IN')}`}>
                 ₹{(((reportData?.summary?.incomeOpeningBalance || 0) + dayIncomeTotal + dayCapitalTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + dayTotalOutflow)).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Effective Closing</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Effective Closing">Effective Closing</p>
             </div>
           </div>
 
@@ -820,105 +820,105 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
-          {/* Comprehensive 9-Column Monthly Financial Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3">
-            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Sales (Billed)</p>
-                <DollarSign size={16} className="text-blue-600 dark:text-blue-400" />
+          {/* Comprehensive Responsive Monthly Financial Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-9 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Sales (Billed)">Total Sales (Billed)</p>
+                <DollarSign size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-blue-600 dark:text-blue-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.totalBilledIncome !== undefined ? reportData.summary.totalBilledIncome : monthTotalSales).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.totalBilledIncome !== undefined ? reportData.summary.totalBilledIncome : monthTotalSales).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Total Invoiced Sales</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Total Invoiced Sales">Total Invoiced Sales</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Income Received</p>
-                <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Income Received">Total Income Received</p>
+                <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono min-w-0 truncate" title={`+₹${((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal).toLocaleString('en-IN')}`}>
                 +₹{((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Inc. OB ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title={`Inc. OB ₹${(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}`}>Inc. OB ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Capital Account</p>
-                <Coins size={16} className="text-amber-600 dark:text-amber-400" />
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Capital Account">Capital Account</p>
+                <Coins size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono min-w-0 truncate" title={`+₹${monthCapitalTotal.toLocaleString('en-IN')}`}>
                 +₹{monthCapitalTotal.toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Monthly Equity Capital</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Monthly Equity Capital">Monthly Equity Capital</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Purchases</p>
-                <ShoppingCart size={16} className="text-amber-600 dark:text-amber-400" />
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Total Purchases">Total Purchases</p>
+                <ShoppingCart size={16} className="text-amber-600 dark:text-amber-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.purchaseTotal !== undefined ? reportData.summary.purchaseTotal : monthPurchaseTotal).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.purchaseTotal !== undefined ? reportData.summary.purchaseTotal : monthPurchaseTotal).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Vendor Procurement</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Vendor Procurement">Vendor Procurement</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">General Expenses</p>
-                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="General Expenses">General Expenses</p>
+                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-purple-600 dark:text-purple-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-purple-600 dark:text-purple-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.generalExpenseTotal !== undefined ? reportData.summary.generalExpenseTotal : monthGeneralExpenseTotal).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.generalExpenseTotal !== undefined ? reportData.summary.generalExpenseTotal : monthGeneralExpenseTotal).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Ops & Utilities Outflow</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Ops & Utilities Outflow">Ops & Utilities Outflow</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Opening</p>
-                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Income Opening">Income Opening</p>
+                <Coins size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.incomeOpeningBalance || 0).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">As of Month Start</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="As of Month Start">As of Month Start</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Expense Opening</p>
-                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Expense Opening">Expense Opening</p>
+                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-rose-600 dark:text-rose-400 mt-1 font-mono min-w-0 truncate" title={`₹${(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}`}>
                 ₹{(reportData?.summary?.expenseOpeningBalance || 0).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">As of Month Start</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="As of Month Start">As of Month Start</p>
             </div>
 
-            <div className={`bg-white dark:bg-slate-900 border ${monthNetProfit >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-3.5 shadow-2xs`}>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Period Net Profit</p>
-                <Coins size={16} className={monthNetProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
+            <div className={`bg-white dark:bg-slate-900 border ${monthNetProfit >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-3.5 shadow-2xs min-w-0`}>
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Period Net Profit">Period Net Profit</p>
+                <Coins size={16} className={`${monthNetProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} shrink-0`} />
               </div>
-              <h4 className={`text-base font-black mt-1 font-mono ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <h4 className={`text-base font-black mt-1 font-mono min-w-0 truncate ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`} title={`${monthNetProfit >= 0 ? '+' : ''}₹${monthNetProfit.toLocaleString('en-IN')}`}>
                 {monthNetProfit >= 0 ? '+' : ''}₹{monthNetProfit.toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">{monthNetProfit >= 0 ? 'Monthly Net Profit' : 'Monthly Deficit'}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title={monthNetProfit >= 0 ? 'Monthly Net Profit' : 'Monthly Deficit'}>{monthNetProfit >= 0 ? 'Monthly Net Profit' : 'Monthly Deficit'}</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Closing Net Balance</p>
-                <Wallet size={16} className="text-indigo-600 dark:text-indigo-400" />
+            <div className="bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-500/30 rounded-2xl p-3.5 shadow-2xs min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold min-w-0 truncate" title="Closing Net Balance">Closing Net Balance</p>
+                <Wallet size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
               </div>
-              <h4 className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono">
+              <h4 className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1 font-mono min-w-0 truncate" title={`₹${(((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal + monthCapitalTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + monthTotalOutflow)).toLocaleString('en-IN')}`}>
                 ₹{(((reportData?.summary?.incomeOpeningBalance || 0) + monthIncomeTotal + monthCapitalTotal) - ((reportData?.summary?.expenseOpeningBalance || 0) + monthTotalOutflow)).toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Effective Closing</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 min-w-0 truncate" title="Effective Closing">Effective Closing</p>
             </div>
           </div>
 

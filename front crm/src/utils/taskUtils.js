@@ -56,7 +56,7 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
       if (!isUserAssigned(t.assigned_to || t.assignedTo, userId)) return false;
       
       const statusLower = String(t.status || '').toLowerCase();
-      const isDone = ['done', 'completed'].includes(statusLower);
+      const isDone = ['done', 'completed', 'complete', 'finished'].includes(statusLower);
 
       const getDateStrings = (d) => {
         if (!d) return [];
@@ -83,9 +83,9 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
       const matchesDate = (d) => getDateStrings(d).includes(dateStr);
 
       // If task is completed/done, it must have been completed on the report date (dateStr).
-      // Tasks completed on prior dates (e.g. yesterday) will not appear on today's report.
+      // Tasks updated/completed on prior dates (e.g. yesterday) will not appear on today's report.
       if (isDone) {
-        const completionTime = t.completedAt || t.updatedAt;
+        const completionTime = t.completedAt || t.completed_at || t.updatedAt || t.updated_at;
         if (!completionTime) return false;
         return matchesDate(completionTime);
       }
@@ -162,8 +162,14 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
         } catch (e) {}
       }
 
+      const projName = (t.project && typeof t.project === 'object')
+        ? (t.project.projectName || t.project.name || t.project.title || '')
+        : (t.projectName || t.project_name || (typeof t.project === 'string' ? t.project : '') || t.projectId?.name || '');
+
       return {
         ...t,
+        rawTitle: t.title || t.name || t.taskTitle || '',
+        projectName: projName,
         status: statusText,
         startTime,
         endTime,

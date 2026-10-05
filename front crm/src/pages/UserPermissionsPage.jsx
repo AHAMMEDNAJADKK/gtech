@@ -44,6 +44,8 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & manager assignments' },
   { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'Management', desc: 'Custom user menu permission configuration' },
   { label: 'Task Assign', path: '/todo', category: 'Operations', desc: 'Task assignment & attachment view' },
+  { label: 'Daily Operations OS', path: '/daily-operations', category: 'Operations', desc: 'MD & Management daily operations overview, routines & briefing review' },
+  { label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Operations', desc: 'Team Lead department routine checklist, briefing table & EOD closures' },
 
   // HR & Recruitment
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },
@@ -77,6 +79,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', desc: 'Operations shift reports' },
   { label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', desc: 'Accountant shift reports' },
   { label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', desc: 'Marketing shift reports' },
+  { label: 'Daily Shift Report', path: '/daily-shift-report', category: 'Reports', desc: 'Official KOD.BRAND daily shift report & operational log' },
 
   // Finance & Accounts
   { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book overview' },

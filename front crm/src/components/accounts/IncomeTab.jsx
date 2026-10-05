@@ -298,6 +298,16 @@ const IncomeTab = ({ mode = 'sales' }) => {
     }
   }, [activeIncomeTab, selectedDeptFilter, selectedMethodFilter, searchQuery, startDate, endDate, getAuthHeaders, showToast]);
 
+  const userObj = React.useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }, []);
+  const userRole = String(userObj.role || localStorage.getItem('role') || '').toLowerCase();
+  const isSuperadmin = userRole.includes('superadmin') || userRole.includes('admin') || userRole.includes('owner');
+
   const getNetPayableAmount = useCallback((inc) => {
     if (!inc) return 0;
     
@@ -1360,11 +1370,20 @@ const IncomeTab = ({ mode = 'sales' }) => {
                             </button>
                             <button
                               onClick={() => handleDeleteIncome(inc._id, inc.title)}
-                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                              title="Move Invoice to Inactive Tab"
+                              className="p-1 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
+                              title="Move Invoice to Inactive Tab (Soft Delete)"
                             >
-                              <Trash2 size={14} />
+                              <Archive size={14} />
                             </button>
+                            {isSuperadmin && (
+                              <button
+                                onClick={() => handlePermanentDeleteIncome(inc._id, inc.title)}
+                                className="p-1 rounded-lg text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition cursor-pointer font-bold"
+                                title="Superadmin Permanent Delete"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

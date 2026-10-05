@@ -63,8 +63,8 @@ export const UserProvider = ({ children }) => {
           localStorage.setItem('user', JSON.stringify(mergedUser));
           window.dispatchEvent(new Event('storage'));
         }
-      } else if (res.status === 401 || res.status === 403) {
-        console.warn('🔑 Session expired or unauthorized (401/403). Clearing stale session.');
+      } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+        console.warn('🔑 Session user not found or unauthorized (401/403/404). Clearing stale session.');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('user_id');

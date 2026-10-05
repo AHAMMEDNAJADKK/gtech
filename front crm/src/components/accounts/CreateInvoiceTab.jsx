@@ -1063,14 +1063,31 @@ const CreateInvoiceTab = () => {
                 <Receipt size={14} className="text-emerald-600 dark:text-emerald-400" />
                 Receipt Voucher Details (Auto-Generated & Editable)
               </h3>
-              <button
-                type="button"
-                onClick={() => setIsPreviewModalOpen(true)}
-                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                title="Preview & View Receipt Voucher Document"
-              >
-                <Eye size={13} /> View / Print Receipt Voucher
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to clear receipt details?')) {
+                      setReceiptNo('');
+                      setReceiptAmount(0);
+                      setReceiptNotes('');
+                      showToast('Receipt details cleared.', 'info');
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-rose-200 dark:border-rose-800"
+                  title="Clear / Delete Receipt entries"
+                >
+                  <Trash2 size={13} /> Clear Receipt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewModalOpen(true)}
+                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  title="Preview & View Receipt Voucher Document"
+                >
+                  <Eye size={13} /> View / Print Receipt Voucher
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">

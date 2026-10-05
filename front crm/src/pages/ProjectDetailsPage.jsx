@@ -10,8 +10,22 @@ import EditProjectModal from '../components/EditProjectModal';
 
 const STAGES = [
   'Planning', 'Requirement Gathering', 'UI Design', 'Development', 
-  'Testing', 'Client Review', 'Changes', 'Deployment', 'Completed'
+  'Testing', 'Client Review', 'Changes', 'Deployment', 'Completed',
+  'On Hold', 'Cancelled'
 ];
+
+const STAGE_PROGRESS_MAP = {
+  'Planning': 10,
+  'Requirement Gathering': 20,
+  'UI Design': 35,
+  'Development': 55,
+  'Testing': 70,
+  'Client Review': 80,
+  'Changes': 85,
+  'Deployment': 95,
+  'Completed': 100,
+  'Cancelled': 0
+};
 
 const TASK_STATUS_CONFIG = {
   pending: { label: 'Pending', bg: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800' },
@@ -50,7 +64,12 @@ const ProjectDetailsPage = () => {
   const handleStageTransition = async (newStage) => {
     setUpdatingStatus(true);
     try {
-      const res = await updateProjectStatus(id, { status: newStage });
+      const stageProgress = STAGE_PROGRESS_MAP[newStage];
+      const payload = { status: newStage };
+      if (stageProgress !== undefined && stageProgress !== null) {
+        payload.progress = stageProgress;
+      }
+      const res = await updateProjectStatus(id, payload);
       if (res && res.success) {
         fetchDetails();
       }
@@ -90,7 +109,9 @@ const ProjectDetailsPage = () => {
   const pendingTasksCount = tasks.filter(t => t.status === 'pending').length;
   const inProgressTasksCount = tasks.filter(t => t.status === 'current').length;
   const previewTasksCount = tasks.filter(t => t.status === 'preview').length;
-  const computedCompletionPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : (project.progress || 0);
+  const computedCompletionPct = STAGE_PROGRESS_MAP[project.status] !== undefined 
+    ? STAGE_PROGRESS_MAP[project.status] 
+    : (project.progress || 0);
 
   // Group Assigned Employees by Department (Feature 3)
   const groupedEmployees = (project.assignedEmployees || []).reduce((acc, emp) => {
@@ -162,36 +183,17 @@ const ProjectDetailsPage = () => {
           </div>
         </div>
 
-        {/* Progress Bar & Task Completion Breakdown */}
+        {/* Progress Bar & Completion Rate */}
         <div className="flex flex-col gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+          <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
             <div className="flex items-center gap-2">
               <ListTodo className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Task Completion Rate: <strong className="text-indigo-600 dark:text-indigo-400">{computedCompletionPct}%</strong></span>
-              <span className="text-[11px] font-semibold text-slate-400">({completedTasksCount} of {totalTasksCount} tasks done)</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
-              <span className="px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 border border-rose-200 dark:border-rose-800">
-                Pending: {pendingTasksCount}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-200 dark:border-amber-800">
-                In Progress: {inProgressTasksCount}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 border border-indigo-200 dark:border-indigo-800">
-                Preview: {previewTasksCount}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200 dark:border-emerald-800">
-                Completed: {completedTasksCount}
-              </span>
+              <span>Completion Rate: <strong className="text-indigo-600 dark:text-indigo-400">{computedCompletionPct}%</strong></span>
             </div>
           </div>
 
           <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${computedCompletionPct}%` }} title={`Completed (${computedCompletionPct}%)`} />
-            <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${totalTasksCount > 0 ? Math.round((inProgressTasksCount / totalTasksCount) * 100) : 0}%` }} title="In Progress" />
-            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${totalTasksCount > 0 ? Math.round((previewTasksCount / totalTasksCount) * 100) : 0}%` }} title="Preview" />
-            <div className="h-full bg-rose-400 transition-all duration-500" style={{ width: `${totalTasksCount > 0 ? Math.round((pendingTasksCount / totalTasksCount) * 100) : 0}%` }} title="Pending" />
+            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${computedCompletionPct}%` }} title={`Completion Rate (${computedCompletionPct}%)`} />
           </div>
         </div>
       </div>
