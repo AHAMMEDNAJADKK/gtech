@@ -102,7 +102,8 @@ export default function RecruitmentPage() {
       const matchesSearch = 
         (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (c.phone || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.address || '').toLowerCase().includes(searchQuery.toLowerCase());
+        (c.address || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.notes || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesStatus = selectedStatusFilter === 'All' || c.status === selectedStatusFilter;
 
@@ -613,6 +614,7 @@ export default function RecruitmentPage() {
                   <th className="py-3.5 px-3">Selected</th>
                   <th className="py-3.5 px-3">Approval Status</th>
                   <th className="py-3.5 px-3">Offer Letter</th>
+                  <th className="py-3.5 px-3">Notes</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -713,6 +715,17 @@ export default function RecruitmentPage() {
                           offerColorMap,
                           offerDisabled,
                           'Candidate requires MD/Executive approval on the Approvals page before offer letter can be enabled'
+                        )}
+                      </td>
+
+                      {/* Notes */}
+                      <td className="py-3.5 px-3 max-w-[150px]">
+                        {c.notes ? (
+                          <span className="text-slate-600 dark:text-slate-300 font-medium truncate block text-[11px]" title={c.notes}>
+                            {c.notes}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px] italic">-</span>
                         )}
                       </td>
 
@@ -820,6 +833,20 @@ export default function RecruitmentPage() {
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500 transition-all"
+                />
+              </div>
+
+              {/* Notes (Optional) */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                  Notes <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Additional candidate comments or notes..."
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 px-3.5 py-2 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500 transition-all resize-none"
                 />
               </div>
 

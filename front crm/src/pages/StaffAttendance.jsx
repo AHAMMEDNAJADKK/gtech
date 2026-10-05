@@ -79,8 +79,8 @@ const calculateWorkingHours = (checkIn, checkOut, targetDateStr = null) => {
 // MODAL: LOG / EDIT STAFF ATTENDANCE RECORD
 // ==========================================
 const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess }) => {
-  const [inTime, setInTime] = useState('09:30');
-  const [outTime, setOutTime] = useState('18:00');
+  const [inTime, setInTime] = useState('09:00');
+  const [outTime, setOutTime] = useState('17:00');
   const [status, setStatus] = useState('PRESENT');
   const [saving, setSaving] = useState(false);
   const [modalErr, setModalErr] = useState(null);
@@ -90,14 +90,14 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
       const d = parseAsUTC(staff.checkIn);
       if (d) setInTime(d.toTimeString().substring(0, 5));
     } else {
-      setInTime('09:30');
+      setInTime('09:00');
     }
 
     if (staff?.checkOut) {
       const d = parseAsUTC(staff.checkOut);
       if (d) setOutTime(d.toTimeString().substring(0, 5));
     } else {
-      setOutTime('18:00');
+      setOutTime('17:00');
     }
 
     if (staff?.status) {
@@ -111,8 +111,7 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
 
   if (!isOpen || !staff) return null;
 
-  const handleSave = async (e) => {
-    e.preventDefault();
+  const saveRecord = async (selectedIn = inTime, selectedOut = outTime, selectedStatus = status) => {
     setSaving(true);
     setModalErr(null);
 
@@ -123,9 +122,9 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
       let checkInISO = null;
       let checkOutISO = null;
 
-      if (status !== 'ABSENT') {
-        if (inTime) checkInISO = new Date(`${targetDate}T${inTime}:00`).toISOString();
-        if (outTime) checkOutISO = new Date(`${targetDate}T${outTime}:00`).toISOString();
+      if (selectedStatus !== 'ABSENT') {
+        if (selectedIn) checkInISO = new Date(`${targetDate}T${selectedIn}:00`).toISOString();
+        if (selectedOut) checkOutISO = new Date(`${targetDate}T${selectedOut}:00`).toISOString();
       }
 
       const res = await fetch(`${API_BASE}/attendance/mark-user`, {
@@ -137,10 +136,10 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
         body: JSON.stringify({
           user_id: staff.userId,
           date: targetDate,
-          status,
+          status: selectedStatus,
           check_in_time: checkInISO,
           check_out_time: checkOutISO,
-          is_late: status === 'LATE'
+          is_late: selectedStatus === 'LATE'
         })
       });
 
@@ -154,6 +153,15 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    saveRecord();
+  };
+
+  const handleSkip = () => {
+    saveRecord('09:00', '17:00', 'PRESENT');
   };
 
   return ReactDOM.createPortal(
@@ -172,10 +180,10 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
             <span>Mark Staff Attendance</span>
           </div>
           <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
-            Log Attendance Record
+            Select Check-In & Check-Out Time
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Updating attendance for <strong className="text-indigo-600 dark:text-indigo-400">{staff.name}</strong> on <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{targetDate}</span>.
+            Updating attendance for <strong className="text-indigo-600 dark:text-indigo-400">{staff.name}</strong> on <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{targetDate}</span>. Select custom times or click <strong>Skip</strong> for 9:00 AM - 5:00 PM.
           </p>
         </div>
 
@@ -203,7 +211,7 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
           {status !== 'ABSENT' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Check-In Time</label>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">From Time (Check-In)</label>
                 <input
                   type="time"
                   value={inTime}
@@ -212,7 +220,7 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Check-Out Time</label>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">To Time (Check-Out)</label>
                 <input
                   type="time"
                   value={outTime}
@@ -223,21 +231,34 @@ const MarkAttendanceModal = ({ isOpen, onClose, staff, targetDate, onSaveSuccess
             </div>
           )}
 
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800 flex-wrap">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               Cancel
             </button>
+            
+            {status !== 'ABSENT' && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSkip}
+                className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-xl text-xs font-extrabold transition cursor-pointer disabled:opacity-50"
+                title="Skip custom time entry and set default 9:00 AM - 5:00 PM"
+              >
+                Skip (Set 9-5)
+              </button>
+            )}
+
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer transition"
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer transition"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              <span>Save Record</span>
+              <span>Save Time</span>
             </button>
           </div>
         </form>
@@ -524,8 +545,8 @@ const StaffAttendance = () => {
         let checkOutISO = null;
 
         if (targetStatus === 'PRESENT') {
-          checkInISO = new Date(`${selectedDate}T09:30:00`).toISOString();
-          checkOutISO = new Date(`${selectedDate}T18:00:00`).toISOString();
+          checkInISO = new Date(`${selectedDate}T09:00:00`).toISOString();
+          checkOutISO = new Date(`${selectedDate}T17:00:00`).toISOString();
         } else if (targetStatus === 'LATE') {
           checkInISO = new Date(`${selectedDate}T10:15:00`).toISOString();
           checkOutISO = new Date(`${selectedDate}T18:00:00`).toISOString();
@@ -984,10 +1005,10 @@ const StaffAttendance = () => {
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => quickMarkAttendance(item, 'PRESENT')}
+                            onClick={() => setEditingStaff({ ...item, status: 'PRESENT' })}
                             disabled={actionLoading}
                             className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 rounded-lg text-[11px] font-extrabold transition cursor-pointer border border-emerald-200 dark:border-emerald-800/60"
-                            title="Quick mark Present"
+                            title="Mark Present (Select From/To time or Skip for 9-5)"
                           >
                             Present
                           </button>
