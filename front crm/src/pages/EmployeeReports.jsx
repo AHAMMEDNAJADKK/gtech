@@ -24,6 +24,8 @@ const DESIGNATION_API_MAP = {
   'ops':               { name: 'Ops',                apiPrefix: 'ops-reports',                byDate: 'by-date' },
   'accountant':        { name: 'Accountant',         apiPrefix: 'accountant-reports',         byDate: 'by-date' },
   'marketing':         { name: 'Marketing',          apiPrefix: 'marketing-reports',          byDate: 'by-date' },
+  'daily-shift':       { name: 'Daily Shift',        apiPrefix: 'daily-shift-reports',        byDate: 'by-date' },
+  'dailyshift':        { name: 'Daily Shift',        apiPrefix: 'daily-shift-reports',        byDate: 'by-date' },
 };
 
 // Badge config for report periods
@@ -69,7 +71,8 @@ const EmployeeReports = () => {
 
   const [viewMode, setViewMode] = useState('employees'); // 'employees' | 'reports'
   const [selectedPeriod, setSelectedPeriod] = useState('all'); // 'all' | 'daily' | 'weekly' | 'monthly'
-  const [globalSort, setGlobalSort] = useState('newest'); // 'newest' | 'oldest' | 'name_asc' | 'name_desc' | 'monthly_first' | 'weekly_first' | 'daily_first'
+  const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' | '0'..'11'
+  const [globalSort, setGlobalSort] = useState('newest'); // 'newest' | 'oldest' | 'name_asc' | 'name_desc' | 'monthly_first' | 'month_desc' | 'month_asc' | 'weekly_first' | 'daily_first'
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const { showToast } = useToast();
@@ -146,6 +149,37 @@ const EmployeeReports = () => {
 
   const isSuperAdmin = true;
 
+  const MONTH_OPTIONS = [
+    { value: 'all', label: 'All Months' },
+    { value: '0', label: 'January' },
+    { value: '1', label: 'February' },
+    { value: '2', label: 'March' },
+    { value: '3', label: 'April' },
+    { value: '4', label: 'May' },
+    { value: '5', label: 'June' },
+    { value: '6', label: 'July' },
+    { value: '7', label: 'August' },
+    { value: '8', label: 'September' },
+    { value: '9', label: 'October' },
+    { value: '10', label: 'November' },
+    { value: '11', label: 'December' },
+  ];
+
+  const getReportMonthIndex = useCallback((report) => {
+    const dateStr = report.report_date || report.created_at;
+    if (!dateStr) return -1;
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const parts = dateStr.split('-');
+      const monthNum = parseInt(parts[1], 10) - 1;
+      if (!isNaN(monthNum)) return monthNum;
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return d.getMonth();
+    }
+    return -1;
+  }, []);
+
   const filteredEmployees = employees.filter(emp => {
     const nameMatch = (emp.name || '').toLowerCase().includes(searchQuery.toLowerCase());
     const emailMatch = (emp.email || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -165,7 +199,15 @@ const EmployeeReports = () => {
       }
     }
 
-    return searchMatch && deptMatch && desigMatch;
+    const empId = emp._id || emp.id;
+    const empReports = uploadedReportsMap[empId] || [];
+
+    const periodMatch = selectedPeriod === 'all' || empReports.some(r => r.report_period === selectedPeriod);
+    const monthMatch = selectedMonth === 'all' || empReports.some(r => {
+      return getReportMonthIndex(r) === parseInt(selectedMonth, 10);
+    });
+
+    return searchMatch && deptMatch && desigMatch && periodMatch && monthMatch;
   });
 
   const sortedEmployees = [...filteredEmployees].sort((a, b) => {
@@ -177,6 +219,11 @@ const EmployeeReports = () => {
     const aLatest = aReports.length > 0 ? new Date(aReports[0].created_at || aReports[0].report_date) : new Date(0);
     const bLatest = bReports.length > 0 ? new Date(bReports[0].created_at || bReports[0].report_date) : new Date(0);
 
+    const aMonthlyReports = aReports.filter(r => r.report_period === 'monthly');
+    const bMonthlyReports = bReports.filter(r => r.report_period === 'monthly');
+    const aLatestMonthly = aMonthlyReports.length > 0 ? new Date(aMonthlyReports[0].created_at || aMonthlyReports[0].report_date) : new Date(0);
+    const bLatestMonthly = bMonthlyReports.length > 0 ? new Date(bMonthlyReports[0].created_at || bMonthlyReports[0].report_date) : new Date(0);
+
     if (globalSort === 'newest') {
       return bLatest - aLatest;
     } else if (globalSort === 'oldest') {
@@ -186,9 +233,20 @@ const EmployeeReports = () => {
     } else if (globalSort === 'name_desc') {
       return (b.name || '').localeCompare(a.name || '');
     } else if (globalSort === 'monthly_first') {
-      const aMonthly = aReports.filter(r => r.report_period === 'monthly').length;
-      const bMonthly = bReports.filter(r => r.report_period === 'monthly').length;
-      return bMonthly - aMonthly;
+      if (bMonthlyReports.length !== aMonthlyReports.length) {
+        return bMonthlyReports.length - aMonthlyReports.length;
+      }
+      return bLatestMonthly - aLatestMonthly;
+    } else if (globalSort === 'month_desc') {
+      if (bLatestMonthly - aLatestMonthly !== 0) {
+        return bLatestMonthly - aLatestMonthly;
+      }
+      return bLatest - aLatest;
+    } else if (globalSort === 'month_asc') {
+      if (aLatestMonthly - bLatestMonthly !== 0) {
+        return aLatestMonthly - bLatestMonthly;
+      }
+      return aLatest - bLatest;
     } else if (globalSort === 'weekly_first') {
       const aWeekly = aReports.filter(r => r.report_period === 'weekly').length;
       const bWeekly = bReports.filter(r => r.report_period === 'weekly').length;
@@ -228,7 +286,9 @@ const EmployeeReports = () => {
 
     const periodMatch = selectedPeriod === 'all' || report.report_period === selectedPeriod;
 
-    return searchMatch && deptMatch && desigMatch && periodMatch;
+    const monthMatch = selectedMonth === 'all' || getReportMonthIndex(report) === parseInt(selectedMonth, 10);
+
+    return searchMatch && deptMatch && desigMatch && periodMatch && monthMatch;
   });
 
   const sortedReports = [...filteredReports].sort((a, b) => {
@@ -247,6 +307,20 @@ const EmployeeReports = () => {
       if (a.report_period === 'monthly' && b.report_period !== 'monthly') return -1;
       if (a.report_period !== 'monthly' && b.report_period === 'monthly') return 1;
       return bDate - aDate;
+    } else if (globalSort === 'month_desc') {
+      const aMonthKey = isNaN(aDate.getTime()) ? 0 : (aDate.getFullYear() * 12 + aDate.getMonth());
+      const bMonthKey = isNaN(bDate.getTime()) ? 0 : (bDate.getFullYear() * 12 + bDate.getMonth());
+      if (bMonthKey !== aMonthKey) {
+        return bMonthKey - aMonthKey;
+      }
+      return bDate - aDate;
+    } else if (globalSort === 'month_asc') {
+      const aMonthKey = isNaN(aDate.getTime()) ? 0 : (aDate.getFullYear() * 12 + aDate.getMonth());
+      const bMonthKey = isNaN(bDate.getTime()) ? 0 : (bDate.getFullYear() * 12 + bDate.getMonth());
+      if (aMonthKey !== bMonthKey) {
+        return aMonthKey - bMonthKey;
+      }
+      return aDate - bDate;
     } else if (globalSort === 'weekly_first') {
       if (a.report_period === 'weekly' && b.report_period !== 'weekly') return -1;
       if (a.report_period !== 'weekly' && b.report_period === 'weekly') return 1;
@@ -264,7 +338,7 @@ const EmployeeReports = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedDepartment, selectedDesignation, selectedPeriod, globalSort, viewMode]);
+  }, [searchQuery, selectedDepartment, selectedDesignation, selectedPeriod, selectedMonth, globalSort, viewMode]);
 
   const getDesignationConfig = (emp) => {
     const desigName = String(emp.designation || emp.designationId?.name || '').toLowerCase();
@@ -519,6 +593,12 @@ const EmployeeReports = () => {
 
     const filter = periodFilters[empId] || 'all';
     let reports = filter === 'all' ? allReports : allReports.filter(r => r.report_period === filter);
+
+    if (selectedMonth !== 'all') {
+      const targetMonthInt = parseInt(selectedMonth, 10);
+      reports = reports.filter(r => getReportMonthIndex(r) === targetMonthInt);
+    }
+
     const sort = sortOrders[empId] || 'newest';
 
     return [...reports].sort((a, b) => {
@@ -532,6 +612,20 @@ const EmployeeReports = () => {
         if (a.report_period === 'monthly' && b.report_period !== 'monthly') return -1;
         if (a.report_period !== 'monthly' && b.report_period === 'monthly') return 1;
         return bDate - aDate;
+      } else if (sort === 'month_desc') {
+        const aMonthKey = isNaN(aDate.getTime()) ? 0 : (aDate.getFullYear() * 12 + aDate.getMonth());
+        const bMonthKey = isNaN(bDate.getTime()) ? 0 : (bDate.getFullYear() * 12 + bDate.getMonth());
+        if (bMonthKey !== aMonthKey) {
+          return bMonthKey - aMonthKey;
+        }
+        return bDate - aDate;
+      } else if (sort === 'month_asc') {
+        const aMonthKey = isNaN(aDate.getTime()) ? 0 : (aDate.getFullYear() * 12 + aDate.getMonth());
+        const bMonthKey = isNaN(bDate.getTime()) ? 0 : (bDate.getFullYear() * 12 + bDate.getMonth());
+        if (aMonthKey !== bMonthKey) {
+          return aMonthKey - bMonthKey;
+        }
+        return aDate - bDate;
       } else if (sort === 'weekly_first') {
         if (a.report_period === 'weekly' && b.report_period !== 'weekly') return -1;
         if (a.report_period !== 'weekly' && b.report_period === 'weekly') return 1;
@@ -546,12 +640,28 @@ const EmployeeReports = () => {
   };
 
   const getReportCounts = (empId) => {
-    let all = getFilteredReports(empId);
+    let allReports = uploadedReportsMap[empId] || [];
+    if (isNonOperational) {
+      allReports = allReports.filter(r => r.report_period !== 'daily');
+    }
+
+    const dedupMap = new Map();
+    allReports.forEach(r => {
+      const key = `${r.report_date || 'nodate'}_${r.report_period || 'daily'}`;
+      if (!dedupMap.has(key)) dedupMap.set(key, r);
+    });
+    allReports = Array.from(dedupMap.values());
+
+    if (selectedMonth !== 'all') {
+      const targetMonthInt = parseInt(selectedMonth, 10);
+      allReports = allReports.filter(r => getReportMonthIndex(r) === targetMonthInt);
+    }
+
     return {
-      all: all.length,
-      daily: all.filter(r => r.report_period === 'daily').length,
-      weekly: all.filter(r => r.report_period === 'weekly').length,
-      monthly: all.filter(r => r.report_period === 'monthly').length,
+      all: allReports.length,
+      daily: allReports.filter(r => r.report_period === 'daily').length,
+      weekly: allReports.filter(r => r.report_period === 'weekly').length,
+      monthly: allReports.filter(r => r.report_period === 'monthly').length,
     };
   };
 
@@ -835,7 +945,7 @@ const EmployeeReports = () => {
             >
               <SlidersHorizontal size={13} />
               <span>Filter &amp; Sort</span>
-              {(selectedDepartment !== 'all' || selectedDesignation !== 'all' || (viewMode === 'reports' && selectedPeriod !== 'all') || globalSort !== 'newest') && (
+              {(selectedDepartment !== 'all' || selectedDesignation !== 'all' || selectedPeriod !== 'all' || selectedMonth !== 'all' || globalSort !== 'newest') && (
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
               )}
             </button>
@@ -902,25 +1012,40 @@ const EmployeeReports = () => {
                       </div>
                     </div>
 
-                    {/* Period Filter (only in Reports viewMode) */}
-                    {viewMode === 'reports' && (
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Period</label>
-                        <div className="relative">
-                          <select
-                            value={selectedPeriod}
-                            onChange={(e) => setSelectedPeriod(e.target.value)}
-                            className="w-full appearance-none bg-slate-55 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-4 pr-10 py-2 text-xs font-semibold text-slate-705 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                          >
-                            <option value="all">All Periods</option>
-                            {!isNonOperational && <option value="daily">Daily Only</option>}
-                            <option value="weekly">Weekly Only</option>
-                            <option value="monthly">Monthly Only</option>
-                          </select>
-                          <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-450 pointer-events-none" size={13} />
-                        </div>
+                    {/* Period Filter */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Period</label>
+                      <div className="relative">
+                        <select
+                          value={selectedPeriod}
+                          onChange={(e) => setSelectedPeriod(e.target.value)}
+                          className="w-full appearance-none bg-slate-55 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-4 pr-10 py-2 text-xs font-semibold text-slate-705 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          <option value="all">All Periods</option>
+                          {!isNonOperational && <option value="daily">Daily Only</option>}
+                          <option value="weekly">Weekly Only</option>
+                          <option value="monthly">Monthly Only</option>
+                        </select>
+                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-450 pointer-events-none" size={13} />
                       </div>
-                    )}
+                    </div>
+
+                    {/* Month Filter */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Month Filter</label>
+                      <div className="relative">
+                        <select
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          className="w-full appearance-none bg-slate-55 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl pl-4 pr-10 py-2 text-xs font-semibold text-slate-705 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          {MONTH_OPTIONS.map(m => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-450 pointer-events-none" size={13} />
+                      </div>
+                    </div>
 
                     {/* Global Sort Order */}
                     <div className="space-y-1.5">
@@ -933,11 +1058,13 @@ const EmployeeReports = () => {
                         >
                           <option value="newest">Newest Reports</option>
                           <option value="oldest">Oldest Reports</option>
-                          <option value="name_asc">Name (A-Z)</option>
-                          <option value="name_desc">Name (Z-A)</option>
-                          <option value="monthly_first">Monthly First</option>
+                          <option value="monthly_first">Monthly Reports First</option>
+                          <option value="month_desc">Month (Latest First)</option>
+                          <option value="month_asc">Month (Oldest First)</option>
                           <option value="weekly_first">Weekly First</option>
                           <option value="daily_first">Daily First</option>
+                          <option value="name_asc">Name (A-Z)</option>
+                          <option value="name_desc">Name (Z-A)</option>
                         </select>
                         <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-455 pointer-events-none" size={13} />
                       </div>
@@ -950,6 +1077,7 @@ const EmployeeReports = () => {
                           setSelectedDepartment('all');
                           setSelectedDesignation('all');
                           setSelectedPeriod('all');
+                          setSelectedMonth('all');
                           setGlobalSort('newest');
                           setIsFiltersOpen(false);
                         }}
@@ -957,9 +1085,6 @@ const EmployeeReports = () => {
                       >
                         Reset
                       </button>
-                      {/* <button
-                        onClick={() => setIsFiltersOpen(false)}
-className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-650 hover:bg-indigo-700 text-indigo-200 hover:text-white rounded-xl transition-all shadow-md shadow-indigo-850/10 cursor-pointer">                      </button> */}
                     </div>
                   </motion.div>
                 </>
@@ -968,6 +1093,30 @@ className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-650 
           </div>
         </div>
       </header>
+
+      {/* Month Quick Filter Chips Strip */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-3 pt-1 scrollbar-none border-b border-slate-200/60 dark:border-slate-800/60">
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mr-1.5 shrink-0 flex items-center gap-1">
+          <CalendarDays size={13} className="text-indigo-500" />
+          Filter Month:
+        </span>
+        {MONTH_OPTIONS.map((m) => (
+          <button
+            key={m.value}
+            onClick={() => {
+              setSelectedMonth(m.value);
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              selectedMonth === m.value
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-105'
+                : 'bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80'
+            }`}
+          >
+            {m.label === 'All Months' ? 'All Months' : m.label.slice(0, 3)}
+          </button>
+        ))}
+      </div>
 
       {/* Error Banner */}
       {errorMsg && (
@@ -1056,19 +1205,46 @@ className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-650 
                               ) : (
                                 <>
                                   {counts.daily > 0 && (
-                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/50">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedEmpId(empId);
+                                        setPeriodFilters(prev => ({ ...prev, [empId]: 'daily' }));
+                                      }}
+                                      className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/50 hover:scale-105 transition-transform cursor-pointer"
+                                      title="Click to list only daily reports"
+                                    >
                                       {counts.daily} Daily
-                                    </span>
+                                    </button>
                                   )}
                                   {counts.weekly > 0 && (
-                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedEmpId(empId);
+                                        setPeriodFilters(prev => ({ ...prev, [empId]: 'weekly' }));
+                                      }}
+                                      className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50 hover:scale-105 transition-transform cursor-pointer"
+                                      title="Click to list only weekly reports"
+                                    >
                                       {counts.weekly} Weekly
-                                    </span>
+                                    </button>
                                   )}
                                   {counts.monthly > 0 && (
-                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-800/50">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedEmpId(empId);
+                                        setPeriodFilters(prev => ({ ...prev, [empId]: 'monthly' }));
+                                      }}
+                                      className="text-[9px] font-bold px-2 py-0.5 rounded-full border bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-800/50 hover:scale-105 transition-transform cursor-pointer"
+                                      title="Click to list only monthly reports"
+                                    >
                                       {counts.monthly} Monthly
-                                    </span>
+                                    </button>
                                   )}
                                 </>
                               )}
@@ -1124,7 +1300,9 @@ className="flex-1 py-2 text-xs font-bold uppercase tracking-wider bg-indigo-650 
                                     >
                                       <option value="newest">Newest First</option>
                                       <option value="oldest">Oldest First</option>
-                                      <option value="monthly_first">Monthly First</option>
+                                      <option value="monthly_first">Monthly Reports First</option>
+                                      <option value="month_desc">Month (Latest First)</option>
+                                      <option value="month_asc">Month (Oldest First)</option>
                                       <option value="weekly_first">Weekly First</option>
                                       <option value="daily_first">Daily First</option>
                                     </select>

@@ -900,6 +900,36 @@ export const userController = {
         );
       }
 
+      // Delete associated student attendance, enrollment, and batch roster records if any
+      try {
+        const StudentAttendance = (await import('../models/studentattendance.js')).default;
+        const Enrollment = (await import('../models/enrollment.model.js')).default;
+        const Batch = (await import('../models/batch.model.js')).default;
+        if (StudentAttendance) await StudentAttendance.deleteMany({ user_id: id });
+        if (Enrollment) {
+          await Enrollment.deleteMany({
+            $or: [
+              { studentId: id },
+              ...(mongoose.Types.ObjectId.isValid(id) ? [{ studentId: new mongoose.Types.ObjectId(id) }] : [])
+            ]
+          });
+        }
+        if (Batch) {
+          await Batch.updateMany(
+            { students: id },
+            { $pull: { students: id } }
+          );
+          if (mongoose.Types.ObjectId.isValid(id)) {
+            await Batch.updateMany(
+              { students: new mongoose.Types.ObjectId(id) },
+              { $pull: { students: new mongoose.Types.ObjectId(id) } }
+            );
+          }
+        }
+      } catch (cleanErr) {
+        console.warn('Student data cleanup warning during user delete:', cleanErr.message);
+      }
+
       await User.findByIdAndDelete(id);
 
       await authService.revokeAllSessions(id);

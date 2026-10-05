@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, DollarSign, Search,
-  CheckCircle2, Clock, XCircle, LayoutGrid, List, Plus, Trash2
+  CheckCircle2, Clock, XCircle, LayoutGrid, List, Plus, Trash2, Calendar, Layers
 } from 'lucide-react';
 import { getSalaryPayments, deleteSalaryPayment } from '../services/accountsService';
 import { useToast } from '../components/ToastProvider';
@@ -23,6 +23,65 @@ const PayslipsPage = () => {
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedSalaryToDelete, setSelectedSalaryToDelete] = useState(null);
+
+  // Tab State: 'current_month' | 'all_payslips'
+  const [activeTab, setActiveTab] = useState('current_month');
+
+  const currentMonthNameYear = useMemo(() => {
+    const d = new Date();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+  }, []);
+
+  const [selectedMonthYear, setSelectedMonthYear] = useState(currentMonthNameYear);
+
+  const uniqueMonthsList = useMemo(() => {
+    const setOfMonths = new Set();
+    setOfMonths.add(currentMonthNameYear);
+    
+    salaryRecords.forEach(r => {
+      if (r.month && typeof r.month === 'string' && r.month.trim()) {
+        setOfMonths.add(r.month.trim());
+      }
+      const dateVal = r.paymentDate || r.createdAt || r.created_at;
+      if (dateVal) {
+        const d = new Date(dateVal);
+        if (!isNaN(d.getTime())) {
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+          setOfMonths.add(`${monthNames[d.getMonth()]} ${d.getFullYear()}`);
+        }
+      }
+    });
+
+    return Array.from(setOfMonths);
+  }, [salaryRecords, currentMonthNameYear]);
+
+  const matchesMonthYear = useCallback((record, targetMonthStr) => {
+    if (!targetMonthStr) return true;
+    const targetLower = targetMonthStr.toLowerCase().trim();
+
+    const rMonth = String(record.month || '').toLowerCase().trim();
+    if (rMonth) {
+      if (rMonth === targetLower || rMonth.includes(targetLower)) return true;
+    }
+
+    const dateVal = record.paymentDate || record.createdAt || record.created_at;
+    if (dateVal) {
+      const d = new Date(dateVal);
+      if (!isNaN(d.getTime())) {
+        const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+        const recordMonthName = monthNames[d.getMonth()];
+        const recordYear = d.getFullYear().toString();
+        
+        const recordFullMonth = `${recordMonthName} ${recordYear}`;
+        if (recordFullMonth === targetLower || targetLower.includes(recordMonthName)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }, []);
 
   // ── Role checks ──────────────────────────────────────────────
   const role = String(user?.role_id || user?.roleId || (typeof user?.role === 'object' ? user?.role?.name : user?.role) || '').toLowerCase().trim();
@@ -114,8 +173,16 @@ const PayslipsPage = () => {
     });
   }, [salaryRecords, isPrivileged, user]);
 
+  const tabFilteredRecords = useMemo(() => {
+    if (activeTab === 'all_payslips') {
+      return myRecords;
+    }
+    const targetMonth = selectedMonthYear || currentMonthNameYear;
+    return myRecords.filter(r => matchesMonthYear(r, targetMonth));
+  }, [myRecords, activeTab, selectedMonthYear, currentMonthNameYear, matchesMonthYear]);
+
   const filteredRecords = useMemo(() => {
-    return myRecords.filter(r => {
+    return tabFilteredRecords.filter(r => {
       const q = search.toLowerCase().trim();
       const empName = (r.employeeName || r.employee?.name || '').toLowerCase();
       const month = (r.month || '').toLowerCase();
@@ -124,14 +191,19 @@ const PayslipsPage = () => {
       const matchesStatus = statusFilter === 'ALL' || (r.status || 'PENDING') === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [myRecords, search, statusFilter]);
+  }, [tabFilteredRecords, search, statusFilter]);
+
+  const currentMonthCount = useMemo(() => {
+    const targetMonth = selectedMonthYear || currentMonthNameYear;
+    return myRecords.filter(r => matchesMonthYear(r, targetMonth)).length;
+  }, [myRecords, selectedMonthYear, currentMonthNameYear, matchesMonthYear]);
 
   const stats = useMemo(() => {
-    const total = myRecords.reduce((acc, r) => acc + (Number(r.paidAmount) || 0), 0);
-    const approvedCount = myRecords.filter(r => (r.status || 'PENDING') === 'APPROVED').length;
-    const pendingCount = myRecords.filter(r => (r.status || 'PENDING') === 'PENDING').length;
-    return { totalDisbursed: total, totalRecords: myRecords.length, approvedCount, pendingCount };
-  }, [myRecords]);
+    const total = tabFilteredRecords.reduce((acc, r) => acc + (Number(r.paidAmount) || 0), 0);
+    const approvedCount = tabFilteredRecords.filter(r => (r.status || 'PENDING') === 'APPROVED').length;
+    const pendingCount = tabFilteredRecords.filter(r => (r.status || 'PENDING') === 'PENDING').length;
+    return { totalDisbursed: total, totalRecords: tabFilteredRecords.length, approvedCount, pendingCount };
+  }, [tabFilteredRecords]);
 
   const renderStatusBadge = (status) => {
     switch (status) {
@@ -187,11 +259,56 @@ const PayslipsPage = () => {
         </div>
       </div>
 
+      {/* ── Main Navigation Tabs ──────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-0">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('current_month')}
+            className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              activeTab === 'current_month'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-extrabold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            <Calendar size={15} />
+            <span>This Month Payslips ({currentMonthCount})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('all_payslips')}
+            className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              activeTab === 'all_payslips'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-extrabold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            <Layers size={15} />
+            <span>All Payslips ({myRecords.length})</span>
+          </button>
+        </div>
+
+        {/* Month Selector dropdown when on current_month tab */}
+        {activeTab === 'current_month' && (
+          <div className="flex items-center gap-2 mb-2 sm:mb-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Month:</span>
+            <select
+              value={selectedMonthYear}
+              onChange={(e) => setSelectedMonthYear(e.target.value)}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-xs"
+            >
+              {uniqueMonthsList.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
       {/* ── Stat Cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Disbursed', value: `₹${stats.totalDisbursed.toLocaleString('en-IN')}`, icon: <DollarSign size={18} />, color: 'emerald', sub: 'Cumulative paid salaries' },
-          { label: 'Payslip Records', value: stats.totalRecords, icon: <FileText size={18} />, color: 'indigo', sub: 'Total issued payslips' },
+          { label: 'Total Disbursed', value: `₹${stats.totalDisbursed.toLocaleString('en-IN')}`, icon: <DollarSign size={18} />, color: 'emerald', sub: activeTab === 'current_month' ? `Disbursed in ${selectedMonthYear || currentMonthNameYear}` : 'Cumulative paid salaries' },
+          { label: 'Payslip Records', value: stats.totalRecords, icon: <FileText size={18} />, color: 'indigo', sub: activeTab === 'current_month' ? `Issued in ${selectedMonthYear || currentMonthNameYear}` : 'Total issued payslips' },
           { label: 'Approved', value: stats.approvedCount, icon: <CheckCircle2 size={18} />, color: 'emerald', sub: 'Verified disbursals', valColor: 'text-emerald-600 dark:text-emerald-400' },
           { label: 'Pending', value: stats.pendingCount, icon: <Clock size={18} />, color: 'amber', sub: 'Awaiting authorization', valColor: 'text-amber-600 dark:text-amber-400' },
         ].map(({ label, value, icon, color, sub, valColor }) => (
@@ -276,7 +393,9 @@ const PayslipsPage = () => {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-14 text-center space-y-3">
           <FileText size={44} className="mx-auto text-slate-300 dark:text-slate-700" />
           <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
-            {isPrivileged ? 'No payslip records found.' : 'No payslips have been issued for you yet.'}
+            {activeTab === 'current_month'
+              ? `No payslip records found for ${selectedMonthYear || currentMonthNameYear}.`
+              : (isPrivileged ? 'No payslip records found.' : 'No payslips have been issued for you yet.')}
           </p>
         </div>
 

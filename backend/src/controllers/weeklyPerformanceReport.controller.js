@@ -76,8 +76,47 @@ export const autoCompileWeeklyReport = async (req, res) => {
     const challengesList = [];
     const achievementsList = [];
     const nextWeekPlanList = [];
+    const DEFAULT_STUDENT_LEADS = [
+      'New Leads Generated',
+      'Qualified Lead',
+      'Total Calls Made',
+      'Total Follow up',
+      'Hot Leads',
+      'Warm Leads',
+      'Cold Leads',
+      'Call back Leads',
+      'RNT Leads (Ring Next Time)',
+      'Switch Off Leads',
+      'Wrong leads',
+      'Total Pending Follow-ups',
+      'Total Pending Leads',
+      'Client/Student Meetings Fixed',
+      'Admissions/Closings Done'
+    ];
+
+    const DEFAULT_CLIENT_LEADS = [
+      'New Client Leads Generated',
+      'Qualified Client Leads',
+      'Total Client Calls / Contacted',
+      'Total Client Follow ups',
+      'Hot Client Leads (High Priority)',
+      'Warm Client Leads (Medium Priority)',
+      'Cold Client Leads (Low Priority)',
+      'Call back Client Leads',
+      'RNT Client Leads (Ring Next Time)',
+      'Switch Off Client Leads',
+      'Wrong Client Leads',
+      'Total Pending Client Follow-ups',
+      'Total Pending Client Leads',
+      'Client Meetings Fixed',
+      'Client Closings / Onboarding Done'
+    ];
+
     const studentLeadsMap = new Map();
+    DEFAULT_STUDENT_LEADS.forEach(act => studentLeadsMap.set(act.toLowerCase(), { activity: act, count: 0, remarks: '' }));
+
     const clientLeadsMap = new Map();
+    DEFAULT_CLIENT_LEADS.forEach(act => clientLeadsMap.set(act.toLowerCase(), { activity: act, count: 0, remarks: '' }));
 
     shiftReports.forEach(r => {
       // 1. Major Tasks & Projects (grouped by Project Name across the 7 days)
@@ -164,10 +203,10 @@ export const autoCompileWeeklyReport = async (req, res) => {
       // 6. Academic Counselor Lead Updates Aggregation over 7 Days
       (r.studentLeadsUpdate || []).forEach(item => {
         if ((item.activity || '').trim()) {
-          const actKey = item.activity.trim();
+          const actKey = item.activity.trim().toLowerCase();
           const countVal = parseFloat(item.count) || 0;
           if (!studentLeadsMap.has(actKey)) {
-            studentLeadsMap.set(actKey, { count: countVal, remarks: item.remarks || '' });
+            studentLeadsMap.set(actKey, { activity: item.activity.trim(), count: countVal, remarks: item.remarks || '' });
           } else {
             const prev = studentLeadsMap.get(actKey);
             prev.count += countVal;
@@ -178,10 +217,10 @@ export const autoCompileWeeklyReport = async (req, res) => {
 
       (r.clientLeadsUpdate || []).forEach(item => {
         if ((item.activity || '').trim()) {
-          const actKey = item.activity.trim();
+          const actKey = item.activity.trim().toLowerCase();
           const countVal = parseFloat(item.count) || 0;
           if (!clientLeadsMap.has(actKey)) {
-            clientLeadsMap.set(actKey, { count: countVal, remarks: item.remarks || '' });
+            clientLeadsMap.set(actKey, { activity: item.activity.trim(), count: countVal, remarks: item.remarks || '' });
           } else {
             const prev = clientLeadsMap.get(actKey);
             prev.count += countVal;
@@ -196,14 +235,14 @@ export const autoCompileWeeklyReport = async (req, res) => {
       tasks.forEach(task => majorTasksList.push(task));
     });
 
-    const studentLeadsSummary = Array.from(studentLeadsMap.entries()).map(([act, data]) => ({
-      activity: act,
+    const studentLeadsSummary = Array.from(studentLeadsMap.values()).map(data => ({
+      activity: data.activity,
       weeklyTotal: String(data.count),
       remarks: data.remarks
     }));
 
-    const clientLeadsSummary = Array.from(clientLeadsMap.entries()).map(([act, data]) => ({
-      activity: act,
+    const clientLeadsSummary = Array.from(clientLeadsMap.values()).map(data => ({
+      activity: data.activity,
       weeklyTotal: String(data.count),
       remarks: data.remarks
     }));

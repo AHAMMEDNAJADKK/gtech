@@ -65,9 +65,11 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards' },
 
   // --- PEOPLE & HR ---
+  { label: 'Staff Attendance', path: '/staff-attendance', category: 'People & HR' },
   { label: 'Users', path: '/users', category: 'People & HR' },
   { label: 'Departments', path: '/departments', category: 'People & HR' },
   { label: 'Recruitment', path: '/recruitment', category: 'People & HR' },
+  { label: 'Training LMS', path: '/hr/training', category: 'People & HR' },
   { label: 'Attendance', path: '/attendance', category: 'People & HR' },
   { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR' },
 

@@ -222,6 +222,20 @@ const upload = multer({
   fileFilter
 });
 
+export const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+    files: 20,
+    fields: 100,
+    fieldNameSize: 200,
+    fieldSize: 2 * 1024 * 1024
+  },
+
+  fileFilter
+});
+
 // ============================================================
 // EXPORT
 // ============================================================

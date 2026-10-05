@@ -30,10 +30,11 @@ export const courseController = {
       const query = {};
 
       if (search) {
+        const safeSearch = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         query.$or = [
-          { courseName: { $regex: search, $options: 'i' } },
-          { courseCode: { $regex: search, $options: 'i' } },
-          { shortDescription: { $regex: search, $options: 'i' } }
+          { courseName: { $regex: safeSearch, $options: 'i' } },
+          { courseCode: { $regex: safeSearch, $options: 'i' } },
+          { shortDescription: { $regex: safeSearch, $options: 'i' } }
         ];
       }
 

@@ -48,9 +48,11 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Operations', desc: 'Team Lead department routine checklist, briefing table & EOD closures' },
 
   // HR & Recruitment
+  { label: 'Staff Attendance', path: '/staff-attendance', category: 'HR', desc: 'Mark and manage daily staff attendance logs & roster' },
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },
   { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & approvals' },
   { label: 'Recruitment', path: '/recruitment', category: 'HR', desc: 'Recruitment directory, candidate pipeline & offer letters' },
+  { label: 'Employee Training', path: '/hr/training', category: 'HR', desc: 'Internal staff training & development courses' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
 
   // Leads & Sales
@@ -61,6 +63,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Course Management', path: '/academy/courses', category: 'LMS / Academy', desc: 'Course catalog & curriculum management' },
   { label: 'Batches', path: '/academy/batches', category: 'LMS / Academy', desc: 'Student batch creation & schedule tracking' },
   { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'LMS / Academy', desc: 'Student course enrollment & fee status' },
+  { label: 'Training LMS', path: '/training-lms', category: 'LMS / Academy', desc: 'Employee internal staff training LMS portal' },
   { label: 'My LMS Learning', path: '/academy/learning', category: 'LMS / Academy', desc: 'Student LMS portal & course materials' },
 
   // Analytics & Reports

@@ -766,16 +766,23 @@ const lmsController = {
             seenCourseIds.add(courseKey);
           }
 
-          const totalPublishedLessons = await Lesson.countDocuments({ courseId, isPublished: true });
-          const completedCount = await LessonProgress.countDocuments({ studentId: stId, courseId });
-          const assignmentsCount = await Assignment.countDocuments({ courseId, isPublished: true });
-          const submissions = await AssignmentSubmission.find({ studentId: stId, courseId }).lean();
+          const validStId = stId && mongoose.Types.ObjectId.isValid(String(stId)) ? stId : null;
+          const validCourseId = courseId && mongoose.Types.ObjectId.isValid(String(courseId)) ? courseId : null;
+
+          const totalPublishedLessons = validCourseId ? await Lesson.countDocuments({ courseId: validCourseId, isPublished: true }) : 0;
+          const completedCount = (validStId && validCourseId) ? await LessonProgress.countDocuments({ studentId: validStId, courseId: validCourseId }) : 0;
+          const assignmentsCount = validCourseId ? await Assignment.countDocuments({ courseId: validCourseId, isPublished: true }) : 0;
+          const submissions = (validStId && validCourseId) ? await AssignmentSubmission.find({ studentId: validStId, courseId: validCourseId }).lean() : [];
           const gradedSubmissions = submissions.filter(s => s.status === 'GRADED');
           
           let avgGradePercent = 0;
           if (gradedSubmissions.length > 0) {
-            const sumPct = gradedSubmissions.reduce((acc, curr) => acc + ((curr.grade / curr.maxMarks) * 100), 0);
-            avgGradePercent = Math.round(sumPct / gradedSubmissions.length);
+            const sumPct = gradedSubmissions.reduce((acc, curr) => {
+              const max = Number(curr.maxMarks) || 100;
+              const grade = Number(curr.grade) || 0;
+              return acc + ((grade / max) * 100);
+            }, 0);
+            avgGradePercent = Math.round(sumPct / gradedSubmissions.length) || 0;
           }
 
           return {

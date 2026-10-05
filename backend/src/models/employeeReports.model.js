@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const employeeReportsSchema = new mongoose.Schema({
   employee_id: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'User',
     required: [true, 'Employee ID is required']
   },

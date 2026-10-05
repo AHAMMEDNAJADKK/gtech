@@ -37,20 +37,63 @@ export const enrollmentController = {
       const limitNum = parseInt(limit, 10) || 50;
       const skip = (pageNum - 1) * limitNum;
 
+      // First, purge any orphaned or deleted student enrollments
+      try {
+        const allEnrollments = await Enrollment.find(query).select('_id studentId').lean();
+        const studentIdsToCheck = allEnrollments.map(e => e.studentId).filter(Boolean);
+        const existingUsers = await User.find({ _id: { $in: studentIdsToCheck } }).select('_id status isActive isDeleted is_deleted').lean();
+        const Student = (await import('../models/student.js')).default;
+        
+        let validStudentIdsSet = new Set();
+        existingUsers.forEach(u => {
+          const isDeleted = u.isDeleted === true || u.is_deleted === true || u.status === 'deleted' || u.status === 'inactive' || u.isActive === false;
+          if (!isDeleted) {
+            validStudentIdsSet.add(String(u._id));
+          }
+        });
+
+        if (Student) {
+          const existingStudents = await Student.find({ _id: { $in: studentIdsToCheck } }).select('_id status isDeleted is_deleted').lean();
+          existingStudents.forEach(s => {
+            const isDeleted = s.isDeleted === true || s.is_deleted === true || s.status === 'deleted' || s.status === 'inactive';
+            if (!isDeleted) {
+              validStudentIdsSet.add(String(s._id));
+            }
+          });
+        }
+
+        const invalidOrphanedIds = allEnrollments
+          .filter(e => !e.studentId || !validStudentIdsSet.has(String(e.studentId)))
+          .map(e => e._id);
+
+        if (invalidOrphanedIds.length > 0) {
+          await Enrollment.deleteMany({ _id: { $in: invalidOrphanedIds } });
+        }
+      } catch (cleanErr) {
+        console.warn('Orphaned enrollment purge warning:', cleanErr.message);
+      }
+
       // Populate enrollment with student, course, batch
-      let enrollments = await Enrollment.find(query)
-        .populate('studentId', 'name email phone studentId profile_image coursePreference status')
+      let allValidEnrollments = await Enrollment.find(query)
+        .populate('studentId', 'name email phone studentId profile_image coursePreference status isDeleted is_deleted isActive')
         .populate('courseId', 'courseName courseCode category syllabus')
         .populate('batchId', 'batchName batchCode status')
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
         .lean();
+
+      // Ensure deleted or missing student enrollments are strictly excluded
+      allValidEnrollments = allValidEnrollments.filter(e => {
+        if (!e.studentId) return false;
+        const st = e.studentId;
+        if (!st._id && !st.name) return false;
+        if (st.isDeleted === true || st.is_deleted === true || st.status === 'deleted' || st.status === 'inactive' || st.isActive === false) return false;
+        return true;
+      });
 
       // Apply search filter if search query present
       if (search) {
         const q = search.toLowerCase().trim();
-        enrollments = enrollments.filter(e => {
+        allValidEnrollments = allValidEnrollments.filter(e => {
           const student = e.studentId || {};
           const batch = e.batchId || {};
           const course = e.courseId || {};
@@ -65,9 +108,12 @@ export const enrollmentController = {
         });
       }
 
+      const totalValid = allValidEnrollments.length;
+      const paginatedEnrollments = allValidEnrollments.slice(skip, skip + limitNum);
+
       // Calculate attendance summaries for returned enrollments using existing StudentAttendance
       const enrichedEnrollments = await Promise.all(
-        enrollments.map(async (e) => {
+        paginatedEnrollments.map(async (e) => {
           const stId = e.studentId?._id || e.studentId;
           let attendanceSummary = { totalSessions: 0, presentCount: 0, absentCount: 0, lateCount: 0, attendancePercentage: 0 };
 
@@ -95,40 +141,28 @@ export const enrollmentController = {
         })
       );
 
-      // Aggregate high-level metrics summary
-      const allStats = await Enrollment.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalEnrollments: { $sum: 1 },
-            activeCount: { $sum: { $cond: [{ $eq: ["$status", "active"] }, 1, 0] } },
-            completedCount: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
-            avgProgress: { $avg: "$progressPercentage" }
-          }
-        }
-      ]);
-
-      const stats = allStats[0] || {
-        totalEnrollments: 0,
-        activeCount: 0,
-        completedCount: 0,
-        avgProgress: 0
-      };
+      // Aggregate high-level metrics summary for active valid enrollments
+      const totalEnrollments = totalValid;
+      const activeCount = allValidEnrollments.filter(e => e.status === 'active').length;
+      const completedCount = allValidEnrollments.filter(e => e.status === 'completed').length;
+      const avgProgress = totalEnrollments > 0
+        ? Math.round(allValidEnrollments.reduce((acc, e) => acc + (e.progressPercentage || 0), 0) / totalEnrollments)
+        : 0;
 
       return res.status(200).json({
         success: true,
         data: enrichedEnrollments,
         stats: {
-          totalEnrollments: stats.totalEnrollments,
-          activeCount: stats.activeCount,
-          completedCount: stats.completedCount,
-          avgProgress: Math.round(stats.avgProgress || 0)
+          totalEnrollments,
+          activeCount,
+          completedCount,
+          avgProgress
         },
         pagination: {
-          total: enrollments.length,
+          total: totalValid,
           page: pageNum,
           limit: limitNum,
-          pages: Math.ceil(enrollments.length / limitNum) || 1
+          pages: Math.ceil(totalValid / limitNum) || 1
         }
       });
     } catch (error) {
@@ -148,13 +182,20 @@ export const enrollmentController = {
       }
 
       const enrollment = await Enrollment.findById(id)
-        .populate('studentId', 'name email phone studentId profile_image coursePreference status qualification institution')
+        .populate('studentId', 'name email phone studentId profile_image coursePreference status qualification institution isDeleted is_deleted isActive')
         .populate('courseId')
         .populate('batchId')
         .lean();
 
-      if (!enrollment) {
+      if (!enrollment || !enrollment.studentId) {
         throw new AppError('Enrollment record not found.', 404);
+      }
+
+      const stObj = enrollment.studentId;
+      if (stObj.isDeleted === true || stObj.is_deleted === true || stObj.status === 'deleted' || stObj.status === 'inactive' || stObj.isActive === false) {
+        // Clean up orphaned enrollment
+        await Enrollment.findByIdAndDelete(id);
+        throw new AppError('Enrollment record not found for deleted or inactive student.', 404);
       }
 
       // Query existing StudentAttendance data for student
@@ -442,6 +483,41 @@ export const enrollmentController = {
         success: true,
         message: `Enrollment status updated to '${status}'.`,
         data: enrollment
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * DELETE /api/v1/academy/enrollments/:id
+   */
+  deleteEnrollment: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new AppError('Invalid enrollment ID format provided.', 400);
+      }
+
+      const enrollment = await Enrollment.findById(id);
+      if (!enrollment) {
+        throw new AppError('Enrollment record not found.', 404);
+      }
+
+      const oldValue = enrollment.toObject();
+      await enrollment.deleteOne();
+
+      await recordAudit(req, {
+        action: 'DELETE',
+        entity: 'Enrollment',
+        entityId: id,
+        oldValue
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Enrollment record deleted successfully.'
       });
     } catch (error) {
       next(error);
