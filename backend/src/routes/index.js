@@ -31,6 +31,8 @@ import recruitmentRoutes from './recruitment.routes.js';
 import calendarRoutes from './calendar.routes.js';
 import dailyOperationsRoutes from './dailyOperations.routes.js';
 import dailyShiftReportRoutes from './dailyShiftReport.routes.js';
+import weeklyPerformanceReportRoutes from './weeklyPerformanceReport.routes.js';
+import monthlyPerformanceReportRoutes from './monthlyPerformanceReport.routes.js';
 
 const router = Router();
 
@@ -67,5 +69,7 @@ router.use('/performance', performanceRoutes);
 router.use('/calendar-work', calendarRoutes);
 router.use('/daily-operations', dailyOperationsRoutes);
 router.use('/daily-shift-reports', dailyShiftReportRoutes);
+router.use('/weekly-performance-reports', weeklyPerformanceReportRoutes);
+router.use('/monthly-performance-reports', monthlyPerformanceReportRoutes);
 
 export default router;

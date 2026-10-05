@@ -213,6 +213,8 @@ export const saveShiftReport = async (req, res) => {
       evidenceAttachments,
       pendingBlockers,
       tomorrowPriorities,
+      studentLeadsUpdate,
+      clientLeadsUpdate,
       handoverFinalConfirmation,
       status
     } = req.body;
@@ -232,6 +234,8 @@ export const saveShiftReport = async (req, res) => {
           evidenceAttachments,
           pendingBlockers,
           tomorrowPriorities,
+          studentLeadsUpdate,
+          clientLeadsUpdate,
           handoverFinalConfirmation,
           status: status || 'Submitted'
         }

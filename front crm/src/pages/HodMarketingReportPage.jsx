@@ -1148,8 +1148,6 @@ const HodMarketingReportPage = () => {
             <RefreshCw size={14} className={fetchingTasks ? 'animate-spin text-amber-600' : ''} />
           </button>
 
-          <AiAnalyzeButton onClick={() => setIsAiModalOpen(true)} />
-
           <button
             onClick={handleSaveReport}
             disabled={saving}
