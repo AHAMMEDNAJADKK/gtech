@@ -46,10 +46,8 @@ const ALL_SIDEBAR_ITEMS = [
 
   // --- SALES & CRM ---
   { label: 'Clients', path: '/clients', category: 'Sales & CRM' },
-  { label: 'Leads Directory', path: '/leads', category: 'Sales & CRM' },
   { label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM' },
   { label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM' },
-  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM' },
 
   // --- MARKETING & WORK ---
   { label: 'Projects', path: '/projects', category: 'Marketing & Work' },
@@ -107,9 +105,72 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const loggedInUser = useMemo(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  }, []);
+
+  const isLoggedInSuperAdmin = useMemo(() => {
+    if (!loggedInUser) return false;
+    const role = String(loggedInUser.role_id || loggedInUser.roleId || loggedInUser.role || '').toLowerCase().trim();
+    return Boolean(
+      loggedInUser.isSuperAdmin === true ||
+      loggedInUser.is_super_admin === true ||
+      role === 'superadmin' ||
+      role === 'super_admin' ||
+      role === '0'
+    );
+  }, [loggedInUser]);
+
+  // Restrict selectable options to ONLY the sidebar items the logged-in user has permission for
+  const availableSidebarItems = useMemo(() => {
+    if (isLoggedInSuperAdmin || !loggedInUser) {
+      return ALL_SIDEBAR_ITEMS;
+    }
+
+    if (Array.isArray(loggedInUser.permissions) && loggedInUser.permissions.length > 0) {
+      const allowedSet = new Set(loggedInUser.permissions.map(p => String(p).toLowerCase().trim()));
+
+      const extraPathMappings = {
+        'admin dashboard': '/dashboard',
+        'md dashboard': '/md-dashboard',
+        'accountant dashboard': '/accountant-dashboard',
+        'income': '/accounts/income',
+        'sales': '/accounts/sales',
+        'capital': '/accounts/capital',
+        'purchase': '/accounts/purchase',
+        'create invoice': '/accounts/create-invoice',
+      };
+
+      const extraAllowedPaths = new Set();
+      for (const perm of allowedSet) {
+        if (extraPathMappings[perm]) {
+          extraAllowedPaths.add(extraPathMappings[perm].toLowerCase());
+        }
+      }
+
+      return ALL_SIDEBAR_ITEMS.filter(item => {
+        const itemLabelLower = item.label ? item.label.toLowerCase().trim() : '';
+        const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
+
+        return (
+          allowedSet.has(itemLabelLower) ||
+          allowedSet.has(itemPathLower) ||
+          extraAllowedPaths.has(itemPathLower)
+        );
+      });
+    }
+
+    return ALL_SIDEBAR_ITEMS;
+  }, [loggedInUser, isLoggedInSuperAdmin]);
+
   useEffect(() => {
     if (user) {
-      setSelectedPermissions(user.permissions || []);
+      setSelectedPermissions(Array.isArray(user.permissions) && user.permissions.length > 0 ? user.permissions : ['Task Assign', 'Notifications', 'Attendance', 'Leave Requests']);
       setIsSuperAdmin(Boolean(user.isSuperAdmin || user.role === 'superadmin'));
     }
   }, [user]);
@@ -123,11 +184,13 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   };
 
   const handleSelectAll = () => {
-    setSelectedPermissions(ALL_SIDEBAR_ITEMS.map(i => i.label));
+    const availableLabels = availableSidebarItems.map(i => i.label);
+    setSelectedPermissions(prev => Array.from(new Set([...prev, ...availableLabels])));
   };
 
   const handleDeselectAll = () => {
-    setSelectedPermissions([]);
+    const availableSet = new Set(availableSidebarItems.map(i => i.label));
+    setSelectedPermissions(prev => prev.filter(p => !availableSet.has(p)));
   };
 
   const handleSave = async () => {
@@ -179,7 +242,7 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   };
 
   // Group items by category
-  const categories = [...new Set(ALL_SIDEBAR_ITEMS.map(i => i.category))];
+  const categories = [...new Set(availableSidebarItems.map(i => i.category))];
 
   return (
     <motion.div
@@ -225,7 +288,12 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
               <input
                 type="checkbox"
                 checked={isSuperAdmin}
-                onChange={(e) => setIsSuperAdmin(e.target.checked)}
+                disabled={!isLoggedInSuperAdmin}
+                onChange={(e) => {
+                  if (isLoggedInSuperAdmin) {
+                    setIsSuperAdmin(e.target.checked);
+                  }
+                }}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-slate-600 peer-checked:bg-emerald-500"></div>
@@ -264,7 +332,7 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
           )}
 
           {categories.map(cat => {
-            const catItems = ALL_SIDEBAR_ITEMS.filter(i => i.category === cat);
+            const catItems = availableSidebarItems.filter(i => i.category === cat);
             return (
               <div key={cat} className="space-y-3">
                 <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{cat}</h4>

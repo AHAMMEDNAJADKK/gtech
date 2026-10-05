@@ -35,7 +35,7 @@ export const ToastProvider = ({ children }) => {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed top-5 right-5 z-[200] flex w-[calc(100vw-2.5rem)] max-w-sm flex-col gap-3 pointer-events-none">
+      <div className="fixed top-5 right-5 z-[999999] flex w-[calc(100vw-2.5rem)] max-w-sm flex-col gap-3 pointer-events-none">
         <AnimatePresence>
           {toasts.map((toast) => {
             const meta = TOAST_META[toast.type] || TOAST_META.info;

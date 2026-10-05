@@ -12,26 +12,37 @@ const getReportConfig = (user) => {
   const designation = String(user?.designation || '').toLowerCase().trim();
   const department = String(user?.department || user?.departmentId?.name || '').toLowerCase().trim();
 
+  const isHod = designation.includes('hod') || role.includes('hod');
+
   if (designation.includes('graphic') || role.includes('graphic')) {
     return { route: '/graphic-designer-report', apiPrefix: 'graphic-designer-reports', name: 'Graphic Designer Daily Report' };
   }
   if (designation.includes('video') || role.includes('video')) {
     return { route: '/videographer-report', apiPrefix: 'videographer-reports', name: 'Videographer Daily Report' };
   }
+  // HOD R&D (Requires HOD role/designation)
+  if (isHod && (department.includes('r&d') || designation.includes('r&d') || department.includes('research') || designation.includes('research'))) {
+    return { route: '/hod-rd-report', apiPrefix: 'hod-rd-reports', name: 'HOD R&D Daily Report' };
+  }
+  // Developer / Junior Developer / Software Engineer / R&D Staff
   if (
     designation.includes('developer') ||
-    
+    designation.includes('dev') ||
+    designation.includes('engineer') ||
     role.includes('developer') ||
     role.includes('dev') ||
     role.includes('junior') ||
     department.includes('development') ||
     department.includes('software') ||
     department.includes('engineering') ||
-    department.includes('it')
+    department.includes('it') ||
+    department.includes('r&d') ||
+    department.includes('research')
   ) {
     return { route: '/developer-report', apiPrefix: 'developer-reports', name: 'Developer Daily Report' };
   }
-  if (designation.includes('hod') && (department.includes('market') || designation.includes('market'))) {
+  // HOD Marketing
+  if (isHod && (department.includes('market') || designation.includes('market'))) {
     return { route: '/hod-marketing-report', apiPrefix: 'hod-marketing-reports', name: 'HOD Marketing Daily Report' };
   }
   if (department.includes('market') || designation.includes('market') || role === '4' || role.includes('digital')) {
@@ -39,9 +50,6 @@ const getReportConfig = (user) => {
   }
   if (department.includes('account') || designation.includes('account') || role.includes('account')) {
     return { route: '/accountant-report', apiPrefix: 'accountant-reports', name: 'Accountant Daily Report' };
-  }
-  if (department.includes('r&d') || designation.includes('hod') || role.includes('hod')) {
-    return { route: '/hod-rd-report', apiPrefix: 'hod-rd-reports', name: 'HOD R&D Daily Report' };
   }
   if (department.includes('ops') || designation.includes('ops') || role.includes('ops')) {
     return { route: '/ops-report', apiPrefix: 'ops-reports', name: 'Ops Daily Report' };

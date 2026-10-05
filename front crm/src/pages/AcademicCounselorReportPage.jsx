@@ -55,6 +55,7 @@ const DEFAULT_CLIENT_SALES_ACTIVITY = [
   { activity: 'Hot Client Leads (High Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Warm Client Leads (Medium Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Cold Client Leads (Low Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Wrong Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Total Pending Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
   { activity: 'Client Closings / Onboarding Done', count: '', digitalMktg: '', web: '', remarks: '' }

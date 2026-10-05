@@ -59,6 +59,9 @@ const isTransactionUnsupportedError = (err) => {
     msg.includes('Transaction numbers are only allowed on a replica set member or mongos') ||
     msg.includes('Standalone servers do not support transactions') ||
     msg.includes('replica set') ||
+    msg.includes('retryable writes') ||
+    msg.includes('retryWrites') ||
+    msg.includes('retryable') ||
     err.code === 20 ||
     err.codeName === 'IllegalOperation'
   );

@@ -268,8 +268,10 @@ const EmployeeReports = () => {
 
   const getDesignationConfig = (emp) => {
     const desigName = String(emp.designation || emp.designationId?.name || '').toLowerCase();
-    if (desigName.includes('developer')) return DESIGNATION_API_MAP['developer'];
-    if (desigName.includes('hod') || desigName.includes('r&d')) return DESIGNATION_API_MAP['hodrd'];
+    const roleName = String(emp.role || emp.role_id || '').toLowerCase();
+    const isHod = desigName.includes('hod') || roleName.includes('hod');
+    if (desigName.includes('developer') || desigName.includes('dev') || desigName.includes('junior')) return DESIGNATION_API_MAP['developer'];
+    if (isHod && (desigName.includes('r&d') || desigName.includes('research'))) return DESIGNATION_API_MAP['hodrd'];
     if (desigName.includes('graphic') || desigName.includes('designer')) return DESIGNATION_API_MAP['graphicdesigner'];
     if (desigName.includes('counselor') || desigName.includes('academic')) return DESIGNATION_API_MAP['academiccounselor'];
     if (desigName.includes('video') || desigName.includes('editor')) return DESIGNATION_API_MAP['videographer'];
