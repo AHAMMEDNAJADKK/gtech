@@ -5,15 +5,20 @@ import { sendEmail } from '../services/notification.service.js';
 
 export const createNotification = async (req, res) => {
   try {
-    const { title, description, assignedTo, image, imageUrl, category } = req.body;
+    const { title, image, imageUrl, category } = req.body;
+    const rawDescription = (req.body.description || req.body.message || req.body.content || '').trim();
+    const rawTarget = req.body.assignedTo || req.body.recipientId || req.body.userId;
 
-    if (!description || !description.trim()) {
+    if (!rawDescription) {
       return res.status(400).json({ success: false, message: 'Notification description is required.' });
     }
 
-    if (!assignedTo) {
+    if (!rawTarget) {
       return res.status(400).json({ success: false, message: 'Please select an assigned user.' });
     }
+
+    const assignedTo = rawTarget;
+    const description = rawDescription;
 
     const finalImageUrl = imageUrl || image || null;
     const finalCategory = (category && typeof category === 'string') ? category.toLowerCase().trim() : 'official';

@@ -107,14 +107,35 @@ export const liveClassController = {
         durationMinutes
       } = req.body;
 
-      if (!title || !courseId || !batchId || !meetingUrl || !scheduledDate || !startTime) {
+      if (!title || !courseId || !batchId || !meetingUrl) {
         return res.status(400).json({
           success: false,
-          message: 'Title, course, batch, meeting URL, scheduled date, and start time are required.'
+          message: 'Title, course, batch, and meeting URL are required.'
         });
       }
 
       const assignedInstructorId = instructorId || req.user?.id || req.user?._id;
+
+      // Extract scheduledDate and startTime with robust fallbacks
+      let finalDate = scheduledDate ? new Date(scheduledDate) : null;
+      let finalStartTime = startTime ? startTime.trim() : '';
+
+      if (req.body.scheduledStartTime) {
+        const parsedStart = new Date(req.body.scheduledStartTime);
+        if (!isNaN(parsedStart.getTime())) {
+          if (!finalDate) finalDate = parsedStart;
+          if (!finalStartTime) {
+            finalStartTime = parsedStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        }
+      }
+
+      if (!finalDate || isNaN(finalDate.getTime())) {
+        finalDate = new Date();
+      }
+      if (!finalStartTime) {
+        finalStartTime = '10:00 AM';
+      }
 
       const newSession = await LiveClass.create({
         title: title.trim(),
@@ -126,8 +147,8 @@ export const liveClassController = {
         meetingUrl: meetingUrl.trim(),
         meetingId: meetingId || '',
         passcode: passcode || '',
-        scheduledDate: new Date(scheduledDate),
-        startTime: startTime.trim(),
+        scheduledDate: finalDate,
+        startTime: finalStartTime,
         endTime: endTime || '',
         durationMinutes: parseInt(durationMinutes, 10) || 60,
         status: 'UPCOMING',

@@ -421,7 +421,8 @@ const lmsController = {
         throw new AppError('Course not found.', 404);
       }
 
-      const parsedMaxMarks = parseInt(maxMarks, 10);
+      const rawMarks = maxMarks ?? req.body.maxScore ?? req.body.maximumMarks;
+      const parsedMaxMarks = parseInt(rawMarks, 10);
       if (isNaN(parsedMaxMarks) || parsedMaxMarks <= 0) {
         throw new AppError('Maximum marks must be a positive number greater than 0.', 400);
       }
@@ -581,6 +582,11 @@ const lmsController = {
         throw new AppError('You do not have an active enrollment for this course.', 403);
       }
 
+      const actualFileUrl = fileUrl || req.body.submissionUrl || '';
+      const actualTextAnswer = (textAnswer || req.body.submissionText || req.body.content || '').trim();
+      const actualExternalUrl = (externalUrl || req.body.link || req.body.githubUrl || '').trim();
+      const determinedType = submissionType || (actualFileUrl ? 'FILE' : (actualExternalUrl ? 'URL' : 'TEXT'));
+
       const submission = await AssignmentSubmission.findOneAndUpdate(
         { assignmentId, studentId },
         {
@@ -588,11 +594,11 @@ const lmsController = {
           studentId,
           courseId: assignment.courseId,
           enrollmentId: enrollment._id,
-          submissionType: submissionType || 'FILE',
-          fileUrl: fileUrl || '',
+          submissionType: determinedType,
+          fileUrl: actualFileUrl,
           fileMetadata: fileMetadata || {},
-          textAnswer: textAnswer ? textAnswer.trim() : '',
-          externalUrl: externalUrl ? externalUrl.trim() : '',
+          textAnswer: actualTextAnswer,
+          externalUrl: actualExternalUrl,
           submittedAt: new Date(),
           status: 'SUBMITTED',
           maxMarks: assignment.maxMarks
@@ -600,7 +606,7 @@ const lmsController = {
         { upsert: true, new: true }
       );
 
-      return res.status(200).json({
+      return res.status(201).json({
         success: true,
         message: 'Assignment submitted successfully.',
         data: submission
@@ -651,7 +657,7 @@ const lmsController = {
   gradeSubmission: async (req, res, next) => {
     try {
       const { submissionId } = req.params;
-      const { grade, feedback, status } = req.body;
+      const { grade, score, marks, feedback, status } = req.body;
       const evaluatorId = req.user?.id || req.user?._id;
 
       if (!mongoose.Types.ObjectId.isValid(submissionId)) {
@@ -663,7 +669,8 @@ const lmsController = {
         throw new AppError('Submission record not found.', 404);
       }
 
-      const numericGrade = parseFloat(grade);
+      const rawGrade = grade !== undefined ? grade : (score !== undefined ? score : marks);
+      const numericGrade = parseFloat(rawGrade);
       if (isNaN(numericGrade) || numericGrade < 0 || numericGrade > submission.maxMarks) {
         throw new AppError(`Grade must be a number between 0 and ${submission.maxMarks}.`, 400);
       }

@@ -138,24 +138,31 @@ export const edtechDashboardController = {
         }
       });
 
+      const payload = {
+        totalLeads: totalEnquiries,
+        totalEnquiries,
+        activeLeads,
+        followupsDue,
+        convertedStudents,
+        totalStudents: activeStudents,
+        activeStudents,
+        totalCourses: activeCourses,
+        activeCourses,
+        totalBatches: activeBatches,
+        activeBatches,
+        upcomingClasses: upcomingClassesCount,
+        todayAttendance,
+        pendingAssignments,
+        feeCollected: feeTotals.totalCollected,
+        feeDue: feeTotals.totalDue,
+        feeGross: feeTotals.totalGross,
+        certificatesIssued
+      };
+
       return res.status(200).json({
         success: true,
-        kpis: {
-          totalEnquiries,
-          activeLeads,
-          followupsDue,
-          convertedStudents,
-          activeStudents,
-          activeCourses,
-          activeBatches,
-          upcomingClasses: upcomingClassesCount,
-          todayAttendance,
-          pendingAssignments,
-          feeCollected: feeTotals.totalCollected,
-          feeDue: feeTotals.totalDue,
-          feeGross: feeTotals.totalGross,
-          certificatesIssued
-        },
+        data: payload,
+        kpis: payload,
         leadStages: stageMap,
         recentEnquiries,
         upcomingClasses,

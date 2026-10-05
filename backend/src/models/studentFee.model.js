@@ -23,7 +23,6 @@ const paymentHistorySchema = new mongoose.Schema({
   paymentDate: { type: Date, default: Date.now },
   paymentMethod: {
     type: String,
-    enum: ['Online - Razorpay', 'Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Card', 'Other'],
     default: 'Online - Razorpay'
   },
   transactionId: { type: String, default: '' },

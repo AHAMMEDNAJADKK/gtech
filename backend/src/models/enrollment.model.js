@@ -21,8 +21,9 @@ const enrollmentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'paused', 'completed', 'dropped'],
+    enum: ['active', 'paused', 'completed', 'dropped', 'ACTIVE', 'PAUSED', 'COMPLETED', 'DROPPED'],
     default: 'active',
+    set: v => String(v).toLowerCase(),
     index: true
   },
   totalModules: {

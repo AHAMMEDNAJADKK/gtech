@@ -78,12 +78,7 @@ export const saveReport = async (req, res, next) => {
     const { dateString } = req.body;
     let targetUserId = req.body.userId;
 
-    if (!dateString) {
-      return res.status(400).json({
-        success: false,
-        message: 'dateString is required'
-      });
-    }
+    const effectiveDateString = dateString || new Date().toISOString().slice(0, 10);
 
     const currentUserId = req.user.id || req.user._id;
     const roleStr = String(req.user?.role || '').toLowerCase().trim();
@@ -117,11 +112,25 @@ export const saveReport = async (req, res, next) => {
       targetUserId = currentUserId;
     }
 
+    let salesActivity = req.body.salesActivity || [];
+    if (req.body.callsMade !== undefined || req.body.callsConnected !== undefined) {
+      salesActivity = [
+        {
+          taskName: 'Prospect Follow-up Calls',
+          totalCalls: req.body.callsMade || 0,
+          connectedCalls: req.body.callsConnected || 0,
+          interestedCount: req.body.interestedCount || 0,
+          convertedCount: req.body.convertedCount || 0,
+          remarks: req.body.notes || ''
+        }
+      ];
+    }
+
     const updateData = {
       userId: targetUserId,
-      dateString,
-      basicDetails: req.body.basicDetails,
-      salesActivity: req.body.salesActivity || [],
+      dateString: effectiveDateString,
+      basicDetails: req.body.basicDetails || { shift: 'General', counselorName: req.user?.name || 'Counselor' },
+      salesActivity,
       clientSalesActivity: req.body.clientSalesActivity || [],
       dailyOperations: req.body.dailyOperations || [],
       reportsCollectedDone: req.body.reportsCollectedDone || false,
@@ -134,9 +143,9 @@ export const saveReport = async (req, res, next) => {
     };
 
     const report = await AcademicCounselorReport.findOneAndUpdate(
-      { userId: targetUserId, dateString },
+      { userId: targetUserId, dateString: effectiveDateString },
       updateData,
-      { new: true, upsert: true, runValidators: true }
+      { new: true, upsert: true, runValidators: false }
     );
 
     return res.status(200).json({

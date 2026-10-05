@@ -170,12 +170,14 @@ export const studentFeeController = {
   createFee: async (req, res) => {
     try {
       const { studentId, courseId, batchId, totalAmount, discountAmount = 0, installments = [], dueDate, notes } = req.body;
+      const rawTotal = totalAmount !== undefined ? totalAmount : req.body.totalFee;
+      const rawDiscount = discountAmount !== undefined ? discountAmount : (req.body.discount || 0);
 
-      if (!studentId || !courseId || !batchId || totalAmount === undefined) {
+      if (!studentId || !courseId || !batchId || rawTotal === undefined) {
         return res.status(400).json({ success: false, message: 'studentId, courseId, batchId, and totalAmount are required.' });
       }
 
-      const finalAmount = Math.max(0, Number(totalAmount) - Number(discountAmount));
+      const finalAmount = Math.max(0, Number(rawTotal) - Number(rawDiscount));
       const feeCode = await generateFeeCode();
 
       // Format installments
@@ -206,8 +208,8 @@ export const studentFeeController = {
         studentId,
         courseId,
         batchId,
-        totalAmount: Number(totalAmount),
-        discountAmount: Number(discountAmount),
+        totalAmount: Number(rawTotal),
+        discountAmount: Number(rawDiscount),
         finalAmount,
         paidAmount: 0,
         dueAmount: finalAmount,
@@ -238,8 +240,9 @@ export const studentFeeController = {
     try {
       const { id } = req.params;
       const { amount, paymentMethod, transactionId, installmentIndex, notes } = req.body;
+      const rawAmount = amount !== undefined ? amount : (req.body.amountPaid !== undefined ? req.body.amountPaid : req.body.paidAmount);
 
-      const numAmount = Number(amount);
+      const numAmount = Number(rawAmount);
       if (isNaN(numAmount) || numAmount <= 0) {
         return res.status(400).json({ success: false, message: 'Valid payment amount is required.' });
       }
@@ -266,17 +269,18 @@ export const studentFeeController = {
       }
 
       // Append to payment history
-      fee.paymentHistory.push({
+      const paymentRecord = {
         receiptNo,
         amount: numAmount,
         paymentDate: new Date(),
-        paymentMethod: paymentMethod || 'Online - Razorpay',
+        paymentMethod: paymentMethod || 'Online - UPI',
         transactionId: transactionId || `TXN-${Date.now()}`,
         installmentIndex: installmentIndex !== undefined ? installmentIndex : -1,
         notes: notes || 'Tuition fee installment receipt',
         recordedBy: req.user?.id || req.user?._id,
         gatewayStatus: 'SUCCESS'
-      });
+      };
+      fee.paymentHistory.push(paymentRecord);
 
       // Recalculate totals
       fee.paidAmount = (fee.paidAmount || 0) + numAmount;
@@ -296,6 +300,7 @@ export const studentFeeController = {
         message: 'Payment recorded and receipt generated successfully.',
         data: {
           receiptNo,
+          receipt: paymentRecord,
           fee
         }
       });
@@ -358,6 +363,7 @@ export const studentFeeController = {
       return res.status(200).json({
         success: true,
         order: razorpayOrder,
+        orderId: razorpayOrder.id,
         key: razorpayKeyId,
         receiptNo
       });
