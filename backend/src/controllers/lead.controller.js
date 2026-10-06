@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import logger from '../utils/logger.util.js';
 import redis from '../config/redis.js';
+import { getAuthUserContext, hasPermission, EDTECH_PERMISSIONS } from '../utils/rbac.helper.js';
 
 // Helper to escape special regex characters and protect against ReDoS
 const escapeRegex = (string) => {
@@ -103,12 +104,31 @@ export const leadController = {
       const { status, search, assignedTo, priority, city, dateFrom, dateTo, sortOrder } = req.query;
       const whereClause = {};
 
-      const userRole = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-      const userId = req.user?.id || req.user?._id;
+      const auth = await getAuthUserContext(req);
+      if (auth.isStudent || (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_VIEW))) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Insufficient permissions to view leads.'
+        });
+      }
 
       // Filter by Assigned User
       if (assignedTo && mongoose.Types.ObjectId.isValid(assignedTo)) {
         whereClause.assignedTo = assignedTo;
+      }
+
+      // Counselor ownership: If Counselor (not SuperAdmin/Admin), restrict to assigned, created by, or unassigned leads
+      if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+        if (!assignedTo) {
+          whereClause.$or = [
+            { assignedTo: auth.userId },
+            { createdBy: auth.userId },
+            { assignedTo: null },
+            { assignedTo: { $exists: false } }
+          ];
+        } else if (String(assignedTo) !== String(auth.userId)) {
+          whereClause.assignedTo = auth.userId;
+        }
       }
 
       // Filter by Status
@@ -235,6 +255,23 @@ export const leadController = {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
 
+      const auth = await getAuthUserContext(req);
+      if (auth.isStudent || (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_VIEW))) {
+        return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions to view lead details.' });
+      }
+
+      if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+        const leadAssignedId = lead.assignedTo?._id ? String(lead.assignedTo._id) : (lead.assignedTo ? String(lead.assignedTo) : null);
+        const leadCreatedId = lead.createdBy?._id ? String(lead.createdBy._id) : (lead.createdBy ? String(lead.createdBy) : null);
+        const isPermitted = !leadAssignedId || leadAssignedId === String(auth.userId) || leadCreatedId === String(auth.userId);
+        if (!isPermitted) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only view leads assigned to or created by you.'
+          });
+        }
+      }
+
 
 
       const followups = await LeadFollowup.find({ leadId: id })
@@ -277,9 +314,17 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Lead Name and Phone Number are required.' });
       }
 
+      const auth = await getAuthUserContext(req);
+      let targetAssignedTo = mongoose.Types.ObjectId.isValid(assignedTo) ? assignedTo : null;
+      if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+        if (!targetAssignedTo || (String(targetAssignedTo) !== String(auth.userId) && !auth.permissions.includes('leads.assign'))) {
+          targetAssignedTo = auth.userId;
+        }
+      }
+
       const leadPayload = {
         leadName, companyName, email, phone, city, source, interestedService, campaignName, leadPlatform,
-        assignedTo: mongoose.Types.ObjectId.isValid(assignedTo) ? assignedTo : null,
+        assignedTo: targetAssignedTo,
         status: status || 'New',
         priority: priority || 'Medium',
         clientMeetingFixed: clientMeetingFixed || '',
@@ -361,6 +406,23 @@ export const leadController = {
 
         if (!lead) {
           throw new Error('NOT_FOUND_ERROR: Lead not found');
+        }
+
+        const auth = await getAuthUserContext(req);
+        if (auth.isStudent || (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_UPDATE))) {
+          throw new Error('FORBIDDEN_ERROR: Insufficient permissions to update lead.');
+        }
+
+        if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+          const leadAssignedId = lead.assignedTo ? String(lead.assignedTo) : null;
+          const leadCreatedId = lead.createdBy ? String(lead.createdBy) : null;
+          const isPermitted = !leadAssignedId || leadAssignedId === String(auth.userId) || leadCreatedId === String(auth.userId);
+          if (!isPermitted) {
+            throw new Error('FORBIDDEN_ERROR: You can only update leads assigned to or created by you.');
+          }
+          if (req.body.assignedTo !== undefined && String(req.body.assignedTo || '') !== String(leadAssignedId || '') && !auth.permissions.includes('leads.assign')) {
+            throw new Error('FORBIDDEN_ERROR: Only administrators can reassign leads.');
+          }
         }
 
         const {
@@ -489,6 +551,23 @@ export const leadController = {
           throw new Error('NOT_FOUND_ERROR: Lead not found');
         }
 
+        const auth = await getAuthUserContext(req);
+        if (auth.isStudent || (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.FOLLOWUPS_CREATE))) {
+          throw new Error('FORBIDDEN_ERROR: Insufficient permissions to log follow-up actions.');
+        }
+
+        if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+          const leadAssignedId = lead.assignedTo ? String(lead.assignedTo) : null;
+          const leadCreatedId = lead.createdBy ? String(lead.createdBy) : null;
+          const isPermitted = !leadAssignedId || leadAssignedId === String(auth.userId) || leadCreatedId === String(auth.userId);
+          if (!isPermitted) {
+            throw new Error('FORBIDDEN_ERROR: You can only log follow-ups for leads assigned to or created by you.');
+          }
+          if (!lead.assignedTo) {
+            lead.assignedTo = auth.userId;
+          }
+        }
+
         const followup = new LeadFollowup({
           leadId,
           remarks: remarks || 'Follow-up logged.',
@@ -534,6 +613,7 @@ export const leadController = {
       });
     } catch (error) {
       if (error.message?.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
       return res.status(500).json({ success: false, message: 'Failed to record follow-up', error: error.message });
     }
   },
@@ -556,6 +636,20 @@ export const leadController = {
         const lead = await query;
 
         if (!lead) throw new Error('NOT_FOUND_ERROR: Lead not found');
+
+        const auth = await getAuthUserContext(req);
+        if (auth.isStudent || (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_UPDATE))) {
+          throw new Error('FORBIDDEN_ERROR: Insufficient permissions to update status.');
+        }
+
+        if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+          const leadAssignedId = lead.assignedTo ? String(lead.assignedTo) : null;
+          const leadCreatedId = lead.createdBy ? String(lead.createdBy) : null;
+          const isPermitted = !leadAssignedId || leadAssignedId === String(auth.userId) || leadCreatedId === String(auth.userId);
+          if (!isPermitted) {
+            throw new Error('FORBIDDEN_ERROR: You can only update status for leads assigned to or created by you.');
+          }
+        }
 
         const previousStatus = lead.status;
         lead.status = status;
@@ -594,6 +688,7 @@ export const leadController = {
       return res.status(200).json({ success: true, message: 'Lead status updated successfully' });
     } catch (error) {
       if (error.message?.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      if (error.message?.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
       return res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
     }
   },
@@ -607,6 +702,14 @@ export const leadController = {
 
       if (!id || !mongoose.Types.ObjectId.isValid(id)) {
         return res.status(400).json({ success: false, message: 'Valid Lead ID required.' });
+      }
+
+      const auth = await getAuthUserContext(req);
+      if (!auth.isSuperAdmin && !auth.isAdmin && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_DELETE)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. Administrator privileges required to delete lead records.'
+        });
       }
 
       const performDelete = async (opts = {}) => {
@@ -720,9 +823,13 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Lead IDs array and destination status fields required.' });
       }
 
-      const userId = req.user?.id || req.user?._id;
-      const userRole = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-      const isPrivileged = ['1', '2', 'hr', 'admin'].includes(userRole);
+      const auth = await getAuthUserContext(req);
+      if (auth.isStudent || (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_UPDATE))) {
+        return res.status(403).json({ success: false, message: 'Access denied. Insufficient permissions to update leads.' });
+      }
+
+      const userId = auth.userId;
+      const isPrivileged = auth.isSuperAdmin || auth.isAdmin;
 
       const updatedLeads = [];
       const failedLeads = [];
@@ -821,6 +928,26 @@ export const leadController = {
       const lead = await Lead.findById(id);
       if (!lead) {
         return res.status(404).json({ success: false, message: 'Lead not found.' });
+      }
+
+      const auth = await getAuthUserContext(req);
+      if (auth.isStudent || auth.isInstructor) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You do not have permission to convert leads.'
+        });
+      }
+
+      if (!auth.isSuperAdmin && !auth.isAdmin && auth.isCounselor) {
+        const leadAssignedId = lead.assignedTo ? String(lead.assignedTo) : null;
+        const leadCreatedId = lead.createdBy ? String(lead.createdBy) : null;
+        const isPermitted = !leadAssignedId || leadAssignedId === String(auth.userId) || leadCreatedId === String(auth.userId);
+        if (!isPermitted) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You can only convert leads assigned to or created by you.'
+          });
+        }
       }
 
       // 1. Check if user already exists

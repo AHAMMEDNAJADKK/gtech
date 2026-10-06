@@ -1,3 +1,0 @@
-{"level":"warn","message":"⚠️ No JWT asymmetric keys found. Programmatically generating temporary 2048-bit RSA Key Pair...","service":"kod-brand-crm","timestamp":"2026-08-08T04:41:00.875Z"}
-{"level":"info","message":"🔑 Persisted auto-generated developer RSA keys on-disk (private.key / public.key).","service":"kod-brand-crm","timestamp":"2026-08-08T04:41:01.012Z"}
-{"level":"info","message":"🔑 JWT RS256 Key Pair loaded successfully from local files.","service":"kod-brand-crm","timestamp":"2026-08-08T04:47:22.314Z"}

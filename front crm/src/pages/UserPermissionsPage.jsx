@@ -55,7 +55,9 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Employee Training', path: '/hr/training', category: 'HR', desc: 'Internal staff training & development courses' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
 
-  // Leads & Sales
+  // Admissions & Leads
+  { label: 'Leads & Enquiries', path: '/leads', category: 'Admissions', desc: 'EdTech admission leads and student enquiries directory' },
+  { label: 'Counselor Follow-ups', path: '/leads-telecaller', category: 'Admissions', desc: 'Counselor follow-up calling queue and ownership tracker' },
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline & inquiries' },
   { label: 'Student Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
 

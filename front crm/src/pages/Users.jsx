@@ -72,7 +72,9 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Attendance', path: '/attendance', category: 'People & HR' },
   { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR' },
 
-  // --- SALES & CRM ---
+  // --- ADMISSIONS & CRM ---
+  { label: 'Leads & Enquiries', path: '/leads', category: 'Admissions' },
+  { label: 'Counselor Follow-ups', path: '/leads-telecaller', category: 'Admissions' },
   { label: 'Clients', path: '/clients', category: 'Sales & CRM' },
   { label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM' },
   { label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM' },

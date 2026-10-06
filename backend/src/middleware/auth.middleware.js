@@ -314,7 +314,7 @@ export const restrictToRoles = (allowedRoles = []) => {
     if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Exclusive to digital marketing teams.'
+        message: 'Access denied. You do not have authorization for this action.'
       });
     }
 

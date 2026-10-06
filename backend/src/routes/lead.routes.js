@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { leadController } from '../controllers/lead.controller.js';
-import checkAuth, { restrictToDepartment } from '../middleware/auth.middleware.js';
+import checkAuth from '../middleware/auth.middleware.js';
 import { validateBody, validateQuery, validateParams } from '../validators/task.validator.js';
 import {
   createLeadSchema,
@@ -10,120 +10,206 @@ import {
   updateStatusSchema
 } from '../validators/lead.validator.js';
 import { apiRateLimiter, leadMutationRateLimiter } from '../middleware/rateLimiter.middleware.js';
+import { getAuthUserContext, hasPermission, EDTECH_PERMISSIONS } from '../utils/rbac.helper.js';
 
 const router = Router();
 
-// Middleware to check authorization for department (Marketing or Telecaller) or role ID 3 (Employee)
-const authorizeLeadsAccess = async (req, res, next) => {
-  const userRole = String(req.user?.role || req.user?.role_id || req.user?.roleId || '').toLowerCase().trim();
-  const isSuperAdmin = 
-    req.user?.isSuperAdmin === true || 
-    req.user?.is_super_admin === true || 
-    userRole === '0' || 
-    userRole.includes('super');
+// =========================================================================
+// Centralized EdTech Admissions RBAC Guards
+// =========================================================================
 
-  if (isSuperAdmin) {
-    return next();
-  }
+const requireLeadsRead = async (req, res, next) => {
+  try {
+    const auth = await getAuthUserContext(req);
+    req.authContext = auth;
 
-  let userDeptName = String(req.user?.department || req.user?.departmentId?.name || '').toLowerCase().trim();
-  let userDesigName = String(req.user?.designation || req.user?.designationId?.name || '').toLowerCase().trim();
-
-  // Fallback: If department/designation name is missing from token, query from DB
-  if ((!userDeptName || !userDesigName) && req.user?.id) {
-    try {
-      const User = (await import('../models/user.model.js')).default;
-      const userObj = await User.findById(req.user.id).populate('departmentId').populate('designationId');
-      if (userObj) {
-        userDeptName = String(userObj.departmentId?.name || userObj.department || '').toLowerCase().trim();
-        userDesigName = String(userObj.designationId?.name || userObj.designation || '').toLowerCase().trim();
-      }
-    } catch (err) {
-      console.error("Failed to fetch user department fallback:", err);
+    if (auth.isStudent) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Students are not authorized to access the Leads directory.'
+      });
     }
+
+    if (auth.isInstructor && !hasPermission(auth, EDTECH_PERMISSIONS.LEADS_VIEW)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Instructors are not authorized to view the Leads directory.'
+      });
+    }
+
+    if (!hasPermission(auth, EDTECH_PERMISSIONS.LEADS_VIEW)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Exclusive to Admissions, Counselors, or authorized administrators.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
   }
-
-  const isAuthorized = 
-    userRole.includes('admin') ||
-    userRole.includes('hr') ||
-    userRole.includes('telecall') ||
-    userRole.includes('counsel') ||
-    userRole.includes('market') ||
-    userRole.includes('manager') ||
-    ['0', '1', '2', '3', '10'].includes(userRole) ||
-    userDeptName.includes('market') ||
-    userDeptName.includes('telecall') ||
-    userDeptName.includes('counsel') ||
-    userDeptName.includes('sales') ||
-    userDeptName.includes('growth') ||
-    userDeptName.includes('ops') ||
-    userDeptName.includes('hr') ||
-    userDeptName.includes('account') ||
-    userDeptName.includes('r&d') ||
-    userDeptName.includes('design') ||
-    userDeptName.includes('video') ||
-    userDesigName.includes('counsel') ||
-    userDesigName.includes('telecall') ||
-    userDesigName.includes('market');
-
-  if (!isAuthorized) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied. Exclusive to marketing, telecallers, or authorized roles.'
-    });
-  }
-
-  next();
 };
 
-// Middleware for mutation operations
-const restrictAdminMutations = (req, res, next) => {
-  next();
+const requireLeadsCreate = async (req, res, next) => {
+  try {
+    const auth = req.authContext || await getAuthUserContext(req);
+    req.authContext = auth;
+
+    if (auth.isStudent || auth.isInstructor) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You are not authorized to create leads.'
+      });
+    }
+
+    if (!hasPermission(auth, EDTECH_PERMISSIONS.LEADS_CREATE)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions to create leads.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 };
 
+const requireLeadsUpdate = async (req, res, next) => {
+  try {
+    const auth = req.authContext || await getAuthUserContext(req);
+    req.authContext = auth;
+
+    if (auth.isStudent || auth.isInstructor) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You are not authorized to update leads.'
+      });
+    }
+
+    if (!hasPermission(auth, EDTECH_PERMISSIONS.LEADS_UPDATE)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions to update leads.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requireLeadsDelete = async (req, res, next) => {
+  try {
+    const auth = req.authContext || await getAuthUserContext(req);
+    req.authContext = auth;
+
+    if (!hasPermission(auth, EDTECH_PERMISSIONS.LEADS_DELETE)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Administrator privileges required to delete lead records.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requireLeadsConvert = async (req, res, next) => {
+  try {
+    const auth = req.authContext || await getAuthUserContext(req);
+    req.authContext = auth;
+
+    if (auth.isStudent || auth.isInstructor) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You are not authorized to convert leads to students.'
+      });
+    }
+
+    if (!hasPermission(auth, EDTECH_PERMISSIONS.LEADS_CONVERT)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions to convert leads.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const requireFollowups = async (req, res, next) => {
+  try {
+    const auth = req.authContext || await getAuthUserContext(req);
+    req.authContext = auth;
+
+    if (auth.isStudent || auth.isInstructor) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You are not authorized to log follow-up actions.'
+      });
+    }
+
+    if (!hasPermission(auth, EDTECH_PERMISSIONS.FOLLOWUPS_CREATE)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Insufficient permissions for follow-up operations.'
+      });
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Global JWT verification for all leads routes
 router.use(checkAuth);
-router.use(authorizeLeadsAccess);
 
+// GET ALL LEADS (with search, status filters, date range, pagination, counselor ownership)
+router.get('/', apiRateLimiter, requireLeadsRead, leadController.getLeads);
 
-// GET ALL LEADS (supporting filters, search, and pagination) - View access allowed for Admin
-router.get('/', apiRateLimiter, leadController.getLeads);
+// GET SINGLE LEAD BY ID (with timeline follow-up history)
+router.get('/:id', apiRateLimiter, requireLeadsRead, leadController.getLeadById);
 
-// GET SINGLE LEAD BY ID - View access allowed for Admin
-router.get('/:id', apiRateLimiter, leadController.getLeadById);
+// CREATE LEAD
+router.post('/', leadMutationRateLimiter, requireLeadsCreate, validateBody(createLeadSchema), leadController.createLead);
+router.post('/create', leadMutationRateLimiter, requireLeadsCreate, validateBody(createLeadSchema), leadController.createLead);
 
-// CREATE LEAD (with Zod validation, rate limiting)
-router.post('/', leadMutationRateLimiter, restrictAdminMutations, validateBody(createLeadSchema), leadController.createLead);
-router.post('/create', leadMutationRateLimiter, restrictAdminMutations, validateBody(createLeadSchema), leadController.createLead);
+// BULK UPDATE LEAD STATUS
+router.put('/update', leadMutationRateLimiter, requireLeadsUpdate, validateBody(bulkUpdateStatusSchema), leadController.bulkUpdateStatus);
 
-// BULK UPDATE LEAD STATUS (blocked for Admin)
-router.put('/update', leadMutationRateLimiter, restrictAdminMutations, validateBody(bulkUpdateStatusSchema), leadController.bulkUpdateStatus);
+// UPDATE SINGLE LEAD
+router.put('/:id', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateLeadSchema), leadController.updateLead);
+router.post('/update/:id', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateLeadSchema), leadController.updateLead);
+router.post('/update', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateLeadSchema), leadController.updateLead);
 
-// UPDATE SINGLE LEAD (blocked for Admin)
-router.put('/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateLeadSchema), leadController.updateLead);
-router.post('/update/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateLeadSchema), leadController.updateLead);
-router.post('/update', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateLeadSchema), leadController.updateLead);
+// LOG FOLLOW-UP ACTION
+router.post('/followup', leadMutationRateLimiter, requireFollowups, validateBody(addFollowUpSchema), leadController.addFollowUp);
+router.post('/followup/:id', leadMutationRateLimiter, requireFollowups, validateBody(addFollowUpSchema), leadController.addFollowUp);
 
-// LOG FOLLOW-UP ACTION (blocked for Admin)
-router.post('/followup', leadMutationRateLimiter, restrictAdminMutations, validateBody(addFollowUpSchema), leadController.addFollowUp);
-router.post('/followup/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(addFollowUpSchema), leadController.addFollowUp);
+// UPDATE LEAD STATUS
+router.patch('/status-update', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateStatusSchema), leadController.updateStatus);
+router.patch('/status-update/:id', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateStatusSchema), leadController.updateStatus);
+router.post('/status-update', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateStatusSchema), leadController.updateStatus);
+router.post('/status-update/:id', leadMutationRateLimiter, requireLeadsUpdate, validateBody(updateStatusSchema), leadController.updateStatus);
 
-// UPDATE LEAD STATUS (blocked for Admin)
-router.patch('/status-update', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
-router.patch('/status-update/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
-router.post('/status-update', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
-router.post('/status-update/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
+// DELETE LEAD (strictly Super Admin / Admin)
+router.delete('/delete/:id', leadMutationRateLimiter, requireLeadsDelete, leadController.deleteLead);
+router.post('/delete/:id', leadMutationRateLimiter, requireLeadsDelete, leadController.deleteLead);
+router.delete('/:id', leadMutationRateLimiter, requireLeadsDelete, leadController.deleteLead);
+router.delete('/delete', leadMutationRateLimiter, requireLeadsDelete, leadController.deleteLead);
+router.post('/delete', leadMutationRateLimiter, requireLeadsDelete, leadController.deleteLead);
 
-// DELETE LEAD (blocked for Admin)
-router.delete('/delete/:id', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
-router.post('/delete/:id', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
-router.delete('/:id', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
-router.delete('/delete', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
-router.post('/delete', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
-
-// BULK IMPORT LEADS (blocked for Admin)
-router.post('/import', leadMutationRateLimiter, restrictAdminMutations, leadController.importLeads);
+// BULK IMPORT LEADS
+router.post('/import', leadMutationRateLimiter, requireLeadsCreate, leadController.importLeads);
 
 // CONVERT LEAD TO STUDENT
-router.post('/:id/convert-to-student', leadMutationRateLimiter, leadController.convertToStudent);
+router.post('/:id/convert-to-student', leadMutationRateLimiter, requireLeadsConvert, leadController.convertToStudent);
 
 export default router;
