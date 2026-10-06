@@ -7,9 +7,10 @@ import {
   FileSpreadsheet, FileDown, FileText, Loader2, Calendar,
   TrendingUp, Clock, Tag, MessageSquare, Briefcase, RefreshCw, Send,
   UserCheck, Shield, HelpCircle, SlidersHorizontal, ChevronDown,
-  LayoutList, LayoutGrid
+  LayoutList, LayoutGrid, GraduationCap
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import { useUser } from '../contexts/UserContext';
 import ConfirmModal from '../components/ConfirmModal';
 import TopScrollbar from '../components/TopScrollbar';
 import * as XLSX from 'xlsx';
@@ -177,34 +178,139 @@ const Leads = () => {
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
   const [selectedLeadDetails, setSelectedLeadDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  // Operator checks
-  const [currentUser, setCurrentUser] = useState(null);
+
+  // Operator and RBAC authorization
+  const { user: liveUser } = useUser() || {};
+  const [storedUser, setStoredUser] = useState(null);
 
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
-        setCurrentUser(JSON.parse(savedUser));
+        setStoredUser(JSON.parse(savedUser));
       }
     } catch (e) {
       console.error("Error reading operator profile info:", e);
     }
   }, []);
 
-  const isPrivilegedUser = useMemo(() => {
-    if (!currentUser) return false;
-    const roleId = String(currentUser.role_id || currentUser.roleId || currentUser.role || '').toLowerCase().trim();
-    return ['1', '2', 'hr', 'admin'].includes(roleId);
+  const currentUser = liveUser || storedUser;
+
+  const {
+    isSuperAdmin,
+    isAdmin,
+    isCounselor,
+    isInstructor,
+    isStudent,
+    canAccessLeads,
+    canAssignCounselor,
+    canDeleteLead,
+    canConvertLead,
+    canCreateLead,
+    canEditLead
+  } = useMemo(() => {
+    if (!currentUser) {
+      return {
+        isSuperAdmin: false,
+        isAdmin: false,
+        isCounselor: false,
+        isInstructor: false,
+        isStudent: false,
+        canAccessLeads: false,
+        canAssignCounselor: false,
+        canDeleteLead: false,
+        canConvertLead: false,
+        canCreateLead: false,
+        canEditLead: false
+      };
+    }
+
+    const role = String(currentUser.role || '').toLowerCase().trim();
+    const roleId = String(currentUser.role_id || currentUser.roleId || '').toLowerCase().trim();
+    const desig = String(currentUser.designation || currentUser.designationId?.name || currentUser.designation_id || '').toLowerCase().trim();
+    const dept = String(currentUser.department || currentUser.departmentId?.name || '').toLowerCase().trim();
+
+    const isSuperAdmin = Boolean(
+      currentUser.isSuperAdmin === true ||
+      currentUser.is_super_admin === true ||
+      role === 'superadmin' ||
+      role === 'super_admin' ||
+      roleId === '0'
+    );
+
+    const isAdmin = Boolean(
+      isSuperAdmin ||
+      role === 'admin' ||
+      roleId === '1' ||
+      roleId === '2' ||
+      desig.includes('admin')
+    );
+
+    const isCounselor = Boolean(
+      role === 'counselor' ||
+      role === 'telecaller' ||
+      roleId === 'counselor' ||
+      roleId === 'telecaller' ||
+      roleId === '3' ||
+      desig.includes('counselor') ||
+      desig.includes('tele') ||
+      desig.includes('admission') ||
+      dept.includes('counselor') ||
+      dept.includes('telecaller') ||
+      dept.includes('admission')
+    );
+
+    const isInstructor = Boolean(
+      role === 'instructor' ||
+      roleId === 'instructor' ||
+      desig.includes('instructor') ||
+      desig.includes('faculty') ||
+      desig.includes('teacher') ||
+      desig.includes('trainer')
+    );
+
+    const isStudent = Boolean(
+      role === 'student' ||
+      roleId === '10' ||
+      desig.includes('student')
+    );
+
+    const userPermissions = Array.isArray(currentUser.permissions)
+      ? currentUser.permissions.map(p => String(p).toLowerCase().trim())
+      : [];
+    const hasLeadsExplicitPermission = userPermissions.some(p =>
+      p === 'leads' ||
+      p === 'leads.view' ||
+      p === 'leads & enquiries' ||
+      p === '/leads' ||
+      p === 'student leads' ||
+      p === 'client leads'
+    );
+
+    // Strictly deny Student and Instructor unless Super Admin / Admin
+    const canAccess = !isStudent && !isInstructor && (isSuperAdmin || isAdmin || isCounselor || hasLeadsExplicitPermission);
+
+    return {
+      isSuperAdmin,
+      isAdmin,
+      isCounselor,
+      isInstructor,
+      isStudent,
+      canAccessLeads: canAccess,
+      canAssignCounselor: isSuperAdmin || isAdmin,
+      canDeleteLead: isSuperAdmin || isAdmin,
+      canConvertLead: isSuperAdmin || isAdmin || isCounselor,
+      canCreateLead: isSuperAdmin || isAdmin || isCounselor,
+      canEditLead: isSuperAdmin || isAdmin || isCounselor
+    };
   }, [currentUser]);
 
-  const isMarketingDept = useMemo(() => {
-    if (!currentUser) return false;
-    const deptName = String(currentUser.department || currentUser.departmentId?.name || '').toLowerCase().trim();
-    return deptName.includes('marketing') || deptName.includes('digital');
-  }, [currentUser]);
+  // Backward-compatibility alias for internal modals
+  const isPrivilegedUser = canAssignCounselor;
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -270,16 +376,16 @@ const Leads = () => {
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    if (isMarketingDept || isPrivilegedUser) {
+    if (canAccessLeads) {
       fetchLeads();
     }
-  }, [fetchLeads, isMarketingDept, isPrivilegedUser]);
+  }, [fetchLeads, canAccessLeads]);
 
   useEffect(() => {
-    if (isMarketingDept || isPrivilegedUser) {
+    if (canAccessLeads) {
       fetchStaff();
     }
-  }, [fetchStaff, isMarketingDept, isPrivilegedUser]);
+  }, [fetchStaff, canAccessLeads]);
 
   // Fetch lead timeline/details
   const fetchLeadDetails = async (leadId) => {
@@ -511,7 +617,7 @@ const Leads = () => {
     );
   }
 
-  if (!isMarketingDept && !isPrivilegedUser) {
+  if (!canAccessLeads) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6 text-slate-800 dark:text-slate-100">
         <motion.div 
@@ -526,11 +632,11 @@ const Leads = () => {
             Access <span className="text-red-500">Restricted</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
-            This Leads Directory is reserved exclusively for the <strong>Marketing Department</strong>. Your current department does not have authorization to view this data.
+            This Leads & Enquiries Directory is reserved exclusively for the <strong>Admissions Department, Counselors, and Administrators</strong>. Your current role does not have authorization to view this data.
           </p>
           <button 
-            onClick={() => window.location.href = '/'}
-            className="w-full py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95"
+            onClick={() => window.location.href = '/dashboard'}
+            className="w-full py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 cursor-pointer"
           >
             Return to Command Center
           </button>
@@ -1052,23 +1158,39 @@ const Leads = () => {
                         >
                           <Eye size={15} />
                         </button>
-                        <button
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setIsEditOpen(true);
-                          }}
-                          className="p-2 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-                          title="Edit Lead"
-                        >
-                          <Edit3 size={15} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLead(lead.id || lead._id, lead.leadName)}
-                          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
-                          title="Delete Lead"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        {canConvertLead && lead.status !== 'Converted' && (
+                          <button
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setIsConvertOpen(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                            title="Convert Lead to Student"
+                          >
+                            <UserCheck size={15} />
+                          </button>
+                        )}
+                        {canEditLead && (
+                          <button
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setIsEditOpen(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                            title="Edit Lead"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                        )}
+                        {canDeleteLead && (
+                          <button
+                            onClick={() => handleDeleteLead(lead.id || lead._id, lead.leadName)}
+                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                            title="Delete Lead"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1383,23 +1505,39 @@ const Leads = () => {
                             >
                               <Clock size={15} />
                             </button>
-                            <button
-                              onClick={() => {
-                                setSelectedLead(lead);
-                                setIsEditOpen(true);
-                              }}
-                              className="p-2 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-150 cursor-pointer"
-                              title="Edit Lead"
-                            >
-                              <Edit3 size={15} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLead(lead.id || lead._id, lead.leadName)}
-                              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-150 cursor-pointer"
-                              title="Delete Lead"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            {canConvertLead && lead.status !== 'Converted' && (
+                              <button
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setIsConvertOpen(true);
+                                }}
+                                className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-150 cursor-pointer"
+                                title="Convert Lead to Student"
+                              >
+                                <UserCheck size={15} />
+                              </button>
+                            )}
+                            {canEditLead && (
+                              <button
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setIsEditOpen(true);
+                                }}
+                                className="p-2 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-150 cursor-pointer"
+                                title="Edit Lead"
+                              >
+                                <Edit3 size={15} />
+                              </button>
+                            )}
+                            {canDeleteLead && (
+                              <button
+                                onClick={() => handleDeleteLead(lead.id || lead._id, lead.leadName)}
+                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-150 cursor-pointer"
+                                title="Delete Lead"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1520,6 +1658,24 @@ const Leads = () => {
         lead={selectedLead}
         details={selectedLeadDetails}
         loading={detailsLoading}
+        showToast={showToast}
+        canConvertLead={canConvertLead}
+        onConvert={(leadToConvert) => {
+          setSelectedLead(leadToConvert);
+          setIsConvertOpen(true);
+        }}
+      />
+
+      {/* CONVERT TO STUDENT MODAL */}
+      <ConvertModal
+        isOpen={isConvertOpen}
+        onClose={() => {
+          setIsConvertOpen(false);
+          setSelectedLead(null);
+        }}
+        onConverted={fetchLeads}
+        lead={selectedLead}
+        getAuthHeaders={getAuthHeaders}
         showToast={showToast}
       />
 
@@ -1943,7 +2099,7 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, getAuthHeaders, showTo
             </div>
             {isPrivilegedUser && (
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Assign to Representative</label>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Assign Counselor / Representative</label>
                 <select
                   value={formData.assignedTo}
                   onChange={e => setFormData({ ...formData, assignedTo: e.target.value })}
@@ -2214,7 +2370,7 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, getAuthHeaders, sh
             </div>
             {isPrivilegedUser && (
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Assign to Representative</label>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Assign Counselor / Representative</label>
                 <select
                   value={formData.assignedTo}
                   onChange={e => setFormData({ ...formData, assignedTo: e.target.value })}
@@ -2268,7 +2424,7 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, getAuthHeaders, sh
 /* ==========================================
    VIEW DETAILS & HISTORY MODAL
    ========================================== */
-const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
+const ViewModal = ({ isOpen, onClose, lead, details, loading, canConvertLead, onConvert }) => {
   if (!isOpen || !lead) return null;
 
   return createPortal(
@@ -2340,7 +2496,7 @@ const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
                 <span className="text-[10px] text-slate-400 block font-semibold uppercase">Assigned Staff</span>
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{lead.assignedTo?.name || 'Unassigned'}</span>
               </div>
-<div>
+              <div>
                 <span className="text-[10px] text-slate-400 block font-semibold uppercase">Remarks</span>
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{lead.remarks || '—'}</span>
               </div>
@@ -2407,7 +2563,22 @@ const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
           </div>
         </div>
 
-        <div className="flex items-center justify-end px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex-shrink-0">
+          <div>
+            {canConvertLead && lead.status !== 'Converted' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onConvert) onConvert(lead);
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
+              >
+                <UserCheck size={14} />
+                Convert to Student
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
@@ -2421,7 +2592,220 @@ const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
   );
 };
 
+/* ==========================================
+   CONVERT LEAD TO ENROLLED STUDENT MODAL
+   ========================================== */
+const ConvertModal = ({ isOpen, onClose, onConverted, lead, getAuthHeaders, showToast }) => {
+  const [courses, setCourses] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('');
+  const [password, setPassword] = useState('Student@123');
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen || !lead) return;
+    
+    setSelectedCourse('');
+    setSelectedBatch('');
+    setPassword('Student@123');
+
+    const fetchOptions = async () => {
+      try {
+        setLoadingOptions(true);
+        const [courseRes, batchRes] = await Promise.all([
+          fetch(`${API_BASE}/v1/academy/courses`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/academy/batches`, { headers: getAuthHeaders() })
+        ]);
+        const courseData = await courseRes.json();
+        const batchData = await batchRes.json();
+
+        if (courseData.success && Array.isArray(courseData.data)) {
+          setCourses(courseData.data);
+        } else if (Array.isArray(courseData)) {
+          setCourses(courseData);
+        }
+
+        if (batchData.success && Array.isArray(batchData.data)) {
+          setBatches(batchData.data);
+        } else if (Array.isArray(batchData)) {
+          setBatches(batchData);
+        }
+      } catch (err) {
+        console.error('Error fetching conversion options:', err);
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    fetchOptions();
+  }, [isOpen, lead, getAuthHeaders]);
+
+  const filteredBatches = useMemo(() => {
+    if (!selectedCourse) return batches;
+    return batches.filter(b => {
+      const bCourseId = b.courseId?._id || b.courseId?.id || b.courseId;
+      return String(bCourseId) === String(selectedCourse);
+    });
+  }, [batches, selectedCourse]);
+
+  const handleConvert = async (e) => {
+    e.preventDefault();
+    if (!lead) return;
+
+    try {
+      setSubmitting(true);
+      const leadId = lead.id || lead._id;
+      const res = await fetch(`${API_BASE}/v1/leads/${leadId}/convert-to-student`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          courseId: selectedCourse || undefined,
+          batchId: selectedBatch || undefined,
+          password: password || 'Student@123'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'Lead successfully converted to Student!', 'success');
+        onConverted();
+        onClose();
+      } else {
+        showToast(data.message || 'Failed to convert lead to student.', 'error');
+      }
+    } catch (err) {
+      console.error('Conversion request error:', err);
+      showToast('Error converting lead to student.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen || !lead) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
+            <UserCheck className="text-emerald-600" size={18} />
+            Convert Lead to Enrolled Student
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
+            <X size={18} className="text-slate-400 hover:text-slate-600" />
+          </button>
+        </div>
+
+        <form onSubmit={handleConvert} className="p-6 space-y-4">
+          {/* Lead Summary Header Card */}
+          <div className="bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 rounded-2xl p-4 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">{lead.leadName}</span>
+              <span className="text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                {lead.phone}
+              </span>
+            </div>
+            <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400">
+              Email: {lead.email || 'None'} | Interested In: {lead.interestedService || 'General Admission'}
+            </p>
+          </div>
+
+          {loadingOptions ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="animate-spin text-emerald-600" size={24} />
+              <p className="text-xs text-slate-400">Loading Academic Courses & Batches...</p>
+            </div>
+          ) : (
+            <>
+              {/* Course Selector */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Enrolling Course (Optional)
+                </label>
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => {
+                    setSelectedCourse(e.target.value);
+                    setSelectedBatch('');
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition"
+                >
+                  <option value="">-- Select Academic Course --</option>
+                  {courses.map(c => (
+                    <option key={c._id || c.id} value={c._id || c.id}>
+                      {c.title || c.name} {c.code ? `(${c.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Batch Selector */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Assign Batch (Optional)
+                </label>
+                <select
+                  value={selectedBatch}
+                  onChange={(e) => setSelectedBatch(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition"
+                >
+                  <option value="">-- Select Active Batch --</option>
+                  {filteredBatches.map(b => (
+                    <option key={b._id || b.id} value={b._id || b.id}>
+                      {b.name || b.batchName} ({b.status || 'Active'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Initial Student Password */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                  Initial Portal Password
+                </label>
+                <input
+                  type="text"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Student@123"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Student will use this password to log into the Student LMS Portal.
+                </span>
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {submitting && <Loader2 size={14} className="animate-spin" />}
+              Confirm Student Conversion
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>,
+    document.body
+  );
+};
 
 /* ==========================================
    DYNAMIC EXCEL IMPORT MAPPING MODAL

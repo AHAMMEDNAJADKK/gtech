@@ -8,7 +8,7 @@ const router = Router();
 // Secure all analytics routes with authentication, rate-limiting, and department restrictions
 router.use(protectRoute);
 router.use(apiRateLimiter);
-router.use(restrictToDepartment(['marketing', 'digital marketing']));
+router.use(restrictToDepartment(['marketing', 'digital marketing', 'admissions', 'admission', 'counselor', 'telecaller']));
 
 
 // Summary Overview Metrics

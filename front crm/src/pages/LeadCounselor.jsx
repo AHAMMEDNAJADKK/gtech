@@ -208,7 +208,7 @@ const [activePriority, setActivePriority] = useState('all');
   const isPrivilegedUser = useMemo(() => {
     if (!currentUser) return false;
     const roleId = String(currentUser.role_id || currentUser.roleId || currentUser.role || '').toLowerCase().trim();
-    return ['1', '2', 'hr', 'admin', 'superadmin'].includes(roleId);
+    return ['0', '1', '2', 'hr', 'admin', 'superadmin', 'super_admin'].includes(roleId) || currentUser.isSuperAdmin === true || currentUser.is_super_admin === true;
   }, [currentUser]);
 
   const isAcademicCounselor = useMemo(() => {
@@ -667,7 +667,7 @@ const [activePriority, setActivePriority] = useState('all');
             Access <span className="text-red-500">Restricted</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
-            This Leads Directory is reserved exclusively for the <strong>Telecallers Department</strong> or operators with <strong>Role 3</strong> access. Your current profile does not have authorization to view this data.
+            This Leads Directory is reserved exclusively for the <strong>Admissions Department, Counselors, and Administrators</strong>. Your current profile does not have authorization to view this data.
           </p>
           <button 
             onClick={() => window.location.href = '/dashboard'}
