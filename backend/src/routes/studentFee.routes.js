@@ -12,8 +12,10 @@ router.use(protectRoute);
 
 router.get('/', studentFeeController.getFees);
 router.get('/my-account', studentFeeController.getMyFeeAccount);
+router.get('/student-details/:studentId', studentFeeController.getStudentFeeDetails);
 router.get('/:id', studentFeeController.getFeeById);
 router.post('/', requireAdminOrStaff, studentFeeController.createFee);
+router.post('/issue-receipt', requireAdminOrStaff, studentFeeController.issueDirectReceipt);
 router.post('/:id/record-payment', requireAdminOrStaff, studentFeeController.recordPayment);
 
 // Payment Gateway Checkout routes

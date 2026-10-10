@@ -282,3 +282,103 @@ export const deleteStudent = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/v1/students/check-duplicate
+ * Real-time pre-registration validation to identify existing students by phone, email, identity number, or student ID.
+ */
+export const checkDuplicateStudent = async (req, res) => {
+  try {
+    const { email, phone, identityNumber, studentId, excludeId } = req.query;
+
+    const { normalizeEmail, normalizePhone, normalizeIdentityNumber, buildPhoneMatchVariants } = await import('../utils/normalize.util.js');
+
+    const cleanEmail = normalizeEmail(email);
+    const cleanPhone = String(phone || '').trim();
+    const cleanNormPhone = normalizePhone(cleanPhone);
+    const cleanIdNum = normalizeIdentityNumber(identityNumber);
+    const cleanStudentId = String(studentId || '').trim();
+
+    const excludeCondition = excludeId && mongoose.Types.ObjectId.isValid(excludeId)
+      ? { _id: { $ne: new mongoose.Types.ObjectId(excludeId) } }
+      : {};
+
+    const conditions = [];
+
+    if (cleanEmail) {
+      conditions.push({ email: cleanEmail, field: 'email', label: 'Email address' });
+    }
+
+    if (cleanNormPhone && cleanNormPhone.length >= 7) {
+      const variants = buildPhoneMatchVariants(cleanPhone);
+      conditions.push({
+        $or: [
+          { phone: { $in: variants } },
+          { phone: new RegExp(`${cleanNormPhone}$`) },
+          { alternatePhone: { $in: variants } }
+        ],
+        field: 'phone',
+        label: 'Phone number'
+      });
+    }
+
+    if (cleanIdNum) {
+      conditions.push({ identityNumber: cleanIdNum, field: 'identityNumber', label: 'ID document number' });
+    }
+
+    if (cleanStudentId) {
+      conditions.push({
+        $or: [
+          { studentId: cleanStudentId },
+          { employeeId: cleanStudentId }
+        ],
+        field: 'studentId',
+        label: 'Student ID'
+      });
+    }
+
+    if (conditions.length === 0) {
+      return res.status(200).json({ success: true, isDuplicate: false });
+    }
+
+    // Check each condition to identify exact duplicate
+    for (const cond of conditions) {
+      const { field, label, ...queryObj } = cond;
+      const matchQuery = { ...queryObj, ...excludeCondition };
+
+      let existing = await User.findOne(matchQuery).select('_id name studentId email phone role').lean();
+      if (!existing) {
+        const Student = (await import('../models/student.js')).default;
+        if (Student) {
+          existing = await Student.findOne(matchQuery).select('_id name studentId email phone').lean();
+        }
+      }
+
+      if (existing) {
+        return res.status(200).json({
+          success: true,
+          isDuplicate: true,
+          duplicateField: field,
+          duplicateLabel: label,
+          message: 'Student already exists. Please check the existing student record.',
+          existingStudent: {
+            _id: existing._id,
+            name: existing.name,
+            studentId: existing.studentId || null,
+            role: existing.role || 'student'
+          }
+        });
+      }
+    }
+
+    return res.status(200).json({ success: true, isDuplicate: false });
+  } catch (err) {
+    console.error('Check Duplicate Student Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify student duplicate status.',
+      error: err.message
+    });
+  }
+};
+
+

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Edit2, Trash2, Check, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import {
   fetchContentTypes,
@@ -154,7 +155,7 @@ const ManageContentTypesModal = ({ isOpen, onClose, onContentTypesUpdated }) => 
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         
@@ -329,7 +330,8 @@ const ManageContentTypesModal = ({ isOpen, onClose, onContentTypesUpdated }) => 
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

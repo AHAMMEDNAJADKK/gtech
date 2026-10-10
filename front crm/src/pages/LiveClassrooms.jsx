@@ -6,6 +6,7 @@ import {
   Radio, Sparkles, BookOpen, Layers
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import Modal from '../components/Modal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -389,173 +390,162 @@ const LiveClassrooms = () => {
       )}
 
       {/* Schedule Live Class Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 md:p-8 space-y-5"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                {editingSession ? 'Edit Live Session' : 'Schedule Live Class'}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X size={20} />
-              </button>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingSession ? 'Edit Live Session' : 'Schedule Live Class'}
+        subtitle="Set up interactive Google Meet or Zoom lecture for course & batch"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+              Topic / Session Title *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Master React Hooks & Context"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Course *
+              </label>
+              <select
+                required
+                value={formData.courseId}
+                onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              >
+                <option value="">Select Course</option>
+                {courses.map(c => <option key={c._id} value={c._id}>{c.courseName}</option>)}
+              </select>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Topic / Session Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Master React Hooks & Context"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Batch *
+              </label>
+              <select
+                required
+                value={formData.batchId}
+                onChange={(e) => setFormData({ ...formData, batchId: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              >
+                <option value="">Select Batch</option>
+                {batches.map(b => <option key={b._id} value={b._id}>{b.batchName}</option>)}
+              </select>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Course *
-                  </label>
-                  <select
-                    required
-                    value={formData.courseId}
-                    onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Select Course</option>
-                    {courses.map(c => <option key={c._id} value={c._id}>{c.courseName}</option>)}
-                  </select>
-                </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Platform
+              </label>
+              <select
+                value={formData.platform}
+                onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              >
+                <option value="Google Meet">Google Meet</option>
+                <option value="Zoom">Zoom</option>
+              </select>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Batch *
-                  </label>
-                  <select
-                    required
-                    value={formData.batchId}
-                    onChange={(e) => setFormData({ ...formData, batchId: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Select Batch</option>
-                    {batches.map(b => <option key={b._id} value={b._id}>{b.batchName}</option>)}
-                  </select>
-                </div>
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Date *
+              </label>
+              <input
+                type="date"
+                required
+                value={formData.scheduledDate}
+                onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Platform
-                  </label>
-                  <select
-                    value={formData.platform}
-                    onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  >
-                    <option value="Google Meet">Google Meet</option>
-                    <option value="Zoom">Zoom</option>
-                  </select>
-                </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Start Time *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. 10:00 AM"
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.scheduledDate}
-                    onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Duration (Minutes)
+              </label>
+              <input
+                type="number"
+                value={formData.durationMinutes}
+                onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Start Time *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. 10:00 AM"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
-                </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+              Meeting URL (Google Meet / Zoom link) *
+            </label>
+            <input
+              type="url"
+              required
+              placeholder="https://meet.google.com/xyz-abc-def"
+              value={formData.meetingUrl}
+              onChange={(e) => setFormData({ ...formData, meetingUrl: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 font-mono text-xs"
+            />
+          </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Duration (Minutes)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.durationMinutes}
-                    onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+              Description / Agenda Notes
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Topics covered, prerequisites..."
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+            />
+          </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Meeting URL (Google Meet / Zoom link) *
-                </label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://meet.google.com/xyz-abc-def"
-                  value={formData.meetingUrl}
-                  onChange={(e) => setFormData({ ...formData, meetingUrl: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 font-mono text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Description / Agenda Notes
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Topics covered, prerequisites..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {submitting ? 'Saving...' : 'Save & Publish Session'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+            >
+              {submitting ? 'Saving...' : 'Save & Publish Session'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

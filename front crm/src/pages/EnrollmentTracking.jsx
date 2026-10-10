@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import Modal from '../components/Modal';
 import { 
   GraduationCap, Plus, Search, LayoutGrid, List, ChevronRight, Loader2, 
   BookOpen, Users, CheckCircle2, Archive, Eye, Edit, X, FolderKanban,
@@ -682,237 +683,197 @@ const EnrollmentTracking = () => {
       )}
 
       {/* Create Enrollment Modal */}
-      <AnimatePresence>
-        {isCreateModalOpen && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden my-auto"
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title={
+          <span>
+            Enroll Registered <span className="text-indigo-600">Student</span>
+          </span>
+        }
+        subtitle="Select registered student and batch (Course is derived automatically)"
+        maxWidth="max-w-xl"
+      >
+        <form onSubmit={handleSubmitCreateEnrollment} className="space-y-6">
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Registered Student *</label>
+            <select
+              required
+              value={formData.studentId}
+              onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium cursor-pointer"
             >
-              <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-950">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
-                    Enroll Registered <span className="text-indigo-600">Student</span>
-                  </h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Select registered student and batch (Course is derived automatically)
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="p-4 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 transition-all cursor-pointer"
-                >
-                  <X size={20} />
-                </button>
-              </header>
-
-              <form onSubmit={handleSubmitCreateEnrollment} className="p-8 space-y-6">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Registered Student *</label>
-                  <select
-                    required
-                    value={formData.studentId}
-                    onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium cursor-pointer"
-                  >
-                    <option value="" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Select Student</option>
-                    {registeredStudents.map(st => (
-                      <option key={st._id || st.id} value={st._id || st.id} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                        {st.name} ({st.studentId || 'STU'}) — {st.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Batch *</label>
-                  <select
-                    required
-                    value={formData.batchId}
-                    onChange={(e) => setFormData({ ...formData, batchId: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium cursor-pointer"
-                  >
-                    <option value="" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Select Batch</option>
-                    {batches.map(b => (
-                      <option key={b._id || b.id} value={b._id || b.id} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                        {b.batchName} ({b.batchCode}) — Course: {b.courseId?.courseName || 'Course'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Automatically Derived Course Display */}
-                <div className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1">
-                  <span className="text-[8px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Derived Course</span>
-                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase">
-                    {derivedModalCourseName}
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingCreate}
-                    className="bg-indigo-700 hover:bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20"
-                  >
-                    {isSubmittingCreate ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
-                    Create Enrollment
-                  </button>
-                </div>
-              </form>
-            </motion.div>
+              <option value="" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Select Student</option>
+              {registeredStudents.map(st => (
+                <option key={st._id || st.id} value={st._id || st.id} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                  {st.name} ({st.studentId || 'STU'}) — {st.email}
+                </option>
+              ))}
+            </select>
           </div>
-        )}
-      </AnimatePresence>
+
+          <div className="space-y-1">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Batch *</label>
+            <select
+              required
+              value={formData.batchId}
+              onChange={(e) => setFormData({ ...formData, batchId: e.target.value })}
+              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium cursor-pointer"
+            >
+              <option value="" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Select Batch</option>
+              {batches.map(b => (
+                <option key={b._id || b.id} value={b._id || b.id} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                  {b.batchName} ({b.batchCode}) — Course: {b.courseId?.courseName || 'Course'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Automatically Derived Course Display */}
+          <div className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1">
+            <span className="text-[8px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Derived Course</span>
+            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase">
+              {derivedModalCourseName}
+            </p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setIsCreateModalOpen(false)}
+              className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingCreate}
+              className="bg-indigo-700 hover:bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20"
+            >
+              {isSubmittingCreate ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+              Create Enrollment
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Quick Progress Update Modal */}
-      <AnimatePresence>
-        {isProgressModalOpen && selectedEnrollmentForProgress && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden my-auto p-8 space-y-6"
-            >
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
-                    Update <span className="text-indigo-600">Course Progress</span>
-                  </h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
-                    {selectedEnrollmentForProgress.studentId?.name} • {selectedEnrollmentForProgress.courseId?.courseName}
-                  </p>
-                </div>
-                <button onClick={() => setIsProgressModalOpen(false)} className="p-3 text-slate-400 hover:text-slate-700 cursor-pointer">
-                  <X size={18} />
-                </button>
+      <Modal
+        isOpen={Boolean(isProgressModalOpen && selectedEnrollmentForProgress)}
+        onClose={() => setIsProgressModalOpen(false)}
+        title={
+          <span>
+            Update <span className="text-indigo-600">Course Progress</span>
+          </span>
+        }
+        subtitle={selectedEnrollmentForProgress ? `${selectedEnrollmentForProgress.studentId?.name} • ${selectedEnrollmentForProgress.courseId?.courseName}` : ''}
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleSubmitUpdateProgress} className="space-y-6">
+          <div className="space-y-3 bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-black uppercase text-slate-600 dark:text-slate-300">Completed Modules</span>
+              <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">
+                {progressModules} / {progressTotal} ({Math.round((progressModules / Math.max(1, progressTotal)) * 100)}%)
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max={progressTotal}
+              value={progressModules}
+              onChange={(e) => setProgressModules(parseInt(e.target.value, 10))}
+              className="w-full accent-indigo-600 cursor-pointer"
+            />
+
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="text-[8px] font-black uppercase text-slate-400">Completed Modules</label>
+                <input
+                  type="number"
+                  min="0"
+                  max={progressTotal}
+                  value={progressModules}
+                  onChange={(e) => setProgressModules(Math.min(progressTotal, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
+                />
               </div>
-
-              <form onSubmit={handleSubmitUpdateProgress} className="space-y-6">
-                <div className="space-y-3 bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-black uppercase text-slate-600 dark:text-slate-300">Completed Modules</span>
-                    <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">
-                      {progressModules} / {progressTotal} ({Math.round((progressModules / Math.max(1, progressTotal)) * 100)}%)
-                    </span>
-                  </div>
-
-                  <input
-                    type="range"
-                    min="0"
-                    max={progressTotal}
-                    value={progressModules}
-                    onChange={(e) => setProgressModules(parseInt(e.target.value, 10))}
-                    className="w-full accent-indigo-600 cursor-pointer"
-                  />
-
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div>
-                      <label className="text-[8px] font-black uppercase text-slate-400">Completed Modules</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={progressTotal}
-                        value={progressModules}
-                        onChange={(e) => setProgressModules(Math.min(progressTotal, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[8px] font-black uppercase text-slate-400">Total Curriculum Modules</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={progressTotal}
-                        onChange={(e) => setProgressTotal(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsProgressModalOpen(false)}
-                    className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingProgress}
-                    className="bg-indigo-700 hover:bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20"
-                  >
-                    {isSubmittingProgress ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
-                    Save Progress
-                  </button>
-                </div>
-              </form>
-            </motion.div>
+              <div>
+                <label className="text-[8px] font-black uppercase text-slate-400">Total Curriculum Modules</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={progressTotal}
+                  onChange={(e) => setProgressTotal(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
+                />
+              </div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsProgressModalOpen(false)}
+              className="px-6 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingProgress}
+              className="bg-indigo-700 hover:bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md shadow-indigo-600/20"
+            >
+              {isSubmittingProgress ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+              Save Progress
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* SuperAdmin Delete Enrollment Confirmation Modal */}
-      <AnimatePresence>
-        {deleteConfirm.isOpen && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden my-auto p-8 space-y-6"
-            >
-              <div className="flex flex-col items-center text-center space-y-4">
-                <div className="p-4 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full border border-rose-200 dark:border-rose-800/60">
-                  <Trash2 size={28} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
-                    Delete Enrollment Record?
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium leading-relaxed">
-                    Are you sure you want to permanently delete the enrollment of <span className="font-black text-slate-900 dark:text-slate-100">{deleteConfirm.studentName}</span> in course <span className="font-black text-indigo-600">{deleteConfirm.courseName}</span>?
-                  </p>
-                  <p className="text-[10px] text-rose-500 font-bold uppercase tracking-wider mt-2 bg-rose-50 dark:bg-rose-950/50 p-2 rounded-xl border border-rose-200/50 dark:border-rose-900/40">
-                    ⚠️ Action restricted to SuperAdmin users.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirm({ isOpen: false, id: null, studentName: '', courseName: '' })}
-                  className="flex-1 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDeleteEnrollment}
-                  disabled={isSubmittingDelete}
-                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/20"
-                >
-                  {isSubmittingDelete ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
-                  Delete Record
-                </button>
-              </div>
-            </motion.div>
+      <Modal
+        isOpen={Boolean(deleteConfirm.isOpen)}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null, studentName: '', courseName: '' })}
+        title="Delete Enrollment Record?"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-6">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="p-4 bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-full border border-rose-200 dark:border-rose-800/60">
+              <Trash2 size={28} />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium leading-relaxed">
+                Are you sure you want to permanently delete the enrollment of <span className="font-black text-slate-900 dark:text-slate-100">{deleteConfirm.studentName}</span> in course <span className="font-black text-indigo-600">{deleteConfirm.courseName}</span>?
+              </p>
+              <p className="text-[10px] text-rose-500 font-bold uppercase tracking-wider mt-2 bg-rose-50 dark:bg-rose-950/50 p-2 rounded-xl border border-rose-200/50 dark:border-rose-900/40">
+                ⚠️ Action restricted to SuperAdmin users.
+              </p>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+
+          <div className="flex justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm({ isOpen: false, id: null, studentName: '', courseName: '' })}
+              className="flex-1 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDeleteEnrollment}
+              disabled={isSubmittingDelete}
+              className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/20"
+            >
+              {isSubmittingDelete ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+              Delete Record
+            </button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -354,7 +355,7 @@ const UserDetailPage = () => {
       )}
 
       {/* ── Image Lightbox Modal ── */}
-      {previewImageSrc && (
+      {previewImageSrc && createPortal(
         <AnimatePresence>
           <motion.div
             initial={{ opacity: 0 }}
@@ -387,7 +388,8 @@ const UserDetailPage = () => {
               </div>
             </motion.div>
           </motion.div>
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

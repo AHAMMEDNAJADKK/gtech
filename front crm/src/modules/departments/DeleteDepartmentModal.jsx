@@ -1,6 +1,5 @@
-// src/modules/departments/DeleteDepartmentModal.jsx
-
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, EyeOff, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { updateDepartmentStatus } from '../../services/departmentService';
@@ -28,7 +27,7 @@ export const DeleteDepartmentModal = ({ isOpen, onClose, onSuccess, department }
 
   if (!isOpen || !department) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
         {/* Backdrop */}
@@ -115,7 +114,8 @@ export const DeleteDepartmentModal = ({ isOpen, onClose, onSuccess, department }
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

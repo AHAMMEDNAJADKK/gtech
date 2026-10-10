@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet, DollarSign, CreditCard, Receipt, Plus, Search,
   CheckCircle2, AlertCircle, Clock, Calendar, Download,
   ExternalLink, Loader2, ArrowUpRight, ArrowDownRight,
-  TrendingUp, Users, BookOpen, Layers, X, ShieldCheck
+  TrendingUp, Users, BookOpen, Layers, X, ShieldCheck,
+  UserCheck, RefreshCw, ChevronDown
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import Modal from '../components/Modal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -22,6 +24,7 @@ const AccountsPage = () => {
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [selectedFeeForPayment, setSelectedFeeForPayment] = useState(null);
   const [selectedInstallmentIndex, setSelectedInstallmentIndex] = useState(-1);
 
@@ -29,6 +32,30 @@ const AccountsPage = () => {
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [batches, setBatches] = useState([]);
+
+  // Auto-fetching student state for Add Fee Receipt modal
+  const [receiptStudentSearch, setReceiptStudentSearch] = useState('');
+  const [isReceiptStudentDropdownOpen, setIsReceiptStudentDropdownOpen] = useState(false);
+  const [selectedReceiptStudent, setSelectedReceiptStudent] = useState(null);
+  const [fetchingReceiptStudent, setFetchingReceiptStudent] = useState(false);
+  const [receiptStudentError, setReceiptStudentError] = useState(null);
+  const [receiptAssignedCourses, setReceiptAssignedCourses] = useState([]);
+  const [receiptExistingFees, setReceiptExistingFees] = useState([]);
+  const [submittingReceipt, setSubmittingReceipt] = useState(false);
+  const receiptStudentRequestIdRef = useRef(0);
+
+  // Add Fee Receipt Form State
+  const [receiptForm, setReceiptForm] = useState({
+    studentId: '',
+    courseId: '',
+    batchId: '',
+    amount: '',
+    paymentMethod: 'Cash at Counter',
+    transactionId: '',
+    notes: '',
+    totalAmount: '',
+    discountAmount: '0'
+  });
 
   // Create Fee Form State
   const [createForm, setCreateForm] = useState({
@@ -41,6 +68,11 @@ const AccountsPage = () => {
     dueDate: '',
     notes: ''
   });
+  const [createStudentSearch, setCreateStudentSearch] = useState('');
+  const [isCreateStudentDropdownOpen, setIsCreateStudentDropdownOpen] = useState(false);
+  const [fetchingCreateStudent, setFetchingCreateStudent] = useState(false);
+  const [createStudentDetails, setCreateStudentDetails] = useState(null);
+  const createStudentRequestIdRef = useRef(0);
 
   // Record Payment Form State
   const [paymentForm, setPaymentForm] = useState({
@@ -281,6 +313,241 @@ const AccountsPage = () => {
     window.open(`${base}/student-fees/receipts/${receiptNo}/pdf`, '_blank');
   };
 
+  const handleOpenReceiptModal = (preselectedStudentId = null) => {
+    setReceiptForm({
+      studentId: '',
+      courseId: '',
+      batchId: '',
+      amount: '',
+      paymentMethod: 'Cash at Counter',
+      transactionId: '',
+      notes: '',
+      totalAmount: '',
+      discountAmount: '0'
+    });
+    setReceiptStudentSearch('');
+    setIsReceiptStudentDropdownOpen(false);
+    setSelectedReceiptStudent(null);
+    setReceiptAssignedCourses([]);
+    setReceiptExistingFees([]);
+    setReceiptStudentError(null);
+    setIsReceiptModalOpen(true);
+
+    if (preselectedStudentId) {
+      handleSelectReceiptStudent(preselectedStudentId);
+    }
+  };
+
+  const handleSelectReceiptStudent = async (studentId) => {
+    const matched = students.find(s => s._id === studentId);
+    setSelectedReceiptStudent(matched || null);
+    setIsReceiptStudentDropdownOpen(false);
+
+    // 1. Clear previous student's courses, batches, dependent fee info immediately
+    setReceiptForm(prev => ({
+      ...prev,
+      studentId,
+      courseId: '',
+      batchId: '',
+      amount: '',
+      totalAmount: '',
+      discountAmount: '0',
+      notes: ''
+    }));
+    setReceiptAssignedCourses([]);
+    setReceiptExistingFees([]);
+    setReceiptStudentError(null);
+
+    if (!studentId) return;
+
+    // 2. Race condition guard: ignore stale responses if another student is chosen
+    const currentReqId = ++receiptStudentRequestIdRef.current;
+    setFetchingReceiptStudent(true);
+
+    try {
+      const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
+      const res = await fetch(`${base}/student-fees/student-details/${studentId}`, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Failed to retrieve authoritative student academic details.');
+      const json = await res.json();
+
+      // Guard against stale response
+      if (receiptStudentRequestIdRef.current !== currentReqId) {
+        return;
+      }
+
+      const { student, assignedCourses = [], existingFees = [] } = json.data || {};
+      if (student) {
+        setSelectedReceiptStudent(student);
+      }
+      setReceiptAssignedCourses(assignedCourses);
+      setReceiptExistingFees(existingFees);
+
+      // 3. Auto-populate course and batch
+      if (assignedCourses.length === 1) {
+        const singleCourse = assignedCourses[0];
+        const singleCourseId = singleCourse._id;
+        let singleBatchId = '';
+
+        if (Array.isArray(singleCourse.batches) && singleCourse.batches.length === 1) {
+          singleBatchId = singleCourse.batches[0]._id;
+        }
+
+        const existingFee = existingFees.find(f => String(f.courseId?._id || f.courseId) === String(singleCourseId));
+        const courseFee = singleCourse.courseFee || 0;
+        const defaultAmount = existingFee ? (existingFee.dueAmount > 0 ? existingFee.dueAmount : existingFee.finalAmount) : courseFee;
+
+        setReceiptForm(prev => ({
+          ...prev,
+          courseId: singleCourseId,
+          batchId: singleBatchId,
+          totalAmount: existingFee ? existingFee.totalAmount : (courseFee || ''),
+          discountAmount: existingFee ? existingFee.discountAmount : '0',
+          amount: defaultAmount > 0 ? String(defaultAmount) : (courseFee > 0 ? String(courseFee) : '')
+        }));
+      }
+    } catch (err) {
+      if (receiptStudentRequestIdRef.current === currentReqId) {
+        setReceiptStudentError(err.message);
+        showToast(err.message, 'error');
+      }
+    } finally {
+      if (receiptStudentRequestIdRef.current === currentReqId) {
+        setFetchingReceiptStudent(false);
+      }
+    }
+  };
+
+  const handleReceiptCourseChange = (courseId) => {
+    let availableBatches = [];
+    let courseFee = 0;
+    let singleBatchId = '';
+
+    const assigned = receiptAssignedCourses.find(c => String(c._id) === String(courseId));
+    if (assigned) {
+      availableBatches = assigned.batches || [];
+      courseFee = assigned.courseFee || 0;
+    } else {
+      const generalCourse = courses.find(c => String(c._id) === String(courseId));
+      if (generalCourse) courseFee = generalCourse.courseFee || 0;
+      availableBatches = batches.filter(b => String(b.courseId?._id || b.courseId) === String(courseId));
+    }
+
+    if (availableBatches.length === 1) {
+      singleBatchId = availableBatches[0]._id;
+    }
+
+    const existingFee = receiptExistingFees.find(f => String(f.courseId?._id || f.courseId) === String(courseId));
+    const defaultAmount = existingFee ? (existingFee.dueAmount > 0 ? existingFee.dueAmount : existingFee.finalAmount) : courseFee;
+
+    setReceiptForm(prev => ({
+      ...prev,
+      courseId,
+      batchId: singleBatchId,
+      totalAmount: existingFee ? existingFee.totalAmount : (courseFee || prev.totalAmount),
+      discountAmount: existingFee ? existingFee.discountAmount : prev.discountAmount,
+      amount: defaultAmount > 0 ? String(defaultAmount) : (courseFee > 0 ? String(courseFee) : prev.amount)
+    }));
+  };
+
+  const handleSubmitReceipt = async (e) => {
+    e.preventDefault();
+    if (submittingReceipt) return;
+
+    if (!receiptForm.studentId || !receiptForm.courseId || !receiptForm.batchId) {
+      showToast('Student, Course, and Batch are all required to issue a fee receipt.', 'warning');
+      return;
+    }
+
+    if (!receiptForm.amount || Number(receiptForm.amount) <= 0) {
+      showToast('Please enter a valid positive payment amount.', 'warning');
+      return;
+    }
+
+    setSubmittingReceipt(true);
+    try {
+      const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
+      const res = await fetch(`${base}/student-fees/issue-receipt`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          studentId: receiptForm.studentId,
+          courseId: receiptForm.courseId,
+          batchId: receiptForm.batchId,
+          amount: Number(receiptForm.amount),
+          paymentMethod: receiptForm.paymentMethod,
+          transactionId: receiptForm.transactionId,
+          notes: receiptForm.notes,
+          totalAmount: receiptForm.totalAmount ? Number(receiptForm.totalAmount) : undefined,
+          discountAmount: Number(receiptForm.discountAmount || 0)
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to issue fee receipt.');
+
+      const receiptNo = data.data?.receiptNo;
+      showToast(`Payment recorded. Official Receipt ${receiptNo} issued successfully.`, 'success');
+      setIsReceiptModalOpen(false);
+      fetchFeeData();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSubmittingReceipt(false);
+    }
+  };
+
+  const handleSelectCreateStudent = async (studentId) => {
+    const matched = students.find(s => s._id === studentId);
+    setCreateStudentDetails(matched || null);
+    setIsCreateStudentDropdownOpen(false);
+
+    setCreateForm(prev => ({
+      ...prev,
+      studentId,
+      courseId: '',
+      batchId: '',
+      totalAmount: '',
+      discountAmount: '0'
+    }));
+
+    if (!studentId) return;
+
+    const currentReqId = ++createStudentRequestIdRef.current;
+    setFetchingCreateStudent(true);
+
+    try {
+      const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
+      const res = await fetch(`${base}/student-fees/student-details/${studentId}`, { headers: getHeaders() });
+      if (!res.ok) return;
+      const json = await res.json();
+
+      if (createStudentRequestIdRef.current !== currentReqId) return;
+
+      const { student, assignedCourses = [] } = json.data || {};
+      if (student) setCreateStudentDetails(student);
+
+      if (assignedCourses.length === 1) {
+        const sc = assignedCourses[0];
+        let sbId = '';
+        if (Array.isArray(sc.batches) && sc.batches.length === 1) {
+          sbId = sc.batches[0]._id;
+        }
+        setCreateForm(prev => ({
+          ...prev,
+          courseId: sc._id,
+          batchId: sbId,
+          totalAmount: sc.courseFee || ''
+        }));
+      }
+    } catch (err) {
+      console.warn('Could not auto-fetch student details for create fee:', err);
+    } finally {
+      if (createStudentRequestIdRef.current === currentReqId) {
+        setFetchingCreateStudent(false);
+      }
+    }
+  };
+
   // Compile all installments across statements for tracker tab
   const allInstallments = useMemo(() => {
     const list = [];
@@ -348,12 +615,35 @@ const AccountsPage = () => {
         </div>
 
         {isAdminOrStaff && (
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition cursor-pointer self-start md:self-auto"
-          >
-            <Plus size={18} /> New Fee Plan
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => handleOpenReceiptModal()}
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition cursor-pointer"
+            >
+              <Receipt size={18} /> Add Fee Receipt
+            </button>
+            <button
+              onClick={() => {
+                setCreateStudentSearch('');
+                setIsCreateStudentDropdownOpen(false);
+                setCreateStudentDetails(null);
+                setCreateForm({
+                  studentId: '',
+                  courseId: '',
+                  batchId: '',
+                  totalAmount: '',
+                  discountAmount: '0',
+                  installmentCount: 2,
+                  dueDate: '',
+                  notes: ''
+                });
+                setIsCreateModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition cursor-pointer"
+            >
+              <Plus size={18} /> New Fee Plan
+            </button>
+          </div>
         )}
       </div>
 
@@ -626,11 +916,21 @@ const AccountsPage = () => {
       {/* TAB 3: Payment History & Receipts */}
       {activeTab === 'receipts' && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-3xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Official Payment Receipts
-            </h3>
-            <span className="text-xs text-slate-400">{allReceipts.length} transactions recorded</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Official Payment Receipts
+              </h3>
+              <span className="text-xs text-slate-400">{allReceipts.length} transactions recorded</span>
+            </div>
+            {isAdminOrStaff && (
+              <button
+                onClick={() => handleOpenReceiptModal()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer self-start sm:self-auto"
+              >
+                <Receipt size={15} /> Add Fee Receipt
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -680,261 +980,572 @@ const AccountsPage = () => {
         </div>
       )}
 
-      {/* Initialize Tuition Plan Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 md:p-8 space-y-5"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                Initialize Student Fee Account
-              </h2>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateFee} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Enrolled Student *
-                </label>
-                <select
-                  required
-                  value={createForm.studentId}
-                  onChange={(e) => setCreateForm({ ...createForm, studentId: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                >
-                  <option value="">Select Student...</option>
-                  {students.map(s => (
-                    <option key={s._id} value={s._id}>{s.name} ({s.studentId || s.email})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Course *
-                  </label>
-                  <select
-                    required
-                    value={createForm.courseId}
-                    onChange={(e) => handleCourseChange(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Select Course...</option>
-                    {courses.map(c => (
-                      <option key={c._id} value={c._id}>{c.courseName} (Rs. {c.courseFee || 0})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Batch *
-                  </label>
-                  <select
-                    required
-                    value={createForm.batchId}
-                    onChange={(e) => setCreateForm({ ...createForm, batchId: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  >
-                    <option value="">Select Batch...</option>
-                    {batches.map(b => (
-                      <option key={b._id} value={b._id}>{b.batchName}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Total Course Fee (INR) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    placeholder="e.g. 50000"
-                    value={createForm.totalAmount}
-                    onChange={(e) => setCreateForm({ ...createForm, totalAmount: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Scholarship / Discount (INR)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={createForm.discountAmount}
-                    onChange={(e) => setCreateForm({ ...createForm, discountAmount: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Installments
-                  </label>
-                  <select
-                    value={createForm.installmentCount}
-                    onChange={(e) => setCreateForm({ ...createForm, installmentCount: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  >
-                    <option value="1">1 (Single Full Payment)</option>
-                    <option value="2">2 Installments</option>
-                    <option value="3">3 Installments</option>
-                    <option value="4">4 Installments</option>
-                    <option value="6">6 Installments</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    First Due Date
-                  </label>
-                  <input
-                    type="date"
-                    value={createForm.dueDate}
-                    onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3">
+      {/* ========================================================================= */}
+      {/* 1. ADD OFFICIAL FEE RECEIPT MODAL (AUTO-FETCHING & RACE SAFE)               */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        title="Add / Issue Student Fee Receipt"
+        subtitle="Authoritatively fetch student course & batch records and issue official payment receipt"
+        maxWidth="max-w-2xl"
+      >
+        <form onSubmit={handleSubmitReceipt} className="space-y-4">
+          {/* Student Search & Selection */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase">
+              Select Enrolled Student *
+            </label>
+            <div className="relative">
+              <div className="relative">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search student by name, student ID, phone, or email..."
+                  value={receiptStudentSearch}
+                  onChange={(e) => {
+                    setReceiptStudentSearch(e.target.value);
+                    setIsReceiptStudentDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsReceiptStudentDropdownOpen(true)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500 font-medium"
+                />
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer"
+                  onClick={() => setIsReceiptStudentDropdownOpen(prev => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingCreate}
-                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {submittingCreate ? 'Initializing...' : 'Initialize Tuition Account'}
+                  <ChevronDown size={16} />
                 </button>
               </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
 
-      {/* Settle / Pay Online Modal */}
-      {isPaymentModalOpen && selectedFeeForPayment && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 md:p-8 space-y-5"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                  Record / Checkout Payment
-                </h2>
-                <p className="text-xs text-slate-500">
-                  {selectedFeeForPayment.studentId?.name} ({selectedFeeForPayment.courseId?.courseName})
-                </p>
-              </div>
-              <button onClick={() => setIsPaymentModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X size={20} />
-              </button>
+              {/* Dropdown Results */}
+              {isReceiptStudentDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                  {students
+                    .filter(s => {
+                      const q = receiptStudentSearch.toLowerCase().trim();
+                      if (!q) return true;
+                      return (
+                        s.name?.toLowerCase().includes(q) ||
+                        s.email?.toLowerCase().includes(q) ||
+                        s.phone?.includes(q) ||
+                        s.studentId?.toLowerCase().includes(q) ||
+                        s.employeeId?.toLowerCase().includes(q)
+                      );
+                    })
+                    .slice(0, 30)
+                    .map(st => (
+                      <button
+                        type="button"
+                        key={st._id}
+                        onClick={() => {
+                          setReceiptStudentSearch(`${st.name} (${st.studentId || st.phone || st.email})`);
+                          handleSelectReceiptStudent(st._id);
+                        }}
+                        className={`w-full text-left px-4 py-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 flex items-center justify-between text-xs transition cursor-pointer ${
+                          receiptForm.studentId === st._id ? 'bg-indigo-50 dark:bg-indigo-950/50 font-bold' : ''
+                        }`}
+                      >
+                        <div>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{st.name}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            ID: <span className="font-mono text-indigo-600 font-semibold">{st.studentId || st.employeeId || 'N/A'}</span> • Phone: {st.phone || 'N/A'}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400">{st.email}</span>
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
+          </div>
 
-            <form onSubmit={handleRecordOrCheckoutPayment} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Payment Amount (INR) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  max={selectedFeeForPayment.dueAmount}
-                  value={paymentForm.amount}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-base font-bold outline-none focus:border-indigo-500"
-                />
-              </div>
+          {/* Loading Indicator */}
+          {fetchingReceiptStudent && (
+            <div className="flex items-center gap-3 p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-indigo-600 dark:text-indigo-400 text-xs">
+              <Loader2 className="animate-spin" size={18} />
+              <span>Fetching authoritative enrollment, course & batch records...</span>
+            </div>
+          )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Payment Method *
-                </label>
-                <select
-                  value={paymentForm.paymentMethod}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 font-semibold"
-                >
-                  <option value="Online - Razorpay">⚡ Online Checkout (Razorpay Gateway)</option>
-                  <option value="UPI">UPI / GooglePay / PhonePe</option>
-                  <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
-                  <option value="Cash">Cash at Counter</option>
-                  <option value="Cheque">Cheque</option>
-                </select>
-              </div>
+          {/* Error Message */}
+          {receiptStudentError && (
+            <div className="flex items-center gap-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-600 dark:text-rose-400 text-xs">
+              <AlertCircle size={16} />
+              <span>{receiptStudentError}</span>
+            </div>
+          )}
 
-              {paymentForm.paymentMethod !== 'Online - Razorpay' && (
+          {/* Selected Student Details Card */}
+          {selectedReceiptStudent && !fetchingReceiptStudent && (
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex items-start justify-between">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                    Transaction ID / Reference #
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. UPI Ref / Bank UTR Number"
-                    value={paymentForm.transactionId}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
-                  />
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                    <UserCheck size={12} /> Verified Student Profile
+                  </div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                    {selectedReceiptStudent.name}
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    ID: <strong className="font-mono text-indigo-600">{selectedReceiptStudent.studentId || selectedReceiptStudent.employeeId || 'N/A'}</strong> • Phone: {selectedReceiptStudent.phone || 'N/A'} • Email: {selectedReceiptStudent.email}
+                  </p>
+                </div>
+              </div>
+
+              {/* Empty State Banner if no courses assigned */}
+              {receiptAssignedCourses.length === 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">No assigned courses or batches found for this student.</p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                      You may select from all available academy courses and batches below.
+                    </p>
+                  </div>
                 </div>
               )}
 
+              {/* Existing Fee Summary if already exists */}
+              {receiptExistingFees.length > 0 && (
+                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Existing Fee Accounts on Record:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {receiptExistingFees.map(ef => (
+                      <div key={ef._id} className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px]">
+                        <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{ef.courseId?.courseName}</p>
+                        <p className="text-slate-500 mt-0.5">Total: Rs. {Number(ef.finalAmount || 0).toLocaleString('en-IN')}</p>
+                        <p className="text-emerald-600 font-semibold">Paid: Rs. {Number(ef.paidAmount || 0).toLocaleString('en-IN')}</p>
+                        <p className="text-rose-600 font-black">Due: Rs. {Number(ef.dueAmount || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Course & Batch Auto-Populated Fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Course *
+              </label>
+              <select
+                required
+                value={receiptForm.courseId}
+                onChange={(e) => handleReceiptCourseChange(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 font-medium"
+              >
+                <option value="">Select Course...</option>
+                {receiptAssignedCourses.length > 0 ? (
+                  receiptAssignedCourses.map(c => (
+                    <option key={c._id} value={c._id}>
+                      {c.courseName} (Enrolled - Rs. {c.courseFee || 0})
+                    </option>
+                  ))
+                ) : (
+                  courses.map(c => (
+                    <option key={c._id} value={c._id}>
+                      {c.courseName} (Rs. {c.courseFee || 0})
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Batch *
+              </label>
+              <select
+                required
+                value={receiptForm.batchId}
+                onChange={(e) => setReceiptForm(prev => ({ ...prev, batchId: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 font-medium"
+              >
+                <option value="">Select Batch...</option>
+                {(() => {
+                  const assigned = receiptAssignedCourses.find(c => String(c._id) === String(receiptForm.courseId));
+                  const batchList = assigned ? (assigned.batches || []) : batches.filter(b => !receiptForm.courseId || String(b.courseId?._id || b.courseId) === String(receiptForm.courseId));
+                  return batchList.map(b => (
+                    <option key={b._id} value={b._id}>
+                      {b.batchName} {b.batchCode ? `(${b.batchCode})` : ''}
+                    </option>
+                  ));
+                })()}
+              </select>
+            </div>
+          </div>
+
+          {/* Payment Amount & Method */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Receipt Payment Amount (INR) *
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                placeholder="e.g. 15000"
+                value={receiptForm.amount}
+                onChange={(e) => setReceiptForm(prev => ({ ...prev, amount: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-sm font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Payment Method *
+              </label>
+              <select
+                value={receiptForm.paymentMethod}
+                onChange={(e) => setReceiptForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 font-semibold"
+              >
+                <option value="Cash at Counter">Cash at Counter</option>
+                <option value="UPI">UPI / GooglePay / PhonePe</option>
+                <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
+                <option value="Online - Razorpay">Online Payment</option>
+                <option value="Cheque">Cheque</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Transaction Ref & Notes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Transaction Ref / UTR / Cheque #
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. UPI-9283748291"
+                value={receiptForm.transactionId}
+                onChange={(e) => setReceiptForm(prev => ({ ...prev, transactionId: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Remarks / Receipt Notes
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Term 1 installment fee"
+                value={receiptForm.notes}
+                onChange={(e) => setReceiptForm(prev => ({ ...prev, notes: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsReceiptModalOpen(false)}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submittingReceipt || !receiptForm.studentId}
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+            >
+              {submittingReceipt ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  <span>Issuing Official Receipt...</span>
+                </>
+              ) : (
+                <>
+                  <Receipt size={16} />
+                  <span>Record Payment & Issue Receipt</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* 2. INITIALIZE TUITION PLAN MODAL (PORTALLED & AUTO-FETCHING)              */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="Initialize Student Fee Account"
+        subtitle="Set up total tuition fees, scholarships, and installment schedules"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleCreateFee} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+              Enrolled Student *
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search student..."
+                value={createStudentSearch}
+                onChange={(e) => {
+                  setCreateStudentSearch(e.target.value);
+                  setIsCreateStudentDropdownOpen(true);
+                }}
+                onFocus={() => setIsCreateStudentDropdownOpen(true)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 font-medium"
+              />
+              {isCreateStudentDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                  {students
+                    .filter(s => {
+                      const q = createStudentSearch.toLowerCase().trim();
+                      if (!q) return true;
+                      return (
+                        s.name?.toLowerCase().includes(q) ||
+                        s.email?.toLowerCase().includes(q) ||
+                        s.phone?.includes(q) ||
+                        s.studentId?.toLowerCase().includes(q)
+                      );
+                    })
+                    .slice(0, 20)
+                    .map(st => (
+                      <button
+                        type="button"
+                        key={st._id}
+                        onClick={() => {
+                          setCreateStudentSearch(`${st.name} (${st.studentId || st.phone || st.email})`);
+                          handleSelectCreateStudent(st._id);
+                        }}
+                        className="w-full text-left px-3 py-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-xs transition cursor-pointer"
+                      >
+                        <p className="font-bold text-slate-900 dark:text-slate-100">{st.name}</p>
+                        <p className="text-[10px] text-slate-500">ID: {st.studentId || 'N/A'} • {st.email}</p>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+            {fetchingCreateStudent && (
+              <p className="text-[11px] text-indigo-600 flex items-center gap-1.5 mt-1 font-medium">
+                <Loader2 size={12} className="animate-spin" /> Auto-fetching student enrollments...
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Course *
+              </label>
+              <select
+                required
+                value={createForm.courseId}
+                onChange={(e) => handleCourseChange(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              >
+                <option value="">Select Course...</option>
+                {courses.map(c => (
+                  <option key={c._id} value={c._id}>{c.courseName} (Rs. {c.courseFee || 0})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Batch *
+              </label>
+              <select
+                required
+                value={createForm.batchId}
+                onChange={(e) => setCreateForm({ ...createForm, batchId: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              >
+                <option value="">Select Batch...</option>
+                {batches.map(b => (
+                  <option key={b._id} value={b._id}>{b.batchName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Total Course Fee (INR) *
+              </label>
+              <input
+                type="number"
+                required
+                min="0"
+                placeholder="e.g. 50000"
+                value={createForm.totalAmount}
+                onChange={(e) => setCreateForm({ ...createForm, totalAmount: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Scholarship / Discount (INR)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={createForm.discountAmount}
+                onChange={(e) => setCreateForm({ ...createForm, discountAmount: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Installments
+              </label>
+              <select
+                value={createForm.installmentCount}
+                onChange={(e) => setCreateForm({ ...createForm, installmentCount: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              >
+                <option value="1">1 (Single Full Payment)</option>
+                <option value="2">2 Installments</option>
+                <option value="3">3 Installments</option>
+                <option value="4">4 Installments</option>
+                <option value="6">6 Installments</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                First Due Date
+              </label>
+              <input
+                type="date"
+                value={createForm.dueDate}
+                onChange={(e) => setCreateForm({ ...createForm, dueDate: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsCreateModalOpen(false)}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submittingCreate}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+            >
+              {submittingCreate ? 'Initializing...' : 'Initialize Tuition Account'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* 3. RECORD / CHECKOUT PAYMENT MODAL (PORTALLED & CENTERED)                 */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={isPaymentModalOpen && !!selectedFeeForPayment}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title="Record / Checkout Payment"
+        subtitle={selectedFeeForPayment ? `${selectedFeeForPayment.studentId?.name} • ${selectedFeeForPayment.courseId?.courseName}` : ''}
+        maxWidth="max-w-md"
+      >
+        {selectedFeeForPayment && (
+          <form onSubmit={handleRecordOrCheckoutPayment} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Payment Amount (INR) *
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                max={selectedFeeForPayment.dueAmount}
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-base font-bold outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Payment Method *
+              </label>
+              <select
+                value={paymentForm.paymentMethod}
+                onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500 font-semibold"
+              >
+                <option value="Online - Razorpay">⚡ Online Checkout (Razorpay Gateway)</option>
+                <option value="UPI">UPI / GooglePay / PhonePe</option>
+                <option value="Bank Transfer">Bank Transfer (NEFT / IMPS)</option>
+                <option value="Cash">Cash at Counter</option>
+                <option value="Cheque">Cheque</option>
+              </select>
+            </div>
+
+            {paymentForm.paymentMethod !== 'Online - Razorpay' && (
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Receipt Remarks / Notes
+                  Transaction ID / Reference #
                 </label>
                 <input
                   type="text"
-                  value={paymentForm.notes}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  placeholder="e.g. UPI Ref / Bank UTR Number"
+                  value={paymentForm.transactionId}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
                 />
               </div>
+            )}
 
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsPaymentModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={processingPayment}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {processingPayment ? 'Processing...' : 'Complete Payment & Issue Receipt'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+                Receipt Remarks / Notes
+              </label>
+              <input
+                type="text"
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={processingPayment}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
+              >
+                {processingPayment ? 'Processing...' : 'Complete Payment & Issue Receipt'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 };

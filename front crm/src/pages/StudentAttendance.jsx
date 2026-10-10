@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx'; 
@@ -67,9 +67,31 @@ const StudentAttendance = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [imagePreview, setImagePreview] = useState(null);
 
+  // Duplicate student detection state
+  const [duplicateAlert, setDuplicateAlert] = useState(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const duplicateTimerRef = useRef(null);
+
   // Student Profile Overview Modal State
   const [selectedProfileStudentId, setSelectedProfileStudentId] = useState(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Modal keyboard and scroll control
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen]);
 
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -328,15 +350,78 @@ const StudentAttendance = () => {
     reader.readAsDataURL(file);
   };
 
+  const validateDuplicateStudent = useCallback(async (formVals) => {
+    if (editingStudent) return null;
+    const phone = formVals.phone || '';
+    const email = formVals.email || '';
+    const idNum = (formVals.identityNumber || '').trim();
+
+    if (!phone && !email && !idNum) {
+      setDuplicateAlert(null);
+      return null;
+    }
+
+    try {
+      setCheckingDuplicate(true);
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const base = cleanBase.endsWith('/v1') ? cleanBase : `${cleanBase}/v1`;
+      const params = new URLSearchParams();
+      if (phone && phone.length === 10) params.append('phone', phone);
+      if (email && email.includes('@')) params.append('email', email);
+      if (idNum && idNum.length >= 4) params.append('identityNumber', idNum);
+
+      if (!params.toString()) {
+        setDuplicateAlert(null);
+        return null;
+      }
+
+      const res = await fetch(`${base}/students/check-duplicate?${params.toString()}`, {
+        headers: getHeaders()
+      });
+
+      if (!res.ok) return null;
+      const json = await res.json();
+
+      if (json.isDuplicate && json.existingStudent) {
+        const alertObj = {
+          found: true,
+          message: json.message || "Student already exists. Please check the existing student record.",
+          student: json.existingStudent,
+          matchedField: json.matchedField
+        };
+        setDuplicateAlert(alertObj);
+        return alertObj;
+      } else {
+        setDuplicateAlert(null);
+        return null;
+      }
+    } catch (e) {
+      console.warn("Duplicate check notice:", e);
+      return null;
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  }, [editingStudent, getHeaders]);
+
+  const triggerDebouncedDuplicateCheck = (updatedForm) => {
+    if (editingStudent) return;
+    if (duplicateTimerRef.current) clearTimeout(duplicateTimerRef.current);
+    duplicateTimerRef.current = setTimeout(() => {
+      validateDuplicateStudent(updatedForm);
+    }, 400);
+  };
+
   const handleOpenAddModal = () => {
     setEditingStudent(null);
     setFormData(initialFormState);
     setImagePreview(null);
+    setDuplicateAlert(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (student) => {
     setEditingStudent(student);
+    setDuplicateAlert(null);
     const existingImg = student.profile_image || student.avatar || '';
     setImagePreview(existingImg || null);
 
@@ -433,6 +518,19 @@ const StudentAttendance = () => {
       }
     }
 
+    // Pre-submission duplicate check
+    if (!editingStudent) {
+      const dup = await validateDuplicateStudent({
+        ...formData,
+        identityNumber: cleanIdentityNumber
+      });
+      if (dup && dup.found) {
+        showToast("Student already exists. Please check the existing student record.", "error");
+        setIsAddingStudent(false);
+        return;
+      }
+    }
+
     const finalPayload = { 
       ...formData, 
       identityNumber: cleanIdentityNumber,
@@ -474,10 +572,24 @@ const StudentAttendance = () => {
         setFormData(initialFormState);
         setImagePreview(null);
         setEditingStudent(null);
+        setDuplicateAlert(null);
         showToast(
           editingStudent ? "Student Profile updated successfully!" : "Student Added successfully!", 
           "success"
         );
+      } else if (response.status === 409) {
+        const result = await response.json().catch(() => ({}));
+        const existing = result.existingStudent;
+        const msg = result.message || "Student already exists. Please check the existing student record.";
+        if (existing) {
+          setDuplicateAlert({
+            found: true,
+            message: msg,
+            student: existing,
+            matchedField: result.matchedField
+          });
+        }
+        showToast(msg, 'error');
       } else {
         let errMsg = "Enrollment failed.";
         try {
@@ -989,7 +1101,7 @@ const StudentAttendance = () => {
       {createPortal(
         <AnimatePresence>
           {isModalOpen && (
-            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden">
               <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
@@ -999,191 +1111,286 @@ const StudentAttendance = () => {
               />
 
               <motion.div 
-                initial={{ y: -20, opacity: 0 }} 
-                animate={{ y: 0, opacity: 1 }} 
-                exit={{ y: -20, opacity: 0 }} 
-                className="relative z-10 w-full max-w-5xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-10 rounded-[3rem] shadow-2xl overflow-y-auto flex flex-col my-auto"
+                initial={{ opacity: 0, scale: 0.95, y: 15 }} 
+                animate={{ opacity: 1, scale: 1, y: 0 }} 
+                exit={{ opacity: 0, scale: 0.95, y: 15 }} 
+                className="relative z-10 w-full max-w-5xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl flex flex-col my-auto overflow-hidden"
               >
-                <header className="mb-10 flex justify-between items-start">
+                <header className="px-6 md:px-10 py-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0 bg-white dark:bg-slate-900">
                   <div>
-                    <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tighter">
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
                       {editingStudent ? 'Edit' : 'Add'} <span className="text-indigo-600">Student</span>
                     </h2>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em] mt-2">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
                       Verified Institutional Student Registration Node
                     </p>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => setIsModalOpen(false)} 
-                    className="p-4 text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 transition-all bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500"
+                    className="p-3 text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 transition-all bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-500 cursor-pointer"
                   >
-                    <X size={24}/>
+                    <X size={20}/>
                   </button>
                 </header>
 
-                <form onSubmit={handleRegister} className="space-y-8">
-                  
-                  {/* STUDENT PROFILE IMAGE UPLOAD SECTION */}
-                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl flex flex-col sm:flex-row items-center gap-6">
-                    <div className="relative w-24 h-24 rounded-3xl bg-slate-200 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {imagePreview ? (
-                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-center text-slate-400 p-2">
-                          <Camera size={28} className="mx-auto mb-1" />
-                          <span className="text-[8px] font-black uppercase tracking-wider">No Image</span>
+                <div className="p-6 md:p-10 overflow-y-auto flex-1 overscroll-contain space-y-8">
+                  {/* DUPLICATE WARNING BANNER */}
+                  {duplicateAlert && duplicateAlert.found && (
+                    <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-3xl p-5 text-amber-900 dark:text-amber-200 shadow-md">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-amber-500/10 text-amber-600 rounded-xl mt-0.5 shrink-0">
+                            <AlertCircle size={20} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                              Duplicate Record Detected
+                            </p>
+                            <p className="text-xs font-medium mt-0.5">
+                              {duplicateAlert.message}
+                            </p>
+                            {duplicateAlert.student && (
+                              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                                Existing Student: <strong>{duplicateAlert.student.name}</strong> • ID: <strong className="font-mono">{duplicateAlert.student.studentId || duplicateAlert.student.employeeId || 'N/A'}</strong> • Matched by: <span className="font-semibold uppercase">{duplicateAlert.matchedField}</span>
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2 flex-1">
-                      <label className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <ImageIcon size={16} className="text-indigo-500" /> Student Profile Photo
-                      </label>
-                      <p className="text-[10px] text-slate-400 font-semibold">
-                        Upload official student photograph (JPEG, PNG or WEBP, max 10MB).
-                      </p>
-                      <div className="flex flex-wrap items-center gap-3 pt-1">
-                        <label className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-2 cursor-pointer transition-all shadow-md">
-                          <Upload size={14} /> Upload Photo
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={handleImageFileChange} 
-                          />
-                        </label>
-                        {imagePreview && (
+                        {duplicateAlert.student?._id && (
                           <button
                             type="button"
                             onClick={() => {
-                              setImagePreview(null);
-                              setFormData(prev => ({ ...prev, profile_image: '' }));
+                              setIsModalOpen(false);
+                              handleOpenProfile(duplicateAlert.student._id);
                             }}
-                            className="text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 px-3 py-2 border border-rose-200 dark:border-rose-900/50 rounded-xl cursor-pointer"
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer whitespace-nowrap self-start sm:self-auto"
                           >
-                            Remove Image
+                            View Existing Student Record
                           </button>
                         )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* SECTION 1: Personal Information */}
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
-                      <User size={14} /> Section 1: Personal Information
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <FormInput label="Full Name" name="name" icon={<User size={14}/>} value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
-                      <FormInput label="Email Address" name="email" type="email" icon={<Mail size={14}/>} value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
-                      <FormInput label="Account Password" name="password" type="password" icon={<Lock size={14}/>} value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingStudent} />
-                      
-                      <FormInput label="Date of Birth" name="dateOfBirth" type="date" icon={<CalendarIcon size={14}/>} value={formData.dateOfBirth} onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})} />
-                      
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">Gender</label>
-                        <select 
-                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm focus:border-indigo-500 transition-all cursor-pointer"
-                          value={formData.gender}
-                          onChange={(e) => setFormData({...formData, gender: e.target.value})}
-                        >
-                          <option value="">Select Gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <FormInput label="Contact Phone" name="phone" icon={<Phone size={14}/>} value={formData.phone}
-                          onChange={e => {
-                            const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                            setFormData({...formData, phone: digits});
-                          }}
-                          required
-                        />
-                        {formData.phone && formData.phone.length !== 10 && (
-                          <p className="text-[10px] text-red-500 mt-1 ml-2">Must be exactly 10 digits.</p>
+                  <form id="student-register-form" onSubmit={handleRegister} className="space-y-8">
+                    {/* STUDENT PROFILE IMAGE UPLOAD SECTION */}
+                    <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl flex flex-col sm:flex-row items-center gap-6">
+                      <div className="relative w-24 h-24 rounded-3xl bg-slate-200 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {imagePreview ? (
+                          <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="text-center text-slate-400 p-2">
+                            <Camera size={28} className="mx-auto mb-1" />
+                            <span className="text-[8px] font-black uppercase tracking-wider">No Image</span>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </div>
 
-                  {/* SECTION 2: Contact & Address */}
-                  <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
-                      <MapPin size={14} /> Section 2: Contact & Address Details
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <FormInput label="Alternate Phone" name="alternatePhone" icon={<Phone size={14}/>} value={formData.alternatePhone} onChange={(e) => setFormData({...formData, alternatePhone: e.target.value})} />
-                      <FormInput label="City" name="city" icon={<MapPin size={14}/>} value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} />
-                      <FormInput label="State" name="state" icon={<MapPin size={14}/>} value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} />
-                      <FormInput label="Pincode" name="pincode" icon={<MapPin size={14}/>} value={formData.pincode} onChange={(e) => setFormData({...formData, pincode: e.target.value})} />
-                      <div className="md:col-span-2">
-                        <FormInput label="Full Residence Address" name="address" icon={<MapPin size={14}/>} value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SECTION 3: Educational Background */}
-                  <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
-                      <GraduationCap size={14} /> Section 3: Educational Background & Preference
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <FormInput label="Highest Qualification" name="qualification" icon={<GraduationCap size={14}/>} value={formData.qualification} onChange={(e) => setFormData({...formData, qualification: e.target.value})} placeholder="e.g., B.Tech, MCA" />
-                      <FormInput label="Institution / College" name="institution" icon={<BookOpen size={14}/>} value={formData.institution} onChange={(e) => setFormData({...formData, institution: e.target.value})} />
-                      <FormInput label="Passing Year" name="passingYear" icon={<CalendarIcon size={14}/>} value={formData.passingYear} onChange={(e) => setFormData({...formData, passingYear: e.target.value})} placeholder="e.g., 2025" />
-                      <FormInput label="Course Preference" name="coursePreference" icon={<BookOpen size={14}/>} value={formData.coursePreference} onChange={(e) => setFormData({...formData, coursePreference: e.target.value})} placeholder="e.g., Full Stack Dev" />
-                    </div>
-                  </div>
-
-                  {/* SECTION 4: Identity Verification */}
-                  <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
-                      <CreditCard size={14} /> Section 4: Identity Verification Document
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">ID Type</label>
-                        <div className="relative">
-                          <ShieldPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
-                          <select 
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 text-slate-900 dark:text-slate-100 outline-none appearance-none text-sm focus:border-indigo-500 transition-all cursor-pointer" 
-                            value={formData.identityType} 
-                            onChange={(e) => setFormData({...formData, identityType: e.target.value})}
-                          >
-                            <option value="aadhaar">Aadhar Card</option>
-                            <option value="pancard">PAN Card</option>
-                          </select>
+                      <div className="space-y-2 flex-1">
+                        <label className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <ImageIcon size={16} className="text-indigo-500" /> Student Profile Photo
+                        </label>
+                        <p className="text-[10px] text-slate-400 font-semibold">
+                          Upload official student photograph (JPEG, PNG or WEBP, max 10MB).
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 pt-1">
+                          <label className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-2 cursor-pointer transition-all shadow-md">
+                            <Upload size={14} /> Upload Photo
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={handleImageFileChange} 
+                            />
+                          </label>
+                          {imagePreview && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setImagePreview(null);
+                                setFormData(prev => ({ ...prev, profile_image: '' }));
+                              }}
+                              className="text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 px-3 py-2 border border-rose-200 dark:border-rose-900/50 rounded-xl cursor-pointer"
+                            >
+                              Remove Image
+                            </button>
+                          )}
                         </div>
                       </div>
+                    </div>
 
-                      <div className="space-y-1">
-                        <FormInput label="ID Document Number" name="identityNumber" icon={<CreditCard size={14}/>} value={formData.identityNumber} onChange={(e) => setFormData({...formData, identityNumber: e.target.value})} />
-                        {formData.identityNumber && formData.identityType === 'aadhaar' && !/^\d{12}$/.test(formData.identityNumber.replace(/[\s-]/g, '')) && (
-                          <p className="text-[10px] text-red-500 mt-1 ml-2">Aadhaar must be exactly 12 digits.</p>
-                        )}
-                        {formData.identityNumber && formData.identityType === 'pancard' && !/^[A-Za-z]{5}\d{4}[A-Za-z]{1}$/.test(formData.identityNumber) && (
-                          <p className="text-[10px] text-red-500 mt-1 ml-2">Invalid PAN format (E.g. ABCDE1234F).</p>
-                        )}
+                    {/* SECTION 1: Personal Information */}
+                    <div className="space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                        <User size={14} /> Section 1: Personal Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <FormInput label="Full Name" name="name" icon={<User size={14}/>} value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
+                        
+                        <div>
+                          <FormInput 
+                            label="Email Address" 
+                            name="email" 
+                            type="email" 
+                            icon={<Mail size={14}/>} 
+                            value={formData.email} 
+                            onChange={(e) => {
+                              const updated = { ...formData, email: e.target.value };
+                              setFormData(updated);
+                              triggerDebouncedDuplicateCheck(updated);
+                            }} 
+                            required 
+                          />
+                          {duplicateAlert && duplicateAlert.matchedField === 'email' && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold mt-1 ml-2 flex items-center gap-1">
+                              <AlertCircle size={12} /> Student already exists with this email address.
+                            </p>
+                          )}
+                        </div>
+
+                        <FormInput label="Account Password" name="password" type="password" icon={<Lock size={14}/>} value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingStudent} />
+                        
+                        <FormInput label="Date of Birth" name="dateOfBirth" type="date" icon={<CalendarIcon size={14}/>} value={formData.dateOfBirth} onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})} />
+                        
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">Gender</label>
+                          <select 
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm focus:border-indigo-500 transition-all cursor-pointer"
+                            value={formData.gender}
+                            onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <FormInput 
+                            label="Contact Phone" 
+                            name="phone" 
+                            icon={<Phone size={14}/>} 
+                            value={formData.phone}
+                            onChange={e => {
+                              const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                              const updated = { ...formData, phone: digits };
+                              setFormData(updated);
+                              triggerDebouncedDuplicateCheck(updated);
+                            }}
+                            required
+                          />
+                          {formData.phone && formData.phone.length !== 10 && (
+                            <p className="text-[10px] text-red-500 mt-1 ml-2">Must be exactly 10 digits.</p>
+                          )}
+                          {duplicateAlert && duplicateAlert.matchedField === 'phone' && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold mt-1 ml-2 flex items-center gap-1">
+                              <AlertCircle size={12} /> Student already exists with this phone number.
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="lg:col-span-3 mt-6">
-                    <button 
-                      type="submit" 
-                      disabled={isAddingStudent} 
-                      className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-                    >
-                      {isAddingStudent ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
-                      Confirm
-                    </button>
-                  </div>
+                    {/* SECTION 2: Contact & Address */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                        <MapPin size={14} /> Section 2: Contact & Address Details
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <FormInput label="Alternate Phone" name="alternatePhone" icon={<Phone size={14}/>} value={formData.alternatePhone} onChange={(e) => setFormData({...formData, alternatePhone: e.target.value})} />
+                        <FormInput label="City" name="city" icon={<MapPin size={14}/>} value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} />
+                        <FormInput label="State" name="state" icon={<MapPin size={14}/>} value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} />
+                        <FormInput label="Pincode" name="pincode" icon={<MapPin size={14}/>} value={formData.pincode} onChange={(e) => setFormData({...formData, pincode: e.target.value})} />
+                        <div className="md:col-span-2">
+                          <FormInput label="Full Residence Address" name="address" icon={<MapPin size={14}/>} value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
+                        </div>
+                      </div>
+                    </div>
 
-                </form>
+                    {/* SECTION 3: Educational Background */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                        <GraduationCap size={14} /> Section 3: Educational Background & Preference
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <FormInput label="Highest Qualification" name="qualification" icon={<GraduationCap size={14}/>} value={formData.qualification} onChange={(e) => setFormData({...formData, qualification: e.target.value})} placeholder="e.g., B.Tech, MCA" />
+                        <FormInput label="Institution / College" name="institution" icon={<BookOpen size={14}/>} value={formData.institution} onChange={(e) => setFormData({...formData, institution: e.target.value})} />
+                        <FormInput label="Passing Year" name="passingYear" icon={<CalendarIcon size={14}/>} value={formData.passingYear} onChange={(e) => setFormData({...formData, passingYear: e.target.value})} placeholder="e.g., 2025" />
+                        <FormInput label="Course Preference" name="coursePreference" icon={<BookOpen size={14}/>} value={formData.coursePreference} onChange={(e) => setFormData({...formData, coursePreference: e.target.value})} placeholder="e.g., Full Stack Dev" />
+                      </div>
+                    </div>
+
+                    {/* SECTION 4: Identity Verification */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                      <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                        <CreditCard size={14} /> Section 4: Identity Verification Document
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">ID Type</label>
+                          <div className="relative">
+                            <ShieldPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                            <select 
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 text-slate-900 dark:text-slate-100 outline-none appearance-none text-sm focus:border-indigo-500 transition-all cursor-pointer" 
+                              value={formData.identityType} 
+                              onChange={(e) => setFormData({...formData, identityType: e.target.value})}
+                            >
+                              <option value="aadhaar">Aadhar Card</option>
+                              <option value="pancard">PAN Card</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <FormInput 
+                            label="ID Document Number" 
+                            name="identityNumber" 
+                            icon={<CreditCard size={14}/>} 
+                            value={formData.identityNumber} 
+                            onChange={(e) => {
+                              const updated = { ...formData, identityNumber: e.target.value };
+                              setFormData(updated);
+                              triggerDebouncedDuplicateCheck(updated);
+                            }} 
+                          />
+                          {formData.identityNumber && formData.identityType === 'aadhaar' && !/^\d{12}$/.test(formData.identityNumber.replace(/[\s-]/g, '')) && (
+                            <p className="text-[10px] text-red-500 mt-1 ml-2">Aadhaar must be exactly 12 digits.</p>
+                          )}
+                          {formData.identityNumber && formData.identityType === 'pancard' && !/^[A-Za-z]{5}\d{4}[A-Za-z]{1}$/.test(formData.identityNumber) && (
+                            <p className="text-[10px] text-red-500 mt-1 ml-2">Invalid PAN format (E.g. ABCDE1234F).</p>
+                          )}
+                          {duplicateAlert && duplicateAlert.matchedField === 'identityNumber' && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold mt-1 ml-2 flex items-center gap-1">
+                              <AlertCircle size={12} /> Student already exists with this identity document number.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                {/* PINNED MODAL FOOTER */}
+                <footer className="px-6 md:px-10 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3 shrink-0 bg-slate-50/80 dark:bg-slate-950/80 rounded-b-[2.5rem]">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit"
+                    form="student-register-form"
+                    disabled={isAddingStudent || (duplicateAlert && duplicateAlert.found)} 
+                    className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+                  >
+                    {isAddingStudent ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                    {editingStudent ? 'Save Profile' : 'Confirm Registration'}
+                  </button>
+                </footer>
               </motion.div>
             </div>
           )}
