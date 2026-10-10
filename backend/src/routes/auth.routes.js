@@ -12,8 +12,11 @@ import {
   validateBody
 } from '../validators/task.validator.js';
 
+import { checkDuplicateStudent } from '../controllers/student.controller.js';
+
 const router = Router();
 
+router.get('/check-duplicate', checkDuplicateStudent);
 router.post('/signup', signup);
 router.post('/login', login);
 router.post('/google', googleLogin);

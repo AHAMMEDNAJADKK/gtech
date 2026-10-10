@@ -164,6 +164,160 @@ export const studentFeeController = {
   },
 
   /**
+   * GET /api/v1/student-fees/student-details/:studentId
+   * Retrieve authoritative student details, active courses, batches, and existing fee accounts
+   */
+  getStudentFeeDetails: async (req, res) => {
+    try {
+      const { studentId } = req.params;
+      if (!studentId || !mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ success: false, message: 'Invalid or missing student ID format.' });
+      }
+
+      const user = req.user || {};
+      const userRole = String(user.role || '').toLowerCase();
+      const userRoleId = String(user.role_id || '');
+
+      // Security / RBAC: Student can only view their own fee details
+      if ((userRole === 'student' || userRoleId === '10') && String(studentId) !== String(user.id || user._id)) {
+        return res.status(403).json({ success: false, message: 'Access denied: You can only query your own student records.' });
+      }
+
+      // 1. Fetch Student from User model (with fallback to Student model)
+      let student = await User.findById(studentId).select('-password -passwordHash').lean();
+      if (!student) {
+        const Student = (await import('../models/student.js')).default;
+        if (Student) {
+          student = await Student.findById(studentId).select('-password').lean();
+        }
+      }
+
+      if (!student) {
+        return res.status(404).json({ success: false, message: 'Student record not found.' });
+      }
+
+      // 2. Fetch all valid Enrollments for this student
+      const enrollments = await Enrollment.find({
+        studentId: student._id,
+        status: { $nin: ['dropped', 'DROPPED'] }
+      })
+      .populate('courseId', 'courseName courseCode courseFee durationValue durationUnit')
+      .populate('batchId', 'batchName batchCode startDate endDate scheduleTime')
+      .lean();
+
+      // 3. Fetch direct Batch assignments for this student
+      const directBatches = await Batch.find({
+        students: student._id,
+        status: { $ne: 'CANCELLED' }
+      })
+      .populate('courseId', 'courseName courseCode courseFee durationValue durationUnit')
+      .lean();
+
+      // 4. Consolidate assigned courses and batches
+      const coursesMap = new Map();
+
+      // From enrollments
+      for (const enr of enrollments) {
+        if (!enr.courseId) continue;
+        const cId = String(enr.courseId._id || enr.courseId);
+        if (!coursesMap.has(cId)) {
+          coursesMap.set(cId, {
+            _id: enr.courseId._id || enr.courseId,
+            courseName: enr.courseId.courseName || 'Assigned Course',
+            courseCode: enr.courseId.courseCode || '',
+            courseFee: enr.courseId.courseFee || 0,
+            durationValue: enr.courseId.durationValue,
+            durationUnit: enr.courseId.durationUnit,
+            batches: []
+          });
+        }
+        const courseEntry = coursesMap.get(cId);
+        if (enr.batchId) {
+          const bId = String(enr.batchId._id || enr.batchId);
+          if (!courseEntry.batches.some(b => String(b._id) === bId)) {
+            courseEntry.batches.push({
+              _id: enr.batchId._id || enr.batchId,
+              batchName: enr.batchId.batchName || 'Assigned Batch',
+              batchCode: enr.batchId.batchCode || '',
+              startDate: enr.batchId.startDate,
+              endDate: enr.batchId.endDate,
+              scheduleTime: enr.batchId.scheduleTime || '',
+              enrollmentId: enr._id
+            });
+          }
+        }
+      }
+
+      // From direct batches
+      for (const batch of directBatches) {
+        if (!batch.courseId) continue;
+        const cId = String(batch.courseId._id || batch.courseId);
+        if (!coursesMap.has(cId)) {
+          coursesMap.set(cId, {
+            _id: batch.courseId._id || batch.courseId,
+            courseName: batch.courseId.courseName || 'Assigned Course',
+            courseCode: batch.courseId.courseCode || '',
+            courseFee: batch.courseId.courseFee || 0,
+            durationValue: batch.courseId.durationValue,
+            durationUnit: batch.courseId.durationUnit,
+            batches: []
+          });
+        }
+        const courseEntry = coursesMap.get(cId);
+        const bId = String(batch._id);
+        if (!courseEntry.batches.some(b => String(b._id) === bId)) {
+          courseEntry.batches.push({
+            _id: batch._id,
+            batchName: batch.batchName || 'Assigned Batch',
+            batchCode: batch.batchCode || '',
+            startDate: batch.startDate,
+            endDate: batch.endDate,
+            scheduleTime: batch.scheduleTime || ''
+          });
+        }
+      }
+
+      const assignedCourses = Array.from(coursesMap.values());
+
+      // 5. Fetch existing StudentFee records for this student
+      const existingFees = await StudentFee.find({ studentId: student._id })
+        .populate('courseId', 'courseName courseCode courseFee')
+        .populate('batchId', 'batchName batchCode')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          student: {
+            _id: student._id,
+            name: student.name,
+            email: student.email,
+            phone: student.phone,
+            alternatePhone: student.alternatePhone || '',
+            studentId: student.studentId || student.employeeId || '',
+            identityType: student.identityType || '',
+            identityNumber: student.identityNumber || '',
+            city: student.city || '',
+            state: student.state || '',
+            address: student.address || '',
+            coursePreference: student.coursePreference || ''
+          },
+          assignedCourses,
+          existingFees
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching student fee details:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve student academic details.',
+        error: error.message
+      });
+    }
+  },
+
+  /**
    * POST /api/v1/student-fees
    * Admin creates or assigns tuition plan for student
    */
@@ -307,6 +461,129 @@ export const studentFeeController = {
     } catch (error) {
       console.error('Error recording payment:', error);
       return res.status(500).json({ success: false, message: 'Failed to record fee payment.', error: error.message });
+    }
+  },
+
+  /**
+   * POST /api/v1/student-fees/issue-receipt
+   * Direct fee receipt generation with authoritative course/batch linkage
+   */
+  issueDirectReceipt: async (req, res) => {
+    try {
+      const {
+        studentId,
+        courseId,
+        batchId,
+        amount,
+        paymentMethod = 'Cash at Counter',
+        transactionId = '',
+        notes = '',
+        totalAmount,
+        discountAmount = 0
+      } = req.body;
+
+      if (!studentId || !courseId || !batchId) {
+        return res.status(400).json({ success: false, message: 'Student, course, and batch IDs are required.' });
+      }
+
+      const numAmount = Number(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        return res.status(400).json({ success: false, message: 'Valid payment amount is required.' });
+      }
+
+      // Check if fee record exists for this student and course
+      let fee = await StudentFee.findOne({ studentId, courseId });
+      const receiptNo = await generateReceiptNumber();
+
+      if (!fee) {
+        const rawTotal = Math.max(numAmount, Number(totalAmount || numAmount));
+        const rawDiscount = Math.max(0, Number(discountAmount || 0));
+        const finalAmount = Math.max(0, rawTotal - rawDiscount);
+        const feeCode = await generateFeeCode();
+
+        const paidAmount = numAmount;
+        const dueAmount = Math.max(0, finalAmount - paidAmount);
+        const status = dueAmount === 0 ? 'PAID' : (paidAmount > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+
+        const paymentRecord = {
+          receiptNo,
+          amount: numAmount,
+          paymentDate: new Date(),
+          paymentMethod: paymentMethod || 'Cash at Counter',
+          transactionId: transactionId || `TXN-${Date.now()}`,
+          installmentIndex: -1,
+          notes: notes || 'Direct fee receipt',
+          recordedBy: req.user?.id || req.user?._id,
+          gatewayStatus: 'SUCCESS'
+        };
+
+        fee = await StudentFee.create({
+          feeCode,
+          studentId,
+          courseId,
+          batchId,
+          totalAmount: rawTotal,
+          discountAmount: rawDiscount,
+          finalAmount,
+          paidAmount,
+          dueAmount,
+          status,
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          installments: [{
+            installmentNumber: 1,
+            title: 'Initial Payment / Receipt',
+            dueDate: new Date(),
+            amount: numAmount,
+            paidAmount: numAmount,
+            status: 'PAID',
+            paidDate: new Date(),
+            paymentMethod: paymentMethod || 'Cash at Counter',
+            receiptNo,
+            notes: notes || ''
+          }],
+          paymentHistory: [paymentRecord],
+          notes: notes || '',
+          createdBy: req.user?.id || req.user?._id
+        });
+      } else {
+        const paymentRecord = {
+          receiptNo,
+          amount: numAmount,
+          paymentDate: new Date(),
+          paymentMethod: paymentMethod || 'Cash at Counter',
+          transactionId: transactionId || `TXN-${Date.now()}`,
+          installmentIndex: -1,
+          notes: notes || 'Direct fee receipt',
+          recordedBy: req.user?.id || req.user?._id,
+          gatewayStatus: 'SUCCESS'
+        };
+
+        fee.paymentHistory.push(paymentRecord);
+        fee.paidAmount = (fee.paidAmount || 0) + numAmount;
+        fee.dueAmount = Math.max(0, fee.finalAmount - fee.paidAmount);
+        fee.status = fee.dueAmount === 0 ? 'PAID' : 'PARTIALLY_PAID';
+        if (batchId) fee.batchId = batchId;
+        fee.updatedBy = req.user?.id || req.user?._id;
+        await fee.save();
+      }
+
+      const populatedFee = await StudentFee.findById(fee._id)
+        .populate('studentId', 'name email phone studentId')
+        .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode');
+
+      return res.status(200).json({
+        success: true,
+        message: `Payment recorded and receipt ${receiptNo} issued successfully.`,
+        data: {
+          receiptNo,
+          receipt: fee.paymentHistory[fee.paymentHistory.length - 1],
+          fee: populatedFee
+        }
+      });
+    } catch (error) {
+      console.error('Error issuing direct fee receipt:', error);
+      return res.status(500).json({ success: false, message: 'Failed to issue fee receipt.', error: error.message });
     }
   },
 

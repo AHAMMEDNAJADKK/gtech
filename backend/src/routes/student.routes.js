@@ -4,7 +4,8 @@ import {
   markAttendance,
   getAttendanceByDate,
   getStudentProfile,
-  deleteStudent
+  deleteStudent,
+  checkDuplicateStudent
 } from '../controllers/student.controller.js';
 
 const router = express.Router();
@@ -12,6 +13,8 @@ const router = express.Router();
 // Apply authentication middleware to all student/attendance routes
 router.use(protectRoute);
 
+router.get('/check-duplicate', checkDuplicateStudent);
+router.get('/students/check-duplicate', checkDuplicateStudent);
 router.post('/attendance/mark', markAttendance);
 router.get('/attendance/student/:date', getAttendanceByDate);
 router.get('/student/profile/:id', getStudentProfile);

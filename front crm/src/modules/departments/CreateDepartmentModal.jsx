@@ -1,6 +1,5 @@
-// src/modules/departments/CreateDepartmentModal.jsx
-
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, AlertCircle, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -86,7 +85,7 @@ export const CreateDepartmentModal = ({ isOpen, onClose, onSuccess }) => {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
         {/* Backdrop */}
@@ -274,7 +273,8 @@ export const CreateDepartmentModal = ({ isOpen, onClose, onSuccess }) => {
           </form>
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

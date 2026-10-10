@@ -1,6 +1,5 @@
-// src/modules/departments/DepartmentUsersDrawer.jsx
-
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, UserX, Loader, Mail, Briefcase, Award, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -121,7 +120,7 @@ export const DepartmentUsersDrawer = ({ isOpen, onClose, department }) => {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] overflow-hidden">
         {/* Backdrop */}
@@ -307,7 +306,8 @@ export const DepartmentUsersDrawer = ({ isOpen, onClose, department }) => {
           </motion.div>
         </div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

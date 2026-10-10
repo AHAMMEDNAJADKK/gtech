@@ -5,6 +5,7 @@ import {
   AlertCircle, Loader2, Plus, QrCode, ShieldCheck, X, BookOpen, User
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import Modal from '../components/Modal';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -243,79 +244,68 @@ const CertificatesPage = () => {
       )}
 
       {/* Issue Certificate Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 md:p-8 space-y-5"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                Issue Course Certificate
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Issue Course Certificate"
+        subtitle="Official certificate generation with student credential verification"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleGenerateCertificate} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+              Completed Student Enrollment *
+            </label>
+            <select
+              required
+              value={selectedEnrollmentId}
+              onChange={(e) => setSelectedEnrollmentId(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-amber-500 font-medium"
+            >
+              <option value="">Select Completed Student...</option>
+              {completedEnrollments.map(en => (
+                <option key={en._id} value={en._id}>
+                  {en.studentId?.name || 'Student'} — {en.courseId?.courseName || 'Course'} ({en.batchId?.batchName || 'Batch'})
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Only students with 100% curriculum progress or status marked 'completed' can receive credentials.
+            </p>
+          </div>
 
-            <form onSubmit={handleGenerateCertificate} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Completed Student Enrollment *
-                </label>
-                <select
-                  required
-                  value={selectedEnrollmentId}
-                  onChange={(e) => setSelectedEnrollmentId(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-amber-500"
-                >
-                  <option value="">Select Completed Student...</option>
-                  {completedEnrollments.map(en => (
-                    <option key={en._id} value={en._id}>
-                      {en.studentId?.name || 'Student'} — {en.courseId?.courseName || 'Course'} ({en.batchId?.batchName || 'Batch'})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Only students with 100% curriculum progress or status marked 'completed' can receive credentials.
-                </p>
-              </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
+              Final Score / Grade Percentage (%)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={scorePercent}
+              onChange={(e) => setScorePercent(Number(e.target.value))}
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-amber-500"
+            />
+          </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase mb-1">
-                  Final Score / Grade Percentage (%)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={scorePercent}
-                  onChange={(e) => setScorePercent(Number(e.target.value))}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={generating}
-                  className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 disabled:opacity-50 cursor-pointer"
-                >
-                  {generating ? 'Generating...' : 'Issue & Sign Certificate'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={generating}
+              className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md shadow-amber-600/20 disabled:opacity-50 cursor-pointer"
+            >
+              {generating ? 'Generating...' : 'Issue & Sign Certificate'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

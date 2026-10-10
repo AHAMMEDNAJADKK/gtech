@@ -1901,15 +1901,15 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, getAuthHeaders, showTo
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
             <Plus className="text-indigo-600" size={18} />
             Create Lead Profile
@@ -2165,7 +2165,8 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, getAuthHeaders, showTo
           </div>
         </form>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -2278,15 +2279,15 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, getAuthHeaders, sh
 
   if (!isOpen || !lead) return null;
 
-  return (
-<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">    
-  <motion.div
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">    
+      <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
             <Edit3 className="text-indigo-600" size={18} />
             Modify Lead Profile
@@ -2551,7 +2552,8 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, getAuthHeaders, sh
           </div>
         </form>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -2561,14 +2563,15 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, getAuthHeaders, sh
 const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
   if (!isOpen || !lead) return null;
 
-  return (
-<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">      <motion.div
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-3xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
             <TrendingUp className="text-indigo-600" size={18} />
             Lead Timeline Profile
@@ -2753,7 +2756,8 @@ const ViewModal = ({ isOpen, onClose, lead, details, loading }) => {
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -2817,15 +2821,15 @@ const FollowUpModal = ({ isOpen, onClose, onFollowedUp, lead, getAuthHeaders, sh
 
   if (!isOpen || !lead) return null;
 
-  return (
-<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-lg max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
             <Clock className="text-indigo-600" size={18} />
             Log Follow-Up Activity: {lead.leadName}
@@ -2916,7 +2920,8 @@ const FollowUpModal = ({ isOpen, onClose, onFollowedUp, lead, getAuthHeaders, sh
           </div>
         </form>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -3178,15 +3183,15 @@ const ImportModal = ({ isOpen, onClose, onImported, getAuthHeaders, showToast })
 
   if (!isOpen) return null;
 
-  return (
-<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-xl max-h-[90vh] flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <h2 className="text-base font-bold text-slate-850 dark:text-white flex items-center gap-2">
             <FileSpreadsheet className="text-indigo-600" size={18} />
             Excel Data Import Mapper
@@ -3520,7 +3525,8 @@ const ImportModal = ({ isOpen, onClose, onImported, getAuthHeaders, showToast })
           )}
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

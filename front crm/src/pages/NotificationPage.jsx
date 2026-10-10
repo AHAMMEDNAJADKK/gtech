@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bell, 
@@ -943,7 +944,8 @@ const NotificationPage = () => {
       </div>
 
       {/* Edit Notification Modal */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {editingNotification && (
           <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
@@ -1093,10 +1095,13 @@ const NotificationPage = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
       {/* Fullscreen Image Preview Modal */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {selectedImageModal && (
           <div 
             className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4" 
@@ -1124,7 +1129,9 @@ const NotificationPage = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
     </div>
   );
 };

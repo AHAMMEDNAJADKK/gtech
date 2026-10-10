@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   getSalaryPayments,
   deleteSalaryPayment,
@@ -335,10 +336,10 @@ const SalaryPaymentTab = () => {
       </div>
 
       {/* REJECTION REASON MODAL (Center-Intersected) */}
-      {selectedSalaryToReject && (
-        <div className="fixed inset-0 z-[110]">
-          <div className="fixed inset-0 bg-slate-950/60" onClick={() => setSelectedSalaryToReject(null)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[111] w-[90vw] max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100">
+      {selectedSalaryToReject && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setSelectedSalaryToReject(null)} />
+          <div className="relative z-10 w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 text-slate-800 dark:text-slate-100">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <XCircle className="w-4 h-4 text-rose-600" /> Reject Salary Payment
@@ -387,7 +388,8 @@ const SalaryPaymentTab = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* OFFICIAL PAYSLIP MODAL */}

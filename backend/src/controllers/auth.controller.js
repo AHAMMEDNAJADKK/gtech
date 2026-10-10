@@ -19,14 +19,53 @@ export const signup = async (req, res) => {
       qualification, institution, passingYear, coursePreference
     } = req.body;
 
-    // 1. Check if user already exists
-    const searchConditions = [{ email }];
-    if (phone) searchConditions.push({ phone });
+    const { normalizeEmail, normalizePhone, normalizeIdentityNumber, buildPhoneMatchVariants } = await import('../utils/normalize.util.js');
+
+    const cleanEmail = normalizeEmail(email);
+    const cleanPhone = String(phone || '').trim();
+    const cleanNormPhone = normalizePhone(cleanPhone);
+    const cleanIdNum = normalizeIdentityNumber(identityNumber);
+
+    // 1. Comprehensive Check if user or student already exists
+    const searchConditions = [{ email: cleanEmail }];
+    if (cleanPhone) {
+      const phoneVariants = buildPhoneMatchVariants(cleanPhone);
+      searchConditions.push({ phone: { $in: phoneVariants } });
+      if (cleanNormPhone && cleanNormPhone.length >= 7) {
+        searchConditions.push({ phone: new RegExp(`${cleanNormPhone}$`) });
+      }
+    }
+    if (cleanIdNum) {
+      searchConditions.push({ identityNumber: cleanIdNum });
+    }
+
     const existingUsers = await User.find({ $or: searchConditions });
     if (existingUsers.length > 0) {
+      const isStudentRegistration = String(role_id) === '10' || String(req.body.role || '').toLowerCase() === 'student';
+      const existingStudent = existingUsers.find(u => u.role === 'student' || u.role_id === '10');
+      const targetExisting = existingStudent || existingUsers[0];
+
+      if (isStudentRegistration || existingStudent) {
+        return res.status(409).json({
+          success: false,
+          conflict: true,
+          message: "Student already exists. Please check the existing student record.",
+          detail: "Student already exists. Please check the existing student record.",
+          duplicateField: cleanEmail && existingUsers.some(u => u.email === cleanEmail) ? 'email' : 'phone',
+          existingStudent: {
+            _id: targetExisting._id,
+            name: targetExisting.name,
+            studentId: targetExisting.studentId || null
+          }
+        });
+      }
+
       const conflicts = [];
-      const hasEmail = existingUsers.some(u => u.email === email);
-      const hasPhone = phone && existingUsers.some(u => u.phone === phone);
+      const hasEmail = existingUsers.some(u => u.email === cleanEmail);
+      const hasPhone = cleanPhone && existingUsers.some(u => {
+        const uNorm = normalizePhone(u.phone);
+        return u.phone === cleanPhone || (cleanNormPhone && uNorm === cleanNormPhone);
+      });
       if (hasEmail) conflicts.push('Email');
       if (hasPhone) conflicts.push('Phone number');
 
@@ -133,6 +172,23 @@ export const signup = async (req, res) => {
       studentId: generatedStudentId
     });
   } catch (error) {
+    if (error.code === 11000) {
+      const isStudent = String(req.body?.role_id) === '10' || String(req.body?.role || '').toLowerCase() === 'student';
+      if (isStudent) {
+        return res.status(409).json({
+          success: false,
+          conflict: true,
+          message: "Student already exists. Please check the existing student record.",
+          detail: "Student already exists. Please check the existing student record."
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        conflict: true,
+        message: "Conflict: An account with this email or identifier is already registered.",
+        detail: "Conflict: An account with this email or identifier is already registered."
+      });
+    }
     res.status(500).json({ detail: error.message });
   }
 };
