@@ -21,17 +21,54 @@ router.post(
   userController.changePassword
 );
 
-// GET ALL USERS (Admin / HR only)
+// GET ALL USERS (Staff can query students; Admin / HR can query all users)
 router.get(
   '/',
-  requireRole(['admin', 'hr']),
+  (req, res, next) => {
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const userRoleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isSuperAdmin = req.user?.isSuperAdmin === true || userRole === 'superadmin' || userRoleId === '0';
+    const isPrivileged = isSuperAdmin || ['admin', 'hr', '1', '2'].includes(userRole) || ['1', '2'].includes(userRoleId);
+    const isStaff = isPrivileged || ['mentor', 'instructor', 'counselor', 'telecaller', '3'].includes(userRole) || ['3'].includes(userRoleId);
+
+    const queryRole = String(req.query?.role || '').toLowerCase().trim();
+    const queryRoleId = String(req.query?.role_id || '').trim();
+    const isStudentQuery = queryRole === 'student' || queryRoleId === '10';
+
+    if (isStudentQuery && isStaff) {
+      return next();
+    }
+
+    if (isPrivileged) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. You do not have permission to view this directory.'
+    });
+  },
   userController.getUsers
 );
 
 // SIMPLE USER LIST (Staff only, never students)
 router.get(
   '/list',
-  requireRole(['admin', 'hr']),
+  (req, res, next) => {
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const userRoleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isSuperAdmin = req.user?.isSuperAdmin === true || userRole === 'superadmin' || userRoleId === '0';
+    const isStaff = isSuperAdmin || ['admin', 'hr', 'mentor', 'instructor', 'counselor', 'telecaller', '1', '2', '3'].includes(userRole) || ['1', '2', '3'].includes(userRoleId);
+
+    if (isStaff) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Staff directory is restricted to staff members.'
+    });
+  },
   userController.getUserList
 );
 

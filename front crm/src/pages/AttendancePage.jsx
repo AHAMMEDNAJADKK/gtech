@@ -5,7 +5,7 @@ import {
   Clock, LogIn, LogOut, ShieldCheck, User, Calendar, CheckCircle2, 
   AlertCircle, XCircle, Users, Activity, Sparkles, RefreshCw, 
   FileText, ArrowUpRight, Search, Filter, ChevronRight, Award,
-  BookOpen, AlertTriangle, UserCheck, UserX, Check
+  BookOpen, AlertTriangle, UserCheck, UserX, Check, Download
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
@@ -234,6 +234,36 @@ const AttendancePage = () => {
       setLoadingRoster(false);
     }
   }, [getHeaders, isStudent, rosterDate, rosterRole, rosterStatus, rosterCourseId, rosterBatchId, rosterSearch]);
+
+  const handleExportRosterCsv = useCallback(() => {
+    if (!rosterData?.records || rosterData.records.length === 0) {
+      showToast('No roster records available to export.', 'warning');
+      return;
+    }
+    const headers = ['Name', 'Email', 'Identifier', 'Role', 'Course', 'Batch', 'Department', 'Date', 'CheckIn_Time', 'Status'];
+    const rows = rosterData.records.map(r => [
+      `"${(r.name || '').replace(/"/g, '""')}"`,
+      `"${(r.email || '').replace(/"/g, '""')}"`,
+      `"${(r.identifier || r.studentId || r.employeeId || '').replace(/"/g, '""')}"`,
+      `"${(r.roleLabel || r.role || '').replace(/"/g, '""')}"`,
+      `"${(r.courseName || '').replace(/"/g, '""')}"`,
+      `"${(r.batchName || '').replace(/"/g, '""')}"`,
+      `"${(r.departmentName || '').replace(/"/g, '""')}"`,
+      `"${r.date || rosterDate}"`,
+      `"${r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}"`,
+      `"${r.status || 'ABSENT'}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Attendance_Roster_${rosterDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Attendance roster exported successfully as CSV.', 'success');
+  }, [rosterData, rosterDate, showToast]);
 
   useEffect(() => {
     fetchMyShift();
@@ -775,6 +805,16 @@ const AttendancePage = () => {
                 >
                   <RefreshCw size={14} className={loadingRoster ? 'animate-spin text-indigo-500' : 'text-slate-500'} />
                   Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportRosterCsv}
+                  disabled={loadingRoster || !rosterData?.records || rosterData.records.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/50 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Export filtered daily roster to CSV spreadsheet"
+                >
+                  <Download size={14} />
+                  Export CSV
                 </button>
               </div>
             </div>
