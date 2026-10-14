@@ -309,3 +309,89 @@ export const markUserAttendance = async (req, res) => {
     return res.status(500).json({ detail: error.message });
   }
 };
+
+export const getMyShift = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ detail: "Authentication required." });
+    }
+    const userId = req.user.id || req.user._id;
+    const todayStr = getISTDate();
+    const record = await Attendance.findOne({ user_id: userId, date: todayStr });
+
+    const now = new Date();
+    const istTimeStr = now.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+
+    const isActive = Boolean(record?.check_in_time && !record?.check_out_time);
+    let currentWorkingHours = record?.working_hours || "0.00";
+    if (isActive && record?.check_in_time) {
+      const ms = now.getTime() - new Date(record.check_in_time).getTime();
+      const hrs = Math.max(0, ms / (1000 * 60 * 60));
+      currentWorkingHours = hrs.toFixed(2);
+    }
+
+    return res.status(200).json({
+      success: true,
+      today: todayStr,
+      serverTimeIST: istTimeStr,
+      isActiveShift: isActive,
+      currentWorkingHours,
+      attendance: serializeAttendance(record)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};
+
+export const getMyHistory = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ detail: "Authentication required." });
+    }
+    const userId = req.user.id || req.user._id;
+    const limit = parseInt(req.query.limit, 10) || 30;
+    const records = await Attendance.find({ user_id: userId })
+      .sort({ date: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: records.map(serializeAttendance)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};
+
+export const getAttendanceSummary = async (req, res) => {
+  try {
+    const todayStr = req.query.date || getISTDate();
+    const records = await Attendance.find({ date: todayStr }).populate('user_id', 'name email role department designation employeeId avatar');
+    const totalStaff = records.length;
+    const activeShifts = records.filter(r => r.check_in_time && !r.check_out_time).length;
+    const completedShifts = records.filter(r => r.check_out_time).length;
+    const lateArrivals = records.filter(r => r.is_late).length;
+
+    return res.status(200).json({
+      success: true,
+      date: todayStr,
+      totalMarked: totalStaff,
+      activeShifts,
+      completedShifts,
+      lateArrivals,
+      records: records.map(serializeAttendance)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};

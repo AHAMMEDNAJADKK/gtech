@@ -205,11 +205,12 @@ export const requireInstructorOrAdmin = (req, res, next) => {
     roleId === '0' ||
     roleId === '1' ||
     roleId === '2' ||
-    ['admin', 'superadmin', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor'].includes(roleName) ||
+    ['admin', 'superadmin', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor', 'hr'].includes(roleName) ||
     roleName.includes('instructor') ||
     roleName.includes('mentor') ||
     roleName.includes('teach') ||
-    roleName.includes('admin');
+    roleName.includes('admin') ||
+    roleName.includes('hr');
 
   if (!isAllowed) {
     return res.status(403).json({

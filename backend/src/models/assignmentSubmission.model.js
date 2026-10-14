@@ -19,10 +19,17 @@ const assignmentSubmissionSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  batchId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Batch',
+    default: null,
+    index: true
+  },
   enrollmentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Enrollment',
-    required: true,
+    required: false,
+    default: null,
     index: true
   },
   submissionType: {
@@ -52,13 +59,26 @@ const assignmentSubmissionSchema = new mongoose.Schema({
   },
   submittedAt: {
     type: Date,
-    default: Date.now
+    default: null
+  },
+  isLate: {
+    type: Boolean,
+    default: false
   },
   status: {
     type: String,
-    enum: ['SUBMITTED', 'UNDER_REVIEW', 'GRADED', 'RETURNED'],
-    default: 'SUBMITTED',
+    enum: ['NOT_STARTED', 'SUBMITTED', 'UNDER_REVIEW', 'GRADED', 'RESUBMISSION_REQUIRED', 'RETURNED'],
+    default: 'NOT_STARTED',
     index: true
+  },
+  resubmissionReason: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  resubmittedAt: {
+    type: Date,
+    default: null
   },
   grade: {
     type: Number,

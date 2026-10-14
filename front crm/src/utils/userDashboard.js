@@ -17,9 +17,9 @@ export const resolveUserDashboardPath = (userObj) => {
     return '/academy/learning';
   }
 
-  // 2. Instructor / Faculty Role -> Batches or Dashboard
-  if (userRole.includes('instructor') || userDesig.includes('instructor') || userDesig.includes('trainer') || userDesig.includes('teacher')) {
-    return '/academy/batches';
+  // 2. Mentor / Instructor / Faculty Role -> Dashboard
+  if (userRole.includes('mentor') || userDesig.includes('mentor') || userRole.includes('instructor') || userDesig.includes('instructor') || userDesig.includes('trainer') || userDesig.includes('teacher')) {
+    return '/dashboard';
   }
 
   // 3. Academic Counselor Role

@@ -63,14 +63,31 @@ router.post('/lessons/:lessonId/complete', lmsController.completeLesson);
 
 // Assignment Management
 router.get('/assignments', lmsController.getAllAssignments);
+router.post('/assignments', requireAdminOrStaff, lmsController.createAssignment);
+router.get('/assignments/:assignmentId', lmsController.getAssignmentById);
 router.post('/courses/:courseId/assignments', requireAdminOrStaff, lmsController.createAssignment);
 router.patch('/assignments/:assignmentId', requireAdminOrStaff, lmsController.updateAssignment);
 router.delete('/assignments/:assignmentId', requireAdminOrStaff, lmsController.deleteAssignment);
 router.get('/assignments/:assignmentId/submissions', requireAdminOrStaff, lmsController.getAssignmentSubmissions);
 router.post('/assignments/:assignmentId/submit', lmsController.submitAssignment);
+router.get('/my-submissions', lmsController.getMySubmissions);
+router.get('/grading/submissions', requireAdminOrStaff, lmsController.getGradingQueue);
 router.patch('/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
+router.post('/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
+router.patch('/assignments/:assignmentId/grade', requireAdminOrStaff, (req, res, next) => {
+  if (!req.params.submissionId && req.body.submissionId) {
+    req.params.submissionId = req.body.submissionId;
+  }
+  return lmsController.gradeSubmission(req, res, next);
+});
+router.post('/assignments/:assignmentId/grade', requireAdminOrStaff, (req, res, next) => {
+  if (!req.params.submissionId && req.body.submissionId) {
+    req.params.submissionId = req.body.submissionId;
+  }
+  return lmsController.gradeSubmission(req, res, next);
+});
 
-// LMS Upload Service Endpoint
-router.post('/lms/upload', requireAdminOrStaff, upload.single('file'), lmsController.uploadLmsFile);
+// LMS Upload Service Endpoint (Supports students uploading submissions as well as staff creating materials)
+router.post('/lms/upload', upload.single('file'), lmsController.uploadLmsFile);
 
 export default router;

@@ -38,6 +38,12 @@ import StudentsPage from './pages/employees/StudentsPage';
 import HrPage from './pages/employees/HrPage';
 import MentorsPage from './pages/employees/MentorsPage';
 
+// Shift Attendance & Reports Pages
+import AttendancePage from './pages/AttendancePage';
+import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
+import StudentResultsPage from './pages/StudentResultsPage';
+import ReportsPage from './pages/ReportsPage';
+
 import { resolveUserDashboardPath } from './utils/userDashboard';
 
 // Route Guards
@@ -101,6 +107,64 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+const RoleRoute = ({ children, allowedRoles = [], fallbackPath = '/dashboard' }) => {
+  const token = getStoredToken();
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const userObj = JSON.parse(userStr);
+      const userRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+      const userDesig = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
+
+      const isSuperAdmin =
+        userObj.isSuperAdmin === true ||
+        userObj.is_super_admin === true ||
+        userRole === '0' ||
+        userRole === 'superadmin' ||
+        userRole === 'super_admin' ||
+        userDesig.includes('super admin');
+
+      // Super Admin has unrestricted access to all CRM routes
+      if (isSuperAdmin) {
+        return children;
+      }
+
+      const isStudent = userRole === 'student' || userRole === '10' || userDesig.includes('student');
+      const isHR = userRole === 'hr' || (userRole === '2' && !isSuperAdmin) || userDesig.includes('hr');
+      const isMentor =
+        userRole === 'mentor' ||
+        userRole === 'instructor' ||
+        userRole === '3' ||
+        userDesig.includes('mentor') ||
+        userDesig.includes('instructor') ||
+        userDesig.includes('faculty') ||
+        userDesig.includes('teacher');
+
+      const matches = allowedRoles.some(r => {
+        const rLower = r.toLowerCase().trim();
+        if ((rLower === 'superadmin' || rLower === 'admin') && isSuperAdmin) return true;
+        if (rLower === 'student' && isStudent) return true;
+        if (rLower === 'hr' && isHR) return true;
+        if ((rLower === 'mentor' || rLower === 'instructor') && isMentor) return true;
+        return userRole === rLower;
+      });
+
+      if (!matches) {
+        const redirectTarget = isStudent ? '/academy/learning' : fallbackPath;
+        return <Navigate to={redirectTarget} replace />;
+      }
+    }
+  } catch (err) {
+    console.error("RoleRoute evaluation failed:", err);
+  }
+
+  return children;
+};
+
 const LandingRoute = () => {
   const token = getStoredToken();
   if (!token) return <Navigate to="/login" replace />;
@@ -133,21 +197,21 @@ function App() {
 
           {/* Overview & Dashboards */}
           <Route path="/dashboard" element={<ProtectedRoute><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
-          <Route path="/counselor-dashboard" element={<ProtectedRoute><MainLayout><CounselorDashboard /></MainLayout></ProtectedRoute>} />
+          <Route path="/counselor-dashboard" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'counselor']}><MainLayout><CounselorDashboard /></MainLayout></RoleRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
 
           {/* Admissions / Academic Counselor Pipeline */}
-          <Route path="/leads" element={<ProtectedRoute><MainLayout><Leads /></MainLayout></ProtectedRoute>} />
-          <Route path="/leads-telecaller" element={<ProtectedRoute><MainLayout><LeadsTelecaller /></MainLayout></ProtectedRoute>} />
-          <Route path="/lead-counselor" element={<ProtectedRoute><MainLayout><LeadCounselor /></MainLayout></ProtectedRoute>} />
+          <Route path="/leads" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'counselor', 'telecaller']}><MainLayout><Leads /></MainLayout></RoleRoute>} />
+          <Route path="/leads-telecaller" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'counselor', 'telecaller']}><MainLayout><LeadsTelecaller /></MainLayout></RoleRoute>} />
+          <Route path="/lead-counselor" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'counselor']}><MainLayout><LeadCounselor /></MainLayout></RoleRoute>} />
 
           {/* Academic Management (Courses & Batches) */}
-          <Route path="/academy/courses" element={<ProtectedRoute><MainLayout><CourseManagement /></MainLayout></ProtectedRoute>} />
-          <Route path="/academy/courses/:courseId" element={<ProtectedRoute><MainLayout><CourseDetails /></MainLayout></ProtectedRoute>} />
-          <Route path="/academy/batches" element={<ProtectedRoute><MainLayout><BatchManagement /></MainLayout></ProtectedRoute>} />
-          <Route path="/academy/batches/:batchId" element={<ProtectedRoute><MainLayout><BatchDetails /></MainLayout></ProtectedRoute>} />
-          <Route path="/academy/enrollments" element={<ProtectedRoute><MainLayout><EnrollmentTracking /></MainLayout></ProtectedRoute>} />
-          <Route path="/academy/enrollments/:enrollmentId" element={<ProtectedRoute><MainLayout><EnrollmentDetails /></MainLayout></ProtectedRoute>} />
+          <Route path="/academy/courses" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/academy/learning"><MainLayout><CourseManagement /></MainLayout></RoleRoute>} />
+          <Route path="/academy/courses/:courseId" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/academy/learning"><MainLayout><CourseDetails /></MainLayout></RoleRoute>} />
+          <Route path="/academy/batches" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/academy/learning"><MainLayout><BatchManagement /></MainLayout></RoleRoute>} />
+          <Route path="/academy/batches/:batchId" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/academy/learning"><MainLayout><BatchDetails /></MainLayout></RoleRoute>} />
+          <Route path="/academy/enrollments" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor', 'counselor']} fallbackPath="/academy/learning"><MainLayout><EnrollmentTracking /></MainLayout></RoleRoute>} />
+          <Route path="/academy/enrollments/:enrollmentId" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor', 'counselor']} fallbackPath="/academy/learning"><MainLayout><EnrollmentDetails /></MainLayout></RoleRoute>} />
 
           {/* Student LMS & Learning */}
           <Route path="/academy/learning" element={<ProtectedRoute><MainLayout><StudentLmsPortal /></MainLayout></ProtectedRoute>} />
@@ -155,19 +219,23 @@ function App() {
 
           {/* Employee Management Section (Students, HR, Mentors) */}
           <Route path="/employees" element={<Navigate to="/employees/students" replace />} />
-          <Route path="/employees/students" element={<ProtectedRoute><MainLayout><StudentsPage /></MainLayout></ProtectedRoute>} />
-          <Route path="/employees/hr" element={<ProtectedRoute><MainLayout><HrPage /></MainLayout></ProtectedRoute>} />
-          <Route path="/employees/mentors" element={<ProtectedRoute><MainLayout><MentorsPage /></MainLayout></ProtectedRoute>} />
+          <Route path="/employees/students" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor', 'counselor']} fallbackPath="/academy/learning"><MainLayout><StudentsPage /></MainLayout></RoleRoute>} />
+          <Route path="/employees/hr" element={<RoleRoute allowedRoles={['superadmin', 'admin']} fallbackPath="/dashboard"><MainLayout><HrPage /></MainLayout></RoleRoute>} />
+          <Route path="/employees/mentors" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr']} fallbackPath="/dashboard"><MainLayout><MentorsPage /></MainLayout></RoleRoute>} />
 
-          {/* Student Attendance */}
-          <Route path="/student-attendance" element={<ProtectedRoute><MainLayout><StudentAttendance /></MainLayout></ProtectedRoute>} />
+          {/* Attendance System */}
+          <Route path="/attendance" element={<ProtectedRoute><MainLayout><AttendancePage /></MainLayout></ProtectedRoute>} />
+          <Route path="/student-attendance" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/attendance"><MainLayout><StudentAttendance /></MainLayout></RoleRoute>} />
 
-          {/* Assignments & Grading */}
-          <Route path="/assignments" element={<ProtectedRoute><MainLayout><AssignmentsGradingPage /></MainLayout></ProtectedRoute>} />
+          {/* Assignments & Grading Workflows */}
+          <Route path="/assignments" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/student/assignments"><MainLayout><AssignmentsGradingPage /></MainLayout></RoleRoute>} />
+          <Route path="/student/assignments" element={<RoleRoute allowedRoles={['student']} fallbackPath="/assignments"><MainLayout><StudentAssignmentsPage /></MainLayout></RoleRoute>} />
+          <Route path="/student/results" element={<RoleRoute allowedRoles={['student']} fallbackPath="/assignments"><MainLayout><StudentResultsPage /></MainLayout></RoleRoute>} />
+          <Route path="/student/submissions" element={<RoleRoute allowedRoles={['student']} fallbackPath="/assignments"><MainLayout><StudentResultsPage /></MainLayout></RoleRoute>} />
 
           {/* Student Fees & Accounts */}
-          <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
-          <Route path="/accounts/*" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
+          <Route path="/accounts" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'student', 'accountant']} fallbackPath="/dashboard"><MainLayout><AccountsPage /></MainLayout></RoleRoute>} />
+          <Route path="/accounts/*" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'student', 'accountant']} fallbackPath="/dashboard"><MainLayout><AccountsPage /></MainLayout></RoleRoute>} />
 
           {/* Live Classrooms (Zoom / Google Meet) */}
           <Route path="/live-classes" element={<ProtectedRoute><MainLayout><LiveClassrooms /></MainLayout></ProtectedRoute>} />
@@ -175,11 +243,14 @@ function App() {
           {/* Automated Certificates */}
           <Route path="/certificates" element={<ProtectedRoute><MainLayout><CertificatesPage /></MainLayout></ProtectedRoute>} />
 
+          {/* Reports & Analytics */}
+          <Route path="/reports" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/dashboard"><MainLayout><ReportsPage /></MainLayout></RoleRoute>} />
+
           {/* User Management & Settings */}
-          <Route path="/users" element={<ProtectedRoute><MainLayout><Users /></MainLayout></ProtectedRoute>} />
-          <Route path="/users/:userId" element={<ProtectedRoute><MainLayout><UserDetailPage /></MainLayout></ProtectedRoute>} />
-          <Route path="/sidebar-permissions" element={<ProtectedRoute><MainLayout><SidebarPermissionsPage /></MainLayout></ProtectedRoute>} />
-          <Route path="/permissions/:userId" element={<ProtectedRoute><MainLayout><UserPermissionsPage /></MainLayout></ProtectedRoute>} />
+          <Route path="/users" element={<RoleRoute allowedRoles={['superadmin', 'admin']} fallbackPath="/dashboard"><MainLayout><Users /></MainLayout></RoleRoute>} />
+          <Route path="/users/:userId" element={<RoleRoute allowedRoles={['superadmin', 'admin']} fallbackPath="/dashboard"><MainLayout><UserDetailPage /></MainLayout></RoleRoute>} />
+          <Route path="/sidebar-permissions" element={<RoleRoute allowedRoles={['superadmin', 'admin']} fallbackPath="/dashboard"><MainLayout><SidebarPermissionsPage /></MainLayout></RoleRoute>} />
+          <Route path="/permissions/:userId" element={<RoleRoute allowedRoles={['superadmin', 'admin']} fallbackPath="/dashboard"><MainLayout><UserPermissionsPage /></MainLayout></RoleRoute>} />
           <Route path="/settings" element={<ProtectedRoute><MainLayout><Settings /></MainLayout></ProtectedRoute>} />
 
           {/* Default Landing Route */}

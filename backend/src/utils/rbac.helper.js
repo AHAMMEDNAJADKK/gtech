@@ -119,6 +119,17 @@ export const getAuthUserContext = async (req) => {
     )
   );
 
+  const isHr = Boolean(
+    !isSuperAdmin &&
+    (
+      role === 'hr' ||
+      roleId === '2' ||
+      designation.includes('hr') ||
+      department.includes('hr') ||
+      department.includes('human resources')
+    )
+  );
+
   return {
     userId: String(userId || ''),
     role,
@@ -128,8 +139,10 @@ export const getAuthUserContext = async (req) => {
     permissions,
     isSuperAdmin,
     isAdmin,
+    isHr,
     isCounselor,
     isInstructor,
+    isMentor: isInstructor,
     isStudent
   };
 };
