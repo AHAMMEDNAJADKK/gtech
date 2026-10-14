@@ -7,6 +7,14 @@ import Enrollment from '../models/enrollment.model.js';
 
 export const markAttendance = async (req, res) => {
   try {
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    if (isStudent) {
+      return res.status(403).json({
+        success: false,
+        detail: 'Students are not authorized to mark attendance.'
+      });
+    }
+
     const { user_id, studentId, batchId, courseId, date, status } = req.body;
     const targetStudentId = user_id || studentId;
 
@@ -134,7 +142,10 @@ export const getAttendanceByDate = async (req, res) => {
       query.courseId = courseId;
     }
 
-    if (user_id && mongoose.Types.ObjectId.isValid(String(user_id))) {
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    if (isStudent) {
+      query.user_id = req.user.id || req.user._id;
+    } else if (user_id && mongoose.Types.ObjectId.isValid(String(user_id))) {
       query.user_id = user_id;
     }
 

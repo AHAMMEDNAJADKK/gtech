@@ -3,6 +3,7 @@
 // ===============================
 
 import Attendance from '../models/attendance.model.js';
+import StudentAttendance from '../models/studentattendance.js';
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -100,6 +101,13 @@ export const checkIn = async (req, res) => {
       });
     }
 
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    if (isStudent) {
+      return res.status(403).json({
+        detail: "Shift attendance is reserved for employees. Student class attendance is managed by instructors."
+      });
+    }
+
     const userId =
       req.user.id || req.user._id;
 
@@ -162,6 +170,13 @@ export const checkOut = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({
         detail: "Authentication required."
+      });
+    }
+
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    if (isStudent) {
+      return res.status(403).json({
+        detail: "Shift attendance is reserved for employees. Student class attendance is managed by instructors."
       });
     }
 
@@ -243,9 +258,13 @@ export const getAttendanceByDate =
             date
           });
   
-        return res.status(200).json(
-          serializeAttendance(record)
-        );
+        const serialized = serializeAttendance(record);
+        return res.status(200).json({
+          success: true,
+          data: serialized,
+          attendance: serialized,
+          ...(serialized || {})
+        });
       } catch (err) {
         console.error(err);
         return res.status(500).json({
@@ -315,9 +334,9 @@ export const getMyShift = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ detail: "Authentication required." });
     }
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
     const userId = req.user.id || req.user._id;
     const todayStr = getISTDate();
-    const record = await Attendance.findOne({ user_id: userId, date: todayStr });
 
     const now = new Date();
     const istTimeStr = now.toLocaleTimeString('en-US', {
@@ -328,6 +347,21 @@ export const getMyShift = async (req, res) => {
       hour12: true
     });
 
+    if (isStudent) {
+      return res.status(200).json({
+        success: true,
+        today: todayStr,
+        serverTimeIST: istTimeStr,
+        isActiveShift: false,
+        currentWorkingHours: "0.00",
+        attendance: null,
+        data: null,
+        isStudent: true
+      });
+    }
+
+    const record = await Attendance.findOne({ user_id: userId, date: todayStr });
+
     const isActive = Boolean(record?.check_in_time && !record?.check_out_time);
     let currentWorkingHours = record?.working_hours || "0.00";
     if (isActive && record?.check_in_time) {
@@ -336,13 +370,16 @@ export const getMyShift = async (req, res) => {
       currentWorkingHours = hrs.toFixed(2);
     }
 
+    const serialized = serializeAttendance(record);
+
     return res.status(200).json({
       success: true,
       today: todayStr,
       serverTimeIST: istTimeStr,
       isActiveShift: isActive,
       currentWorkingHours,
-      attendance: serializeAttendance(record)
+      attendance: serialized,
+      data: serialized
     });
   } catch (error) {
     console.error(error);
@@ -355,8 +392,34 @@ export const getMyHistory = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ detail: "Authentication required." });
     }
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
     const userId = req.user.id || req.user._id;
     const limit = parseInt(req.query.limit, 10) || 30;
+
+    if (isStudent) {
+      const studentRecords = await StudentAttendance.find({ user_id: userId })
+        .sort({ date: -1 })
+        .limit(limit)
+        .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode')
+        .lean();
+
+      const formatted = studentRecords.map(r => ({
+        id: r._id.toString(),
+        date: r.date,
+        status: r.status,
+        courseName: r.courseId?.courseName || 'Course',
+        batchName: r.batchId?.batchName || 'Batch',
+        markedAt: r.createdAt
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: formatted,
+        isStudent: true
+      });
+    }
+
     const records = await Attendance.find({ user_id: userId })
       .sort({ date: -1 })
       .limit(limit)
@@ -374,6 +437,18 @@ export const getMyHistory = async (req, res) => {
 
 export const getAttendanceSummary = async (req, res) => {
   try {
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const userRoleId = String(req.user?.role_id || '');
+    const isSuperAdmin = Boolean(req.user?.isSuperAdmin || userRole === 'superadmin' || userRoleId === '0');
+    const isHr = Boolean(userRole === 'hr' || userRoleId === '2');
+
+    if (!isSuperAdmin && !isHr) {
+      return res.status(403).json({
+        success: false,
+        detail: "Access denied. Only Super Admin and HR can view organization attendance summary."
+      });
+    }
+
     const todayStr = req.query.date || getISTDate();
     const records = await Attendance.find({ date: todayStr }).populate('user_id', 'name email role department designation employeeId avatar');
     const totalStaff = records.length;

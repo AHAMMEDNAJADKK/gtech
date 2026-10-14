@@ -32,6 +32,9 @@ import notificationRoutes from './src/routes/notification.routes.js';
 import { servePublicPdf } from './src/controllers/account.controller.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
+import departmentRoutes from './src/modules/departments/department.routes.js';
+import academicCounselorReportRoutes from './src/routes/academicCounselorReport.routes.js';
+import taskRoutes from './src/routes/task.routes.js';
 const app = express();
 
 const cloudinaryEnvWarnings = [];
@@ -127,6 +130,24 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/v1/notifications', notificationRoutes);
 app.use('/notifications', notificationRoutes);
+
+// Departments Management
+app.use('/api/v1/departments', departmentRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/v1/departments', departmentRoutes);
+app.use('/departments', departmentRoutes);
+
+// Daily Shift Reports
+app.use('/api/v1/daily-shift-reports', academicCounselorReportRoutes);
+app.use('/api/daily-shift-reports', academicCounselorReportRoutes);
+app.use('/api/v1/academic-counselor-reports', academicCounselorReportRoutes);
+app.use('/api/academic-counselor-reports', academicCounselorReportRoutes);
+
+// Tasks & Task Reminders
+app.use('/api/v1/tasks', taskRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/v1/tasks', taskRoutes);
+app.use('/tasks', taskRoutes);
 
 // Legacy account route fallback
 app.use('/api/v1/legacy-accounts', accountRoutes);

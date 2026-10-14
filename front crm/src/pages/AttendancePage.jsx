@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Clock, LogIn, LogOut, ShieldCheck, User, Calendar, CheckCircle2, 
   AlertCircle, XCircle, Users, Activity, Sparkles, RefreshCw, 
-  FileText, ArrowUpRight, Search, Filter, ChevronRight, Award
+  FileText, ArrowUpRight, Search, Filter, ChevronRight, Award,
+  BookOpen, AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
@@ -43,6 +44,7 @@ const AttendancePage = () => {
 
   // Shift & Attendance state
   const [loadingShift, setLoadingShift] = useState(true);
+  const [shiftError, setShiftError] = useState(null);
   const [submittingAction, setSubmittingAction] = useState(false);
   const [shiftData, setShiftData] = useState({
     isActiveShift: false,
@@ -54,6 +56,7 @@ const AttendancePage = () => {
   // History state
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
 
   // Admin / HR Organization Summary state
   const [orgDate, setOrgDate] = useState(() => {
@@ -99,34 +102,60 @@ const AttendancePage = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Safe default shift state
+  const DEFAULT_SHIFT = {
+    isActiveShift: false,
+    today: '',
+    currentWorkingHours: '0.00',
+    attendance: null
+  };
+
   // Fetch today's shift info
   const fetchMyShift = useCallback(async () => {
     setLoadingShift(true);
+    setShiftError(null);
     try {
       const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
       const res = await fetch(`${base}/attendance/my-shift`, { headers: getHeaders() });
       if (!res.ok) throw new Error('Failed to fetch active shift details.');
       const data = await res.json();
-      setShiftData(data);
+      if (data && typeof data === 'object') {
+        setShiftData({
+          isActiveShift: Boolean(data.isActiveShift),
+          today: data.today || '',
+          currentWorkingHours: data.currentWorkingHours || '0.00',
+          attendance: data.attendance || null
+        });
+      } else {
+        setShiftData(DEFAULT_SHIFT);
+      }
     } catch (err) {
       console.warn("Shift fetch fallback:", err.message);
+      setShiftError(err.message || 'Could not retrieve today’s shift.');
+      setShiftData(prev => prev || DEFAULT_SHIFT);
     } finally {
       setLoadingShift(false);
     }
   }, [getHeaders]);
 
-  // Fetch personal shift history
+  // Fetch personal shift / student class history
   const fetchMyHistory = useCallback(async () => {
     setLoadingHistory(true);
+    setHistoryError(null);
     try {
       const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
-      const res = await fetch(`${base}/attendance/my-history?limit=15`, { headers: getHeaders() });
+      const res = await fetch(`${base}/attendance/my-history?limit=30`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
-        setHistory(data.data || []);
+        const list = (data && data.data) ? data.data : (Array.isArray(data) ? data : []);
+        setHistory(Array.isArray(list) ? list : []);
+      } else {
+        setHistory([]);
       }
     } catch (err) {
       console.warn("Attendance history fetch fallback:", err.message);
+      setHistoryError(err.message || 'Could not load attendance history.');
+      setHistory([]);
     } finally {
       setLoadingHistory(false);
     }
@@ -171,7 +200,7 @@ const AttendancePage = () => {
     setSubmittingAction(true);
     try {
       const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
-      const isCheckingIn = !shiftData.attendance?.check_in_time;
+      const isCheckingIn = !shiftData?.attendance?.check_in_time;
       const endpoint = isCheckingIn ? `${base}/attendance/check-in` : `${base}/attendance/check-out`;
 
       const res = await fetch(endpoint, {
@@ -201,10 +230,18 @@ const AttendancePage = () => {
     }
   };
 
-  const att = shiftData.attendance;
+  const att = shiftData?.attendance;
   const isCheckedIn = Boolean(att?.check_in_time);
   const isCheckedOut = Boolean(att?.check_out_time);
   const isShiftActive = isCheckedIn && !isCheckedOut;
+
+  // Student class attendance metrics
+  const studentTotalClasses = history.length;
+  const studentAttendedClasses = history.filter(h => h.status === 'PRESENT' || h.status === 'LATE').length;
+  const studentAbsentClasses = history.filter(h => h.status === 'ABSENT').length;
+  const studentAttendanceRate = studentTotalClasses > 0
+    ? Math.round((studentAttendedClasses / studentTotalClasses) * 100)
+    : 0;
 
   const formatTimeOnly = (dateStr) => {
     if (!dateStr) return '--:--';
@@ -403,64 +440,118 @@ const AttendancePage = () => {
               </div>
             </div>
 
-            {/* SUMMARY CARDS (Screenshot matched 4-column layout) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-8 border-t border-slate-800/80">
-              {/* Card 1: Check-in */}
-              <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
-                <div className="flex items-center justify-between text-slate-400 mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider">Check-in</span>
-                  <LogIn size={14} className="text-emerald-400" />
+            {/* SUMMARY CARDS */}
+            {isStudent ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-8 border-t border-slate-800/80">
+                {/* Student Card 1: Total Classes */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Total Classes</span>
+                    <BookOpen size={14} className="text-indigo-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {studentTotalClasses}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">Scheduled sessions</div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-white font-mono">
-                  {formatTimeOnly(att?.check_in_time)}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  {att?.is_late ? '⚠️ Checked in late' : isCheckedIn ? '✓ On Time' : 'Waiting for log in'}
-                </div>
-              </div>
 
-              {/* Card 2: Check-out */}
-              <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
-                <div className="flex items-center justify-between text-slate-400 mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider">Check-out</span>
-                  <LogOut size={14} className="text-rose-400" />
+                {/* Student Card 2: Attended */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Attended</span>
+                    <CheckCircle2 size={14} className="text-emerald-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {studentAttendedClasses}
+                  </div>
+                  <div className="text-[10px] text-emerald-400/80 mt-1">Present / On Time</div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-white font-mono">
-                  {formatTimeOnly(att?.check_out_time)}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  {isShiftActive ? 'Shift currently active' : isCheckedOut ? '✓ Completed' : 'Pending'}
-                </div>
-              </div>
 
-              {/* Card 3: Duration */}
-              <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
-                <div className="flex items-center justify-between text-slate-400 mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider">Duration</span>
-                  <Clock size={14} className="text-cyan-400" />
+                {/* Student Card 3: Absent */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Absent</span>
+                    <AlertTriangle size={14} className="text-rose-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {studentAbsentClasses}
+                  </div>
+                  <div className="text-[10px] text-rose-400/80 mt-1">Missed sessions</div>
                 </div>
-                <div className="text-base sm:text-lg font-black text-white font-mono">
-                  {shiftData.currentWorkingHours || '0.00'} hrs
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  Overtime: {att?.overtime || '0.00'} hrs
-                </div>
-              </div>
 
-              {/* Card 4: Status */}
-              <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
-                <div className="flex items-center justify-between text-slate-400 mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider">Status</span>
-                  <Activity size={14} className="text-indigo-400" />
-                </div>
-                <div className="text-base sm:text-lg font-black text-white">
-                  {att?.status || (isCheckedIn ? 'PRESENT' : 'NOT MARKED')}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-1">
-                  {isCheckedIn ? 'Attendance confirmed' : 'Requires login'}
+                {/* Student Card 4: Attendance Rate */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Attendance Rate</span>
+                    <Activity size={14} className="text-cyan-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {studentAttendanceRate}%
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {studentAttendanceRate >= 75 ? '✓ Good Standing' : '⚠️ Below 75%'}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-8 border-t border-slate-800/80">
+                {/* Employee Card 1: Check-in */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Check-in</span>
+                    <LogIn size={14} className="text-emerald-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {formatTimeOnly(att?.check_in_time)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {att?.is_late ? '⚠️ Checked in late' : isCheckedIn ? '✓ On Time' : 'Waiting for log in'}
+                  </div>
+                </div>
+
+                {/* Employee Card 2: Check-out */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Check-out</span>
+                    <LogOut size={14} className="text-rose-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {formatTimeOnly(att?.check_out_time)}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {isShiftActive ? 'Shift currently active' : isCheckedOut ? '✓ Completed' : 'Pending'}
+                  </div>
+                </div>
+
+                {/* Employee Card 3: Duration */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Duration</span>
+                    <Clock size={14} className="text-cyan-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white font-mono">
+                    {shiftData?.currentWorkingHours || '0.00'} hrs
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    Overtime: {att?.overtime || '0.00'} hrs
+                  </div>
+                </div>
+
+                {/* Employee Card 4: Status */}
+                <div className="bg-slate-900/80 border border-slate-800/70 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-slate-400 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider">Status</span>
+                    <Activity size={14} className="text-indigo-400" />
+                  </div>
+                  <div className="text-base sm:text-lg font-black text-white">
+                    {att?.status || (isCheckedIn ? 'PRESENT' : 'NOT MARKED')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {isCheckedIn ? 'Attendance confirmed' : 'Requires login'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ATTENDANCE HISTORY SECTION */}
@@ -468,10 +559,12 @@ const AttendancePage = () => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Recent Attendance Logs
+                  {isStudent ? 'Class Attendance Records' : 'Recent Attendance Logs'}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Server-verified records with check-in, check-out, and total calculated hours.
+                  {isStudent
+                    ? 'Verified course and batch lecture attendance history.'
+                    : 'Server-verified records with check-in, check-out, and total calculated hours.'}
                 </p>
               </div>
               <button
@@ -488,9 +581,64 @@ const AttendancePage = () => {
                 <RefreshCw size={24} className="animate-spin text-indigo-600" />
                 <span className="text-xs text-slate-400">Loading history logs...</span>
               </div>
+            ) : historyError ? (
+              <div className="py-10 text-center space-y-2">
+                <p className="text-xs text-rose-500 font-medium">{historyError}</p>
+                <button
+                  onClick={fetchMyHistory}
+                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-sm"
+                >
+                  Retry Loading
+                </button>
+              </div>
             ) : history.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-xs">
-                No past attendance records found yet. Check in above to create your first log!
+                {isStudent
+                  ? 'No class attendance records recorded yet.'
+                  : 'No past attendance records found yet. Check in above to create your first log!'}
+              </div>
+            ) : isStudent ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                    <tr>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Course</th>
+                      <th className="py-3 px-4">Batch</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Recorded At</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {history.map((record) => (
+                      <tr key={record.id || record._id || record.date} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                          {record.date}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-slate-800 dark:text-slate-200">
+                          {record.courseName || record.courseId?.courseName || 'Course Session'}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-slate-600 dark:text-slate-400">
+                          {record.batchName || record.batchId?.batchName || 'General'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            record.status === 'PRESENT'
+                              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400'
+                              : record.status === 'LATE'
+                              ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400'
+                              : 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400'
+                          }`}>
+                            {record.status || 'UNMARKED'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                          {record.markedAt ? new Date(record.markedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="overflow-x-auto">

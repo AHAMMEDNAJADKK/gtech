@@ -43,6 +43,7 @@ import AttendancePage from './pages/AttendancePage';
 import StudentAssignmentsPage from './pages/StudentAssignmentsPage';
 import StudentResultsPage from './pages/StudentResultsPage';
 import ReportsPage from './pages/ReportsPage';
+import DailyShiftReportPage from './pages/DailyShiftReportPage';
 
 import { resolveUserDashboardPath } from './utils/userDashboard';
 
@@ -245,6 +246,7 @@ function App() {
 
           {/* Reports & Analytics */}
           <Route path="/reports" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/dashboard"><MainLayout><ReportsPage /></MainLayout></RoleRoute>} />
+          <Route path="/daily-shift-report" element={<ProtectedRoute><MainLayout><DailyShiftReportPage /></MainLayout></ProtectedRoute>} />
 
           {/* User Management & Settings */}
           <Route path="/users" element={<RoleRoute allowedRoles={['superadmin', 'admin']} fallbackPath="/dashboard"><MainLayout><Users /></MainLayout></RoleRoute>} />

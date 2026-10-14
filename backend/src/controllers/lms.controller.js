@@ -459,10 +459,19 @@ const lmsController = {
         .sort({ createdAt: -1 })
         .lean();
 
-      // If student requester: attach individual submission status
+      // If student requester: attach individual submission status and filter targeted assignments
       if (auth.isStudent) {
+        const studentObjId = String(auth.userId);
+        const filteredAssignments = assignments.filter(a => {
+          if (a.targetType === 'STUDENTS') {
+            const targets = (a.targetStudents || []).map(s => String(s._id || s));
+            return targets.includes(studentObjId);
+          }
+          return true;
+        });
+
         const studentSubs = await AssignmentSubmission.find({ studentId: auth.userId }).lean();
-        const enriched = assignments.map(a => {
+        const enriched = filteredAssignments.map(a => {
           const sub = studentSubs.find(s => String(s.assignmentId) === String(a._id));
           return {
             ...a,
@@ -587,13 +596,23 @@ const lmsController = {
       // Assignment distribution: Ensure recipient students have initial submission records
       try {
         let recipientStudentIds = [];
-        if (targetType === 'STUDENTS' && Array.isArray(targetStudents) && targetStudents.length > 0) {
-          recipientStudentIds = targetStudents;
+        const rawTargetStudents = Array.isArray(targetStudents)
+          ? targetStudents
+          : (targetStudents ? [targetStudents] : (req.body.studentId ? [req.body.studentId] : []));
+
+        if (targetType === 'STUDENTS' && rawTargetStudents.length > 0) {
+          recipientStudentIds = rawTargetStudents.filter(id => mongoose.Types.ObjectId.isValid(id));
         } else if (batchId && mongoose.Types.ObjectId.isValid(batchId)) {
           const batchDoc = await Batch.findById(batchId).select('students');
           if (batchDoc && Array.isArray(batchDoc.students)) {
-            recipientStudentIds = batchDoc.students;
+            recipientStudentIds = batchDoc.students.filter(id => mongoose.Types.ObjectId.isValid(id));
           }
+        } else if (targetType === 'ALL') {
+          const enrollments = await Enrollment.find({
+            courseId,
+            status: { $in: ['active', 'enrolled', 'completed', 'paused', 'ACTIVE', 'ENROLLED', 'COMPLETED', 'PAUSED'] }
+          }).select('studentId');
+          recipientStudentIds = enrollments.map(e => e.studentId).filter(id => mongoose.Types.ObjectId.isValid(id));
         }
 
         if (recipientStudentIds.length > 0 && finalPublished) {
@@ -753,6 +772,13 @@ const lmsController = {
 
       if (assignment.isPublished === false || assignment.status === 'DRAFT') {
         throw new AppError('Assignment is in draft mode and not accepting submissions.', 403);
+      }
+
+      if (assignment.targetType === 'STUDENTS') {
+        const targets = (assignment.targetStudents || []).map(s => String(s._id || s));
+        if (!targets.includes(String(studentId))) {
+          throw new AppError('This assignment was specifically assigned to other student(s). You are not eligible to submit.', 403);
+        }
       }
 
       // Look up student's enrollment

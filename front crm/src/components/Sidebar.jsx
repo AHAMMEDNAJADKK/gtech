@@ -29,6 +29,7 @@ import {
   UserCog,
   BarChart3,
   Clock,
+  FileText,
   X 
 } from 'lucide-react';
 
@@ -42,8 +43,7 @@ const CATEGORY_ORDER = [
   'Live Classes',
   'Accounts',
   'Certificates',
-  'Reports',
-  'Settings'
+  'Reports'
 ];
 
 const CATEGORY_CONFIG = {
@@ -56,8 +56,7 @@ const CATEGORY_CONFIG = {
   'Live Classes': { label: 'Live Classes', icon: Video },
   'Accounts': { label: 'Accounts', icon: Wallet },
   'Certificates': { label: 'Certificates', icon: Award },
-  'Reports': { label: 'Reports', icon: BarChart3 },
-  'Settings': { label: 'Settings', icon: Settings }
+  'Reports': { label: 'Reports', icon: BarChart3 }
 };
 
 const menuItems = [
@@ -236,13 +235,13 @@ const menuItems = [
     allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'mentor', 'hr'],
     allowedDesignationNames: ['admin', 'superadmin', 'hr', 'instructor', 'mentor']
   },
-
-  // --- SETTINGS ---
   { 
-    icon: Settings, 
-    label: 'Settings', 
-    path: '/settings', 
-    category: 'Settings' 
+    icon: FileText, 
+    label: 'Daily Shift Report', 
+    path: '/daily-shift-report', 
+    category: 'Reports', 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'mentor', 'hr', 'counselor', 'telecaller'],
+    allowedDesignationNames: ['admin', 'superadmin', 'hr', 'instructor', 'mentor', 'counselor', 'telecaller']
   }
 ];
 
@@ -440,7 +439,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       }
 
       if (!userObj) {
-        return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/settings');
+        return menuItems.filter(item => item.path === '/academy/learning');
       }
 
       const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
@@ -471,8 +470,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           '/live-classes',
           '/attendance',
           '/certificates',
-          '/notifications',
-          '/settings'
+          '/notifications'
         ];
         return menuItems.filter(item => studentAllowedPaths.includes(item.path));
       }
@@ -495,7 +493,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           '/attendance',
           '/student-attendance',
           '/accounts',
-          '/reports'
+          '/reports',
+          '/daily-shift-report'
         ];
         return menuItems.filter(item => hrAllowedPaths.includes(item.path));
       }
@@ -513,7 +512,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           '/assignments',
           '/live-classes',
           '/attendance',
-          '/reports'
+          '/reports',
+          '/daily-shift-report'
         ];
         return menuItems.filter(item => mentorAllowedPaths.includes(item.path));
       }
@@ -526,7 +526,6 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
           return (
             item.path === '/notifications' ||
-            item.path === '/settings' ||
             allowedSet.includes(itemLabelLower) ||
             allowedSet.includes(itemPathLower) ||
             allowedSet.includes(item.category ? item.category.toLowerCase().trim() : '')
@@ -571,7 +570,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       return finalVisible;
     } catch (e) {
       console.error("Error reading operator authorization layout paths:", e);
-      return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/settings');
+      return menuItems.filter(item => item.path === '/academy/learning');
     }
   };
 
