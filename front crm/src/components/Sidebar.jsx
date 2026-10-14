@@ -23,6 +23,10 @@ import {
   Layers, 
   School, 
   Award,
+  Users,
+  UserCheck,
+  Briefcase,
+  UserCog,
   X 
 } from 'lucide-react';
 
@@ -30,6 +34,7 @@ const CATEGORY_ORDER = [
   'Overview',
   'Admissions',
   'Academics',
+  'Employees',
   'Attendance',
   'Assignments',
   'Accounts',
@@ -42,6 +47,7 @@ const CATEGORY_CONFIG = {
   'Overview': { label: 'Overview', icon: LayoutDashboard },
   'Admissions': { label: 'Admissions', icon: Target },
   'Academics': { label: 'Academics', icon: GraduationCap },
+  'Employees': { label: 'Employees', icon: Users },
   'Attendance': { label: 'Attendance', icon: Clipboard },
   'Assignments': { label: 'Assignments', icon: CheckCircle2 },
   'Accounts': { label: 'Accounts', icon: Wallet },
@@ -115,6 +121,32 @@ const menuItems = [
     category: 'Academics', 
     allowedRoles: ['10', 'student', 'instructor', 'faculty', 'teacher', '0', '1', '2', 'admin', 'superadmin'],
     allowedDesignationNames: ['student', 'instructor', 'teacher', 'faculty', 'trainer']
+  },
+
+  // --- EMPLOYEES ---
+  { 
+    icon: UserCheck, 
+    label: 'Students', 
+    path: '/employees/students', 
+    category: 'Employees', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'counselor', 'telecaller', 'admission', 'academic', 'instructor', 'faculty', 'teacher', 'trainer', 'mentor', 'hr']
+  },
+  { 
+    icon: Briefcase, 
+    label: 'HR', 
+    path: '/employees/hr', 
+    category: 'Employees', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'hr'],
+    allowedDesignationNames: ['admin', 'hr', 'human resources']
+  },
+  { 
+    icon: UserCog, 
+    label: 'Mentors', 
+    path: '/employees/mentors', 
+    category: 'Employees', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'instructor', 'faculty', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'instructor', 'faculty', 'teacher', 'trainer', 'mentor', 'counselor', 'hr']
   },
 
   // --- ATTENDANCE ---
@@ -418,15 +450,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
             item.path === '/notifications' ||
             item.path === '/settings' ||
             allowedSet.includes(itemLabelLower) ||
-            allowedSet.includes(itemPathLower)
+            allowedSet.includes(itemPathLower) ||
+            allowedSet.includes(item.category ? item.category.toLowerCase().trim() : '')
           );
         });
         if (customVisible.length > 0) return customVisible;
       }
 
-      // 4. Role / Designation Based Matching for Counselor, Instructor, etc.
+      // 4. Role / Designation Based Matching for Counselor, Instructor, HR, etc.
       const isCounselor = currentUserRole === 'counselor' || currentDesigName.includes('counselor') || currentDesigName.includes('tele');
-      const isInstructor = currentUserRole === 'instructor' || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher') || currentDesigName.includes('trainer');
+      const isInstructor = currentUserRole === 'instructor' || currentUserRole === 'mentor' || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher') || currentDesigName.includes('trainer') || currentDesigName.includes('mentor');
+      const isHR = currentUserRole === 'hr' || currentUserRole === '2' || currentDesigName.includes('hr');
 
       const visible = menuItems.filter(item => {
         // If item has no role restrictions, allow it
@@ -437,7 +471,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         const roleMatch = item.allowedRoles && (
           item.allowedRoles.includes(currentUserRole) ||
           (isCounselor && item.allowedRoles.includes('counselor')) ||
-          (isInstructor && item.allowedRoles.includes('instructor'))
+          (isInstructor && (item.allowedRoles.includes('instructor') || item.allowedRoles.includes('mentor'))) ||
+          (isHR && item.allowedRoles.includes('hr'))
         );
 
         const desigMatch = item.allowedDesignationNames && item.allowedDesignationNames.some(name =>

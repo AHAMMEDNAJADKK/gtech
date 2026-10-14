@@ -33,6 +33,11 @@ import CounselorDashboard from './pages/CounselorDashboard';
 import SidebarPermissionsPage from './pages/SidebarPermissionsPage';
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
+// Employee Management Pages
+import StudentsPage from './pages/employees/StudentsPage';
+import HrPage from './pages/employees/HrPage';
+import MentorsPage from './pages/employees/MentorsPage';
+
 import { resolveUserDashboardPath } from './utils/userDashboard';
 
 // Route Guards
@@ -147,6 +152,12 @@ function App() {
           {/* Student LMS & Learning */}
           <Route path="/academy/learning" element={<ProtectedRoute><MainLayout><StudentLmsPortal /></MainLayout></ProtectedRoute>} />
           <Route path="/academy/learning/:courseId" element={<ProtectedRoute><MainLayout><StudentCourseViewer /></MainLayout></ProtectedRoute>} />
+
+          {/* Employee Management Section (Students, HR, Mentors) */}
+          <Route path="/employees" element={<Navigate to="/employees/students" replace />} />
+          <Route path="/employees/students" element={<ProtectedRoute><MainLayout><StudentsPage /></MainLayout></ProtectedRoute>} />
+          <Route path="/employees/hr" element={<ProtectedRoute><MainLayout><HrPage /></MainLayout></ProtectedRoute>} />
+          <Route path="/employees/mentors" element={<ProtectedRoute><MainLayout><MentorsPage /></MainLayout></ProtectedRoute>} />
 
           {/* Student Attendance */}
           <Route path="/student-attendance" element={<ProtectedRoute><MainLayout><StudentAttendance /></MainLayout></ProtectedRoute>} />

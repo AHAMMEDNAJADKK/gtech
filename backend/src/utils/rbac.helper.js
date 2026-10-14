@@ -78,10 +78,12 @@ export const getAuthUserContext = async (req) => {
     role === 'teacher' ||
     role === 'faculty' ||
     role === 'trainer' ||
+    role === 'mentor' ||
     designation.includes('instructor') ||
     designation.includes('teacher') ||
     designation.includes('faculty') ||
-    designation.includes('trainer')
+    designation.includes('trainer') ||
+    designation.includes('mentor')
   );
 
   const isAdmin = Boolean(

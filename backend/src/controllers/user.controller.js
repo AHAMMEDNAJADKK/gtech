@@ -2,6 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import User from '../models/user.model.js';
 import Designation from '../models/designation.model.js';
+import Department from '../modules/departments/department.model.js';
+import Batch from '../models/batch.model.js';
+import Course from '../models/course.model.js';
+import Enrollment from '../models/enrollment.model.js';
 import mongoose from 'mongoose';
 import { hashPassword, comparePassword } from '../utils/bcrypt.util.js';
 import { authService } from '../services/auth.service.js';
@@ -251,14 +255,32 @@ export const userController = {
 
       if (role) {
         const roleLower = String(role).toLowerCase().trim();
-        if (roleLower === 'student' || roleLower === '10' || roleLower === '4') {
+        if (roleLower === 'student' || roleLower === '10') {
           conditions.push({
             $or: [
               { role: { $regex: /^student$/i } },
               { role_id: '10' },
               { role_id: 10 },
-              { role_id: '4' },
-              { role_id: 4 }
+              { studentId: { $exists: true, $ne: '' } }
+            ]
+          });
+        } else if (roleLower === 'hr' || roleLower === '2') {
+          conditions.push({
+            $or: [
+              { role: { $regex: /^hr$/i } },
+              { role_id: '2' },
+              { role_id: 2 },
+              { designation: { $regex: /hr|human\s*resource/i } },
+              { department: { $regex: /hr|human\s*resource/i } }
+            ]
+          });
+        } else if (roleLower === 'mentor' || roleLower === 'instructor' || roleLower === 'faculty' || roleLower === 'teacher' || roleLower === 'trainer') {
+          conditions.push({
+            $or: [
+              { role: { $regex: /mentor|instructor|faculty|teacher|trainer/i } },
+              { designation: { $regex: /mentor|instructor|faculty|teacher|trainer/i } },
+              { role_id: '3' },
+              { role_id: 3 }
             ]
           });
         } else {
@@ -268,7 +290,7 @@ export const userController = {
         // Exclude students by default when listing staff members
         conditions.push({
           role: { $not: /^student$/i },
-          role_id: { $nin: ['10', 10, '4', 4] }
+          role_id: { $nin: ['10', 10] }
         });
       }
 
@@ -290,7 +312,9 @@ export const userController = {
           $or: [
             { name: { $regex: search, $options: 'i' } },
             { email: { $regex: search, $options: 'i' } },
-            { employeeId: { $regex: search, $options: 'i' } }
+            { employeeId: { $regex: search, $options: 'i' } },
+            { studentId: { $regex: search, $options: 'i' } },
+            { phone: { $regex: search, $options: 'i' } }
           ]
         });
       }
@@ -326,6 +350,86 @@ export const userController = {
         designation.name
       ]));
 
+      // Lookup student enrollments/batches and mentor assigned batches/courses
+      const userIds = users.map(u => u._id);
+      const [studentBatches, studentEnrollments, mentorBatches, mentorCourses] = await Promise.all([
+        Batch.find({ students: { $in: userIds } }).select('_id batchName batchCode courseId students status').populate('courseId', 'courseName courseCode').lean().catch(() => []),
+        Enrollment.find({ studentId: { $in: userIds } }).select('_id studentId batchId courseId status progressPercentage').populate('courseId', 'courseName courseCode').populate('batchId', 'batchName batchCode').lean().catch(() => []),
+        Batch.find({ $or: [{ instructorId: { $in: userIds } }, { instructors: { $in: userIds } }] }).select('_id batchName batchCode courseId instructorId instructors status').populate('courseId', 'courseName courseCode').lean().catch(() => []),
+        Course.find({ $or: [{ instructorId: { $in: userIds } }, { instructor: { $in: userIds } }] }).select('_id courseName courseCode category status instructorId').lean().catch(() => [])
+      ]);
+
+      const studentBatchMap = new Map();
+      studentBatches.forEach(b => {
+        (b.students || []).forEach(stId => {
+          const sKey = String(stId);
+          if (!studentBatchMap.has(sKey)) studentBatchMap.set(sKey, []);
+          studentBatchMap.get(sKey).push({
+            id: b._id,
+            batchName: b.batchName,
+            batchCode: b.batchCode,
+            status: b.status,
+            courseName: b.courseId?.courseName || '',
+            courseCode: b.courseId?.courseCode || ''
+          });
+        });
+      });
+
+      const studentEnrollmentMap = new Map();
+      studentEnrollments.forEach(e => {
+        const sKey = String(e.studentId);
+        if (!studentEnrollmentMap.has(sKey)) studentEnrollmentMap.set(sKey, []);
+        studentEnrollmentMap.get(sKey).push({
+          id: e._id,
+          batchName: e.batchId?.batchName || '',
+          batchCode: e.batchId?.batchCode || '',
+          courseName: e.courseId?.courseName || '',
+          courseCode: e.courseId?.courseCode || '',
+          status: e.status,
+          progressPercentage: e.progressPercentage || 0
+        });
+      });
+
+      const mentorBatchMap = new Map();
+      mentorBatches.forEach(b => {
+        const mIds = [
+          b.instructorId ? String(b.instructorId) : null,
+          ...(Array.isArray(b.instructors) ? b.instructors.map(i => String(i)) : [])
+        ].filter(Boolean);
+
+        mIds.forEach(mKey => {
+          if (!mentorBatchMap.has(mKey)) mentorBatchMap.set(mKey, []);
+          const existing = mentorBatchMap.get(mKey);
+          if (!existing.some(x => String(x.id) === String(b._id))) {
+            existing.push({
+              id: b._id,
+              batchName: b.batchName,
+              batchCode: b.batchCode,
+              status: b.status,
+              courseName: b.courseId?.courseName || '',
+              courseCode: b.courseId?.courseCode || ''
+            });
+          }
+        });
+      });
+
+      const mentorCourseMap = new Map();
+      mentorCourses.forEach(c => {
+        const mKey = String(c.instructorId || c.instructor || '');
+        if (mKey) {
+          if (!mentorCourseMap.has(mKey)) mentorCourseMap.set(mKey, []);
+          const existing = mentorCourseMap.get(mKey);
+          if (!existing.some(x => String(x.id) === String(c._id))) {
+            existing.push({
+              id: c._id,
+              courseName: c.courseName,
+              courseCode: c.courseCode,
+              status: c.status
+            });
+          }
+        }
+      });
+
       const safeUsers = users.map((u) => {
         const designationId = u.designationId ? String(u.designationId) : '';
         const legacyDesignationId = designationMap.has(String(u.designation)) ? String(u.designation) : '';
@@ -333,33 +437,65 @@ export const userController = {
 
         const isDeptActive = u.departmentId && u.departmentId.status !== false;
 
+        const uIdStr = String(u._id);
+        const enrolledBatches = studentBatchMap.get(uIdStr) || [];
+        const enrollments = studentEnrollmentMap.get(uIdStr) || [];
+        const assignedBatches = mentorBatchMap.get(uIdStr) || [];
+        const assignedCourses = mentorCourseMap.get(uIdStr) || [];
+
+        // Also merge courses from assigned batches into mentor courses
+        const allMentorCourses = [...assignedCourses];
+        assignedBatches.forEach(ab => {
+          if (ab.courseName && !allMentorCourses.some(mc => mc.courseName === ab.courseName)) {
+            allMentorCourses.push({ id: null, courseName: ab.courseName, courseCode: ab.courseCode });
+          }
+        });
+
+        const activeEnrollment = enrollments.find(e => e.status === 'active') || enrollments[0];
+        const activeBatch = enrolledBatches.find(b => b.status === 'ONGOING' || b.status === 'UPCOMING') || enrolledBatches[0];
+
         return ({
-        id: u._id,
-        name: u.name,
-        email: u.email,
-        phone: u.phone,
-        role: u.role,
-        employeeId: u.employeeId,
-        department: isDeptActive ? (u.departmentId.name || u.department) : '',
-        departmentId: isDeptActive ? u.departmentId._id : null,
-        designation: resolvedDesignationId || u.designation,
-        designationId: resolvedDesignationId,
-        designationName: designationMap.get(resolvedDesignationId) || u.designation,
-        reportingManager: u.reportingManager,
-        avatar: u.avatar || u.profile_image || null,
-        profile_image: u.avatar || u.profile_image || null,
-        profileImage: u.avatar || u.profile_image || null,
-        isActive: u.isActive,
-        status: u.status || (u.isActive ? 'active' : 'inactive'),
-        lastLogin: u.lastLogin,
-        createdAt: u.createdAt,
-        joining_date: u.joining_date,
-        salary: u.salary,
-        address: u.address,
-        identityType: u.identityType,
-        identityNumber: u.identityNumber,
-        permissions: u.permissions || [],
-        isSuperAdmin: u.isSuperAdmin || u.role === 'superadmin'
+          id: u._id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          role: u.role,
+          employeeId: u.employeeId,
+          studentId: u.studentId || (u.role === 'student' ? u.employeeId : null),
+          department: isDeptActive ? (u.departmentId?.name || u.department) : (u.department || ''),
+          departmentId: isDeptActive ? u.departmentId?._id : null,
+          designation: resolvedDesignationId || u.designation,
+          designationId: resolvedDesignationId,
+          designationName: designationMap.get(resolvedDesignationId) || u.designation,
+          reportingManager: u.reportingManager,
+          avatar: u.avatar || u.profile_image || null,
+          profile_image: u.avatar || u.profile_image || null,
+          profileImage: u.avatar || u.profile_image || null,
+          isActive: u.isActive,
+          status: u.status || (u.isActive ? 'active' : 'inactive'),
+          lastLogin: u.lastLogin,
+          createdAt: u.createdAt,
+          joining_date: u.joining_date,
+          salary: u.salary,
+          address: u.address,
+          identityType: u.identityType,
+          identityNumber: u.identityNumber,
+          permissions: u.permissions || [],
+          isSuperAdmin: u.isSuperAdmin || u.role === 'superadmin',
+          coursePreference: u.coursePreference || activeEnrollment?.courseName || activeBatch?.courseName || '',
+          dateOfBirth: u.dateOfBirth,
+          gender: u.gender,
+          alternatePhone: u.alternatePhone,
+          city: u.city,
+          state: u.state,
+          pincode: u.pincode,
+          qualification: u.qualification,
+          institution: u.institution,
+          passingYear: u.passingYear,
+          enrolledBatches,
+          enrollments,
+          assignedBatches,
+          assignedCourses: allMentorCourses
         });
       });
 
