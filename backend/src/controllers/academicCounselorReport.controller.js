@@ -53,8 +53,9 @@ export const getReportByDate = async (req, res, next) => {
     });
 
     if (!report) {
-      return res.status(404).json({
-        success: false,
+      return res.status(200).json({
+        success: true,
+        data: null,
         message: 'Daily shift report not found for this date.'
       });
     }

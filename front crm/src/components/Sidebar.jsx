@@ -23,6 +23,13 @@ import {
   Layers, 
   School, 
   Award,
+  Users,
+  UserCheck,
+  Briefcase,
+  UserCog,
+  BarChart3,
+  Clock,
+  FileText,
   X 
 } from 'lucide-react';
 
@@ -30,24 +37,26 @@ const CATEGORY_ORDER = [
   'Overview',
   'Admissions',
   'Academics',
+  'Employees',
   'Attendance',
   'Assignments',
-  'Accounts',
   'Live Classes',
+  'Accounts',
   'Certificates',
-  'Settings'
+  'Reports'
 ];
 
 const CATEGORY_CONFIG = {
   'Overview': { label: 'Overview', icon: LayoutDashboard },
   'Admissions': { label: 'Admissions', icon: Target },
   'Academics': { label: 'Academics', icon: GraduationCap },
-  'Attendance': { label: 'Attendance', icon: Clipboard },
+  'Employees': { label: 'Employees', icon: Users },
+  'Attendance': { label: 'Attendance', icon: Clock },
   'Assignments': { label: 'Assignments', icon: CheckCircle2 },
-  'Accounts': { label: 'Accounts', icon: Wallet },
   'Live Classes': { label: 'Live Classes', icon: Video },
+  'Accounts': { label: 'Accounts', icon: Wallet },
   'Certificates': { label: 'Certificates', icon: Award },
-  'Settings': { label: 'Settings', icon: Settings }
+  'Reports': { label: 'Reports', icon: BarChart3 }
 };
 
 const menuItems = [
@@ -57,7 +66,7 @@ const menuItems = [
     label: 'Dashboard', 
     path: '/dashboard', 
     category: 'Overview', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor'] 
+    allowedRoles: ['0', '1', '2', '3', '10', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor', 'mentor', 'hr', 'student'] 
   },
   { 
     icon: Bell, 
@@ -87,44 +96,86 @@ const menuItems = [
   // --- ACADEMICS ---
   { 
     icon: BookOpen, 
-    label: 'Course Management', 
+    label: 'Courses', 
     path: '/academy/courses', 
     category: 'Academics', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin'] 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'mentor', 'hr'] 
   },
   { 
     icon: Layers, 
     label: 'Batches', 
     path: '/academy/batches', 
     category: 'Academics', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher'],
-    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer']
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr'],
+    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'mentor']
   },
   { 
     icon: School, 
-    label: 'Enrollments', 
+    label: 'Student Progress', 
     path: '/academy/enrollments', 
     category: 'Academics', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller'],
-    allowedDesignationNames: ['counselor', 'telecaller', 'admission']
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor', 'mentor', 'hr'],
+    allowedDesignationNames: ['counselor', 'telecaller', 'admission', 'instructor', 'mentor']
   },
   { 
     icon: GraduationCap, 
     label: 'My Learning LMS', 
     path: '/academy/learning', 
     category: 'Academics', 
-    allowedRoles: ['10', 'student', 'instructor', 'faculty', 'teacher', '0', '1', '2', 'admin', 'superadmin'],
-    allowedDesignationNames: ['student', 'instructor', 'teacher', 'faculty', 'trainer']
+    allowedRoles: ['10', 'student', 'instructor', 'faculty', 'teacher', 'mentor', '0', '1', '2', 'admin', 'superadmin'],
+    allowedDesignationNames: ['student', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
+  },
+
+  // --- EMPLOYEES ---
+  { 
+    icon: UserCheck, 
+    label: 'Students', 
+    path: '/employees/students', 
+    category: 'Employees', 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'counselor', 'telecaller', 'admission', 'academic', 'instructor', 'faculty', 'teacher', 'trainer', 'mentor', 'hr']
+  },
+  { 
+    icon: Briefcase, 
+    label: 'HR', 
+    path: '/employees/hr', 
+    category: 'Employees', 
+    allowedRoles: ['0', 'admin', 'superadmin'],
+    allowedDesignationNames: ['admin', 'superadmin']
+  },
+  { 
+    icon: UserCog, 
+    label: 'Mentors', 
+    path: '/employees/mentors', 
+    category: 'Employees', 
+    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'hr'],
+    allowedDesignationNames: ['admin', 'superadmin', 'hr']
   },
 
   // --- ATTENDANCE ---
   { 
+    icon: Clock, 
+    label: 'Attendance Shift Log', 
+    path: '/attendance', 
+    category: 'Attendance', 
+    allowedRoles: ['0', '1', '2', '3', '10', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr', 'student'],
+    allowedDesignationNames: ['admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor', 'student']
+  },
+  { 
+    icon: UserCheck, 
+    label: 'Daily Present / Absent List', 
+    path: '/attendance?tab=roster', 
+    category: 'Attendance', 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
+  },
+  { 
     icon: Clipboard, 
-    label: 'Student Attendance', 
+    label: 'Class Attendance Sheets', 
     path: '/student-attendance', 
     category: 'Attendance', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', '10', 'student'],
-    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'student']
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
   },
 
   // --- ASSIGNMENTS ---
@@ -133,8 +184,34 @@ const menuItems = [
     label: 'Assignments & Grading', 
     path: '/assignments', 
     category: 'Assignments', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', '10', 'student'],
-    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'student']
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
+  },
+  { 
+    icon: CheckCircle2, 
+    label: 'My Assignments', 
+    path: '/student/assignments', 
+    category: 'Assignments', 
+    allowedRoles: ['10', 'student'],
+    allowedDesignationNames: ['student']
+  },
+  { 
+    icon: Award, 
+    label: 'My Results & Submissions', 
+    path: '/student/results', 
+    category: 'Assignments', 
+    allowedRoles: ['10', 'student'],
+    allowedDesignationNames: ['student']
+  },
+
+  // --- LIVE CLASSES ---
+  { 
+    icon: Video, 
+    label: 'Live Classrooms', 
+    path: '/live-classes', 
+    category: 'Live Classes', 
+    allowedRoles: ['0', '1', '2', '3', '10', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr', 'student'],
+    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'mentor', 'hr', 'student']
   },
 
   // --- ACCOUNTS ---
@@ -147,16 +224,6 @@ const menuItems = [
     allowedDesignationNames: ['student', 'accountant', 'accounts']
   },
 
-  // --- LIVE CLASSES ---
-  { 
-    icon: Video, 
-    label: 'Live Classrooms', 
-    path: '/live-classes', 
-    category: 'Live Classes', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', '10', 'student'],
-    allowedDesignationNames: ['instructor', 'teacher', 'faculty', 'trainer', 'student']
-  },
-
   // --- CERTIFICATES ---
   { 
     icon: Award, 
@@ -167,12 +234,22 @@ const menuItems = [
     allowedDesignationNames: ['student']
   },
 
-  // --- SETTINGS ---
+  // --- REPORTS ---
   { 
-    icon: Settings, 
-    label: 'Settings', 
-    path: '/settings', 
-    category: 'Settings' 
+    icon: BarChart3, 
+    label: 'Reports & Analytics', 
+    path: '/reports', 
+    category: 'Reports', 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'superadmin', 'hr', 'instructor', 'mentor']
+  },
+  { 
+    icon: FileText, 
+    label: 'Daily Shift Report', 
+    path: '/daily-shift-report', 
+    category: 'Reports', 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'mentor', 'hr', 'counselor', 'telecaller'],
+    allowedDesignationNames: ['admin', 'superadmin', 'hr', 'instructor', 'mentor', 'counselor', 'telecaller']
   }
 ];
 
@@ -184,9 +261,13 @@ const PortalTooltip = ({ children }) => {
 const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }) => {
   const isSingleItem = group.items.length === 1;
 
-  const isAnyChildActive = group.items.some(item => 
-    activePath === item.path || (item.children && item.children.some(c => activePath === c.path))
-  );
+  const isAnyChildActive = group.items.some(item => {
+    const itemPathOnly = item.path.split('?')[0];
+    const activePathOnly = activePath.split('?')[0];
+    if (activePath === item.path) return true;
+    if (activePathOnly === itemPathOnly) return true;
+    return item.children && item.children.some(c => activePath.startsWith(c.path));
+  });
 
   const [isOpen, setIsOpen] = useState(isAnyChildActive);
   const [isHovered, setIsHovered] = useState(false);
@@ -347,7 +428,7 @@ const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }
 
 const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
-  const activePath = location.pathname;
+  const activePath = location.pathname + (location.search || '');
   const { user: liveUser } = useUser() || {};
   const [, setPermissionsVersion] = React.useState(0);
 
@@ -370,7 +451,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       }
 
       if (!userObj) {
-        return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/settings');
+        return menuItems.filter(item => item.path === '/academy/learning');
       }
 
       const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
@@ -386,26 +467,69 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         String(userObj.role || '').toLowerCase() === 'superadmin' ||
         String(userObj.role || '').toLowerCase() === '0';
 
-      const isAdminUser = isSuperAdminUser || ['1', '2', 'admin'].includes(currentUserRole) || currentDesigName.includes('admin');
-
-      // 1. Admin & SuperAdmin: Full access to all EdTech tools
-      if (isAdminUser) {
+      // 1. Super Admin: Unrestricted access to all CRM modules
+      if (isSuperAdminUser) {
         return menuItems;
       }
 
-      // 2. Student: Strictly allowed only Student modules
+      // 2. Student: Learning dashboard, enrolled courses, assignments, submissions, live classes, attendance
       if (isStudent) {
         const studentAllowedPaths = [
+          '/dashboard',
           '/academy/learning',
+          '/student/assignments',
+          '/student/results',
           '/live-classes',
-          '/assignments',
-          '/student-attendance',
-          '/accounts',
+          '/attendance',
           '/certificates',
-          '/notifications',
-          '/settings'
+          '/notifications'
         ];
         return menuItems.filter(item => studentAllowedPaths.includes(item.path));
+      }
+
+      // 3. HR Operations: Students, mentors, courses/batches, assignments, live classes, attendance, reports
+      const isHR = currentUserRole === 'hr' || (currentUserRole === '2' && !isSuperAdminUser) || currentDesigName.includes('hr');
+      if (isHR) {
+        const hrAllowedPaths = [
+          '/dashboard',
+          '/notifications',
+          '/leads',
+          '/leads-telecaller',
+          '/employees/students',
+          '/employees/mentors',
+          '/academy/courses',
+          '/academy/batches',
+          '/academy/enrollments',
+          '/assignments',
+          '/live-classes',
+          '/attendance',
+          '/attendance?tab=roster',
+          '/student-attendance',
+          '/accounts',
+          '/reports',
+          '/daily-shift-report'
+        ];
+        return menuItems.filter(item => hrAllowedPaths.includes(item.path));
+      }
+
+      // 4. Mentor / Faculty: Teaching scope, my students, assigned courses, assignments & grading, live classes, attendance
+      const isMentor = currentUserRole === 'mentor' || currentUserRole === 'instructor' || currentUserRole === '3' || currentDesigName.includes('mentor') || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher');
+      if (isMentor) {
+        const mentorAllowedPaths = [
+          '/dashboard',
+          '/notifications',
+          '/employees/students',
+          '/academy/courses',
+          '/academy/batches',
+          '/academy/enrollments',
+          '/assignments',
+          '/live-classes',
+          '/attendance',
+          '/attendance?tab=roster',
+          '/reports',
+          '/daily-shift-report'
+        ];
+        return menuItems.filter(item => mentorAllowedPaths.includes(item.path));
       }
 
       // 3. Custom permissions if defined
@@ -416,17 +540,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
           return (
             item.path === '/notifications' ||
-            item.path === '/settings' ||
             allowedSet.includes(itemLabelLower) ||
-            allowedSet.includes(itemPathLower)
+            allowedSet.includes(itemPathLower) ||
+            allowedSet.includes(item.category ? item.category.toLowerCase().trim() : '')
           );
         });
         if (customVisible.length > 0) return customVisible;
       }
 
-      // 4. Role / Designation Based Matching for Counselor, Instructor, etc.
+      // 4. Role / Designation Based Matching for Counselor, Instructor, HR, etc.
       const isCounselor = currentUserRole === 'counselor' || currentDesigName.includes('counselor') || currentDesigName.includes('tele');
-      const isInstructor = currentUserRole === 'instructor' || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher') || currentDesigName.includes('trainer');
+      const isInstructor = currentUserRole === 'instructor' || currentUserRole === 'mentor' || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher') || currentDesigName.includes('trainer') || currentDesigName.includes('mentor');
 
       const visible = menuItems.filter(item => {
         // If item has no role restrictions, allow it
@@ -437,7 +561,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         const roleMatch = item.allowedRoles && (
           item.allowedRoles.includes(currentUserRole) ||
           (isCounselor && item.allowedRoles.includes('counselor')) ||
-          (isInstructor && item.allowedRoles.includes('instructor'))
+          (isInstructor && (item.allowedRoles.includes('instructor') || item.allowedRoles.includes('mentor'))) ||
+          (isHR && item.allowedRoles.includes('hr'))
         );
 
         const desigMatch = item.allowedDesignationNames && item.allowedDesignationNames.some(name =>
@@ -459,7 +584,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       return finalVisible;
     } catch (e) {
       console.error("Error reading operator authorization layout paths:", e);
-      return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/settings');
+      return menuItems.filter(item => item.path === '/academy/learning');
     }
   };
 

@@ -10,7 +10,14 @@ const UserContext = createContext({
 });
 
 export const UserProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
   const getAuthHeaders = useCallback(() => {
@@ -63,8 +70,8 @@ export const UserProvider = ({ children }) => {
           localStorage.setItem('user', JSON.stringify(mergedUser));
           window.dispatchEvent(new Event('storage'));
         }
-      } else if (res.status === 401 || res.status === 403 || res.status === 404) {
-        console.warn('🔑 Session user not found or unauthorized (401/403/404). Clearing stale session.');
+      } else if (res.status === 401) {
+        console.warn('🔑 Session user unauthenticated (401). Clearing stale session.');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('user_id');
@@ -72,6 +79,8 @@ export const UserProvider = ({ children }) => {
         if (window.location.pathname !== '/login') {
           window.location.href = '/login?timeout=true';
         }
+      } else {
+        console.warn(`User profile fetch returned ${res.status}. Preserving local session state.`);
       }
     } finally {
       setLoading(false);

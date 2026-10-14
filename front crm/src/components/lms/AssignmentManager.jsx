@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Edit, Trash2, Award, Calendar, CheckCircle2, 
-  AlertCircle, Loader2, X, Users, Eye, FileText 
+  AlertCircle, Loader2, X, Users, Eye, FileText,
+  Search, Check, UserCheck
 } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 import GradeSubmissionModal from './GradeSubmissionModal';
@@ -18,7 +19,10 @@ const initialAssignmentForm = {
   dueDate: '',
   allowedSubmissionTypes: ['FILE', 'TEXT'],
   isPublished: true,
-  moduleId: ''
+  moduleId: '',
+  targetType: 'ALL', // 'ALL' | 'BATCH' | 'STUDENTS'
+  batchId: '',
+  targetStudents: [] // array of student ObjectIds
 };
 
 const AssignmentManager = ({ courseId, syllabus = [] }) => {
@@ -31,6 +35,12 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
   const [editingAssignment, setEditingAssignment] = useState(null);
   const [formData, setFormData] = useState(initialAssignmentForm);
   const [submitting, setSubmitting] = useState(false);
+
+  // Enrolled Students and Batches for course
+  const [courseStudents, setCourseStudents] = useState([]);
+  const [courseBatches, setCourseBatches] = useState([]);
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [loadingRecipients, setLoadingRecipients] = useState(false);
 
   // Submissions Modal State
   const [viewingSubmissionsAssignment, setViewingSubmissionsAssignment] = useState(null);
@@ -46,6 +56,61 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
       'Content-Type': 'application/json'
     };
   }, []);
+
+  const fetchRecipients = useCallback(async () => {
+    if (!courseId) return;
+    setLoadingRecipients(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const enrollUrl = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/enrollments?courseId=${courseId}&limit=200`
+        : `${cleanBase}/v1/academy/enrollments?courseId=${courseId}&limit=200`;
+
+      const batchesUrl = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/batches?courseId=${courseId}`
+        : `${cleanBase}/v1/academy/batches?courseId=${courseId}`;
+
+      const [resEnroll, resBatches] = await Promise.all([
+        fetch(enrollUrl, { headers: getHeaders() }),
+        fetch(batchesUrl, { headers: getHeaders() })
+      ]);
+
+      if (resEnroll.ok) {
+        const enrollData = await resEnroll.json();
+        const enrollments = enrollData.data?.enrollments || enrollData.data || [];
+        const studentList = enrollments
+          .filter(e => e.studentId && typeof e.studentId === 'object')
+          .map(e => ({
+            id: e.studentId._id || e.studentId.id,
+            name: e.studentId.name || 'Unnamed Student',
+            email: e.studentId.email || '',
+            studentId: e.studentId.studentId || '',
+            batchName: e.batchId?.batchName || 'No Batch Assigned',
+            batchId: e.batchId?._id || e.batchId || ''
+          }));
+
+        // Deduplicate students by ID
+        const uniqueStudents = [];
+        const seenIds = new Set();
+        studentList.forEach(s => {
+          if (s.id && !seenIds.has(String(s.id))) {
+            seenIds.add(String(s.id));
+            uniqueStudents.push(s);
+          }
+        });
+        setCourseStudents(uniqueStudents);
+      }
+
+      if (resBatches.ok) {
+        const batchesData = await resBatches.json();
+        setCourseBatches(batchesData.data?.batches || batchesData.data || []);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch course recipients:', err.message);
+    } finally {
+      setLoadingRecipients(false);
+    }
+  }, [courseId, getHeaders]);
 
   const fetchAssignments = useCallback(async () => {
     setLoading(true);
@@ -68,20 +133,27 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
   }, [courseId, getHeaders, showToast]);
 
   useEffect(() => {
-    if (courseId) fetchAssignments();
-  }, [courseId, fetchAssignments]);
+    if (courseId) {
+      fetchAssignments();
+      fetchRecipients();
+    }
+  }, [courseId, fetchAssignments, fetchRecipients]);
 
   const handleOpenAddModal = (targetModuleId) => {
     setEditingAssignment(null);
+    setStudentSearchTerm('');
     setFormData({
       ...initialAssignmentForm,
       moduleId: targetModuleId || (syllabus[0]?.moduleId || 'mod_1')
     });
+    fetchRecipients();
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (assignment) => {
     setEditingAssignment(assignment);
+    setStudentSearchTerm('');
+    const targetStuds = (assignment.targetStudents || []).map(s => String(s._id || s));
     setFormData({
       title: assignment.title || '',
       description: assignment.description || '',
@@ -90,8 +162,12 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
       dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
       allowedSubmissionTypes: assignment.allowedSubmissionTypes || ['FILE', 'TEXT'],
       isPublished: assignment.isPublished !== undefined ? assignment.isPublished : true,
-      moduleId: assignment.moduleId || (syllabus[0]?.moduleId || 'mod_1')
+      moduleId: assignment.moduleId || (syllabus[0]?.moduleId || 'mod_1'),
+      targetType: assignment.targetType || (assignment.batchId ? 'BATCH' : 'ALL'),
+      batchId: assignment.batchId?._id || assignment.batchId || '',
+      targetStudents: targetStuds
     });
+    fetchRecipients();
     setIsModalOpen(true);
   };
 
@@ -99,6 +175,11 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
     e.preventDefault();
     if (!formData.title.trim()) {
       showToast('Assignment title is required.', 'error');
+      return;
+    }
+
+    if (formData.targetType === 'STUDENTS' && (!formData.targetStudents || formData.targetStudents.length === 0)) {
+      showToast('Please select at least one student to assign this task.', 'error');
       return;
     }
 
@@ -259,13 +340,17 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
 
                       {asg.description && <p className="text-xs text-slate-500 line-clamp-2">{asg.description}</p>}
 
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-semibold pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 font-semibold pt-1">
                         <span className="flex items-center gap-1">
                           <Calendar size={13} className="text-indigo-500" />
                           {asg.dueDate ? `Due: ${new Date(asg.dueDate).toLocaleDateString()}` : 'No due date'}
                         </span>
-                        <span className="uppercase text-[10px] text-slate-500">
-                          {(asg.allowedSubmissionTypes || []).join(', ')}
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {asg.targetType === 'STUDENTS'
+                            ? `👤 ${(asg.targetStudents || []).length} Student(s)`
+                            : asg.batchId?.batchName
+                            ? `👥 Batch: ${asg.batchId.batchName}`
+                            : '👥 All Enrolled'}
                         </span>
                       </div>
 
@@ -367,6 +452,192 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
                       className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
                     />
                   </div>
+                </div>
+
+                {/* ASSIGN TO STUDENT / BATCH SECTION */}
+                <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <Users size={14} className="text-indigo-500" /> Assign To
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-medium">Select recipient target</span>
+                  </div>
+
+                  {/* Recipient Mode Options */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, targetType: 'ALL', targetStudents: [] }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center border cursor-pointer ${
+                        formData.targetType === 'ALL'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      Entire Batch
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          targetType: 'STUDENTS',
+                          targetStudents: prev.targetStudents.slice(0, 1)
+                        }));
+                      }}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center border cursor-pointer ${
+                        formData.targetType === 'STUDENTS' && (formData.targetStudents.length <= 1)
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      Individual Student
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, targetType: 'STUDENTS' }))}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center border cursor-pointer ${
+                        formData.targetType === 'STUDENTS' && (formData.targetStudents.length > 1)
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      }`}
+                    >
+                      Multiple Students
+                    </button>
+                  </div>
+
+                  {/* If Entire Batch */}
+                  {formData.targetType === 'ALL' && (
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                        Select Specific Batch (Optional)
+                      </label>
+                      <select
+                        value={formData.batchId || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, batchId: e.target.value }))}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 outline-none"
+                      >
+                        <option value="">All Batches & Enrolled Students in this Course</option>
+                        {courseBatches.map(b => (
+                          <option key={b._id} value={b._id}>
+                            {b.batchName} ({b.batchCode || 'Batch'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* If Individual Student or Multiple Students */}
+                  {formData.targetType === 'STUDENTS' && (
+                    <div className="space-y-3">
+                      {/* Search box */}
+                      <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={studentSearchTerm}
+                          onChange={(e) => setStudentSearchTerm(e.target.value)}
+                          placeholder="Search enrolled students by name, ID, or email..."
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 pl-9 pr-4 py-2 rounded-xl text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
+                        />
+                      </div>
+
+                      {/* Enrolled Students Picker */}
+                      {loadingRecipients ? (
+                        <div className="py-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                          <Loader2 size={14} className="animate-spin" /> Loading enrolled students...
+                        </div>
+                      ) : courseStudents.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                          No enrolled students found for this course yet.
+                        </div>
+                      ) : (
+                        <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                          {courseStudents
+                            .filter(s => {
+                              if (!studentSearchTerm) return true;
+                              const q = studentSearchTerm.toLowerCase();
+                              return (
+                                s.name.toLowerCase().includes(q) ||
+                                s.email.toLowerCase().includes(q) ||
+                                s.studentId.toLowerCase().includes(q) ||
+                                s.batchName.toLowerCase().includes(q)
+                              );
+                            })
+                            .map(st => {
+                              const isSelected = formData.targetStudents.includes(st.id);
+                              return (
+                                <div
+                                  key={st.id}
+                                  onClick={() => {
+                                    setFormData(prev => {
+                                      const exists = prev.targetStudents.includes(st.id);
+                                      return {
+                                        ...prev,
+                                        targetStudents: exists
+                                          ? prev.targetStudents.filter(id => id !== st.id)
+                                          : [...prev.targetStudents, st.id]
+                                      };
+                                    });
+                                  }}
+                                  className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600'
+                                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                      isSelected
+                                        ? 'bg-indigo-600 border-indigo-600 text-white'
+                                        : 'border-slate-300 dark:border-slate-700'
+                                    }`}>
+                                      {isSelected && <Check size={12} />}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <span>{st.name}</span>
+                                        {st.studentId && (
+                                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                            {st.studentId}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400">
+                                        {st.email} • {st.batchName}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <span className="text-[10px] font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded-md">
+                                      Selected
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+
+                      {/* Selected Summary */}
+                      <div className="flex items-center justify-between text-xs pt-1">
+                        <span className="text-slate-500 dark:text-slate-400 font-medium">
+                          {formData.targetStudents.length === 0
+                            ? '⚠️ No student selected yet'
+                            : `✓ ${formData.targetStudents.length} student(s) selected`}
+                        </span>
+                        {formData.targetStudents.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, targetStudents: [] }))}
+                            className="text-[11px] text-rose-500 hover:underline cursor-pointer"
+                          >
+                            Clear Selection
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

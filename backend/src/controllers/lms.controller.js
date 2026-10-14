@@ -6,6 +6,8 @@ import LessonProgress from '../models/lessonProgress.model.js';
 import Assignment from '../models/assignment.model.js';
 import AssignmentSubmission from '../models/assignmentSubmission.model.js';
 import User from '../models/user.model.js';
+import Batch from '../models/batch.model.js';
+import { getAuthUserContext } from '../utils/rbac.helper.js';
 import { uploadToCloudinary } from '../utils/cloudinary.util.js';
 
 const recordAudit = async (req, auditData) => {
@@ -377,19 +379,109 @@ const lmsController = {
 
   /**
    * GET /api/v1/academy/assignments
-   * Get all assignments with optional ?courseId filter
+   * Get all assignments with role-based scoping and filters
    */
   getAllAssignments: async (req, res, next) => {
     try {
-      const { courseId } = req.query;
+      const { courseId, batchId, status } = req.query;
+      const auth = await getAuthUserContext(req);
       const query = {};
-      if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
+
+      if (courseId && courseId !== 'ALL' && mongoose.Types.ObjectId.isValid(courseId)) {
         query.courseId = courseId;
       }
+      if (batchId && batchId !== 'ALL' && mongoose.Types.ObjectId.isValid(batchId)) {
+        query.batchId = batchId;
+      }
+      if (status && status !== 'ALL') {
+        if (status === 'PUBLISHED') query.isPublished = true;
+        else if (status === 'DRAFT') query.isPublished = false;
+        else query.status = status;
+      }
+
+      // Role Scoping
+      if (auth.isStudent) {
+        // Students only see published assignments for their enrolled courses/batches
+        query.isPublished = true;
+        const studentEnrollments = await Enrollment.find({
+          studentId: auth.userId,
+          status: { $in: ['active', 'completed', 'paused', 'ACTIVE', 'COMPLETED', 'PAUSED'] }
+        }).select('courseId batchId').lean();
+
+        const enrolledCourseIds = studentEnrollments.map(e => e.courseId).filter(Boolean);
+        const enrolledBatchIds = studentEnrollments.map(e => e.batchId).filter(Boolean);
+
+        const studentIdObj = new mongoose.Types.ObjectId(auth.userId);
+        query.$or = [
+          { targetType: 'ALL' },
+          { courseId: { $in: enrolledCourseIds } },
+          { batchId: { $in: enrolledBatchIds } },
+          { targetStudents: studentIdObj }
+        ];
+      } else if (auth.isInstructor && !auth.isSuperAdmin && !auth.isHr) {
+        // Mentors only see assignments for courses or batches they teach, or created by them
+        const mentorUserObj = new mongoose.Types.ObjectId(auth.userId);
+        const taughtBatches = await Batch.find({
+          $or: [
+            { instructorId: mentorUserObj },
+            { instructors: mentorUserObj }
+          ]
+        }).select('_id courseId').lean();
+
+        const mentorBatchIds = taughtBatches.map(b => b._id);
+        const mentorCourseIds = taughtBatches.map(b => b.courseId).filter(Boolean);
+
+        const taughtCourses = await Course.find({
+          $or: [
+            { instructorId: mentorUserObj },
+            { instructor: mentorUserObj }
+          ]
+        }).select('_id').lean();
+        taughtCourses.forEach(c => {
+          if (!mentorCourseIds.some(id => String(id) === String(c._id))) {
+            mentorCourseIds.push(c._id);
+          }
+        });
+
+        query.$or = [
+          { createdBy: mentorUserObj },
+          { assignedMentor: mentorUserObj },
+          { batchId: { $in: mentorBatchIds } },
+          { courseId: { $in: mentorCourseIds } }
+        ];
+      }
+
       const assignments = await Assignment.find(query)
         .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode')
+        .populate('assignedMentor', 'name email employeeId profile_image')
+        .populate('createdBy', 'name email')
         .sort({ createdAt: -1 })
         .lean();
+
+      // If student requester: attach individual submission status and filter targeted assignments
+      if (auth.isStudent) {
+        const studentObjId = String(auth.userId);
+        const filteredAssignments = assignments.filter(a => {
+          if (a.targetType === 'STUDENTS') {
+            const targets = (a.targetStudents || []).map(s => String(s._id || s));
+            return targets.includes(studentObjId);
+          }
+          return true;
+        });
+
+        const studentSubs = await AssignmentSubmission.find({ studentId: auth.userId }).lean();
+        const enriched = filteredAssignments.map(a => {
+          const sub = studentSubs.find(s => String(s.assignmentId) === String(a._id));
+          return {
+            ...a,
+            mySubmission: sub || null,
+            submissionStatus: sub ? sub.status : 'NOT_STARTED'
+          };
+        });
+        return res.status(200).json({ success: true, data: enriched });
+      }
+
       return res.status(200).json({ success: true, data: assignments });
     } catch (error) {
       next(error);
@@ -397,19 +489,63 @@ const lmsController = {
   },
 
   /**
+   * GET /api/v1/academy/assignments/:assignmentId
+   */
+  getAssignmentById: async (req, res, next) => {
+    try {
+      const { assignmentId } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(assignmentId)) {
+        throw new AppError('Invalid assignment ID format.', 400);
+      }
+
+      const assignment = await Assignment.findById(assignmentId)
+        .populate('courseId', 'courseName courseCode syllabus')
+        .populate('batchId', 'batchName batchCode')
+        .populate('assignedMentor', 'name email employeeId profile_image')
+        .populate('createdBy', 'name email')
+        .lean();
+
+      if (!assignment) {
+        throw new AppError('Assignment not found.', 404);
+      }
+
+      const userId = req.user?.id || req.user?._id;
+      const auth = await getAuthUserContext(req);
+
+      let mySubmission = null;
+      if (auth.isStudent && userId) {
+        mySubmission = await AssignmentSubmission.findOne({ assignmentId, studentId: userId }).lean();
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...assignment,
+          mySubmission
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * POST /api/v1/academy/courses/:courseId/assignments
-   * Create new course assignment
+   * POST /api/v1/academy/assignments
+   * Create and distribute assignment (Super Admin, HR, Mentor)
    */
   createAssignment: async (req, res, next) => {
     try {
-      const { courseId } = req.params;
+      const courseId = req.params.courseId || req.body.courseId;
       const { 
         moduleId, title, description, instructions, attachmentUrl, 
-        maxMarks, dueDate, allowedSubmissionTypes, isPublished 
+        maxMarks, dueDate, allowedSubmissionTypes, allowedFileFormats,
+        maxFileSize, batchId, assignedMentor, targetType = 'ALL',
+        targetStudents = [], isPublished = true, status
       } = req.body;
 
-      if (!mongoose.Types.ObjectId.isValid(courseId)) {
-        throw new AppError('Invalid course ID format.', 400);
+      if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+        throw new AppError('Valid course ID is required.', 400);
       }
 
       if (!title || !title.trim()) {
@@ -421,14 +557,21 @@ const lmsController = {
         throw new AppError('Course not found.', 404);
       }
 
-      const rawMarks = maxMarks ?? req.body.maxScore ?? req.body.maximumMarks;
+      const rawMarks = maxMarks ?? req.body.maxScore ?? req.body.maximumMarks ?? 100;
       const parsedMaxMarks = parseInt(rawMarks, 10);
       if (isNaN(parsedMaxMarks) || parsedMaxMarks <= 0) {
         throw new AppError('Maximum marks must be a positive number greater than 0.', 400);
       }
 
+      const finalPublished = isPublished !== undefined ? Boolean(isPublished) : (status === 'PUBLISHED');
+      const finalStatus = finalPublished ? 'PUBLISHED' : 'DRAFT';
+      const creatorId = req.user?.id || req.user?._id;
+      const resolvedMentor = assignedMentor || (req.user?.role === 'mentor' || req.user?.role === 'instructor' ? creatorId : null);
+
       const newAssignment = await Assignment.create({
         courseId,
+        batchId: batchId && mongoose.Types.ObjectId.isValid(batchId) ? batchId : null,
+        assignedMentor: resolvedMentor && mongoose.Types.ObjectId.isValid(resolvedMentor) ? resolvedMentor : null,
         moduleId: moduleId || (course.syllabus?.[0]?.moduleId || 'mod_1'),
         title: title.trim(),
         description: description ? description.trim() : '',
@@ -439,9 +582,61 @@ const lmsController = {
         allowedSubmissionTypes: Array.isArray(allowedSubmissionTypes) && allowedSubmissionTypes.length > 0
           ? allowedSubmissionTypes
           : ['FILE', 'TEXT'],
-        isPublished: isPublished !== undefined ? Boolean(isPublished) : true,
-        createdBy: req.user?.id || req.user?._id
+        allowedFileFormats: Array.isArray(allowedFileFormats) && allowedFileFormats.length > 0
+          ? allowedFileFormats
+          : ['pdf', 'jpg', 'jpeg', 'png'],
+        maxFileSize: maxFileSize && Number(maxFileSize) > 0 ? Number(maxFileSize) : 10485760, // 10MB default
+        targetType: targetType || (batchId ? 'BATCH' : 'ALL'),
+        targetStudents: Array.isArray(targetStudents) ? targetStudents : [],
+        isPublished: finalPublished,
+        status: finalStatus,
+        createdBy: creatorId
       });
+
+      // Assignment distribution: Ensure recipient students have initial submission records
+      try {
+        let recipientStudentIds = [];
+        const rawTargetStudents = Array.isArray(targetStudents)
+          ? targetStudents
+          : (targetStudents ? [targetStudents] : (req.body.studentId ? [req.body.studentId] : []));
+
+        if (targetType === 'STUDENTS' && rawTargetStudents.length > 0) {
+          recipientStudentIds = rawTargetStudents.filter(id => mongoose.Types.ObjectId.isValid(id));
+        } else if (batchId && mongoose.Types.ObjectId.isValid(batchId)) {
+          const batchDoc = await Batch.findById(batchId).select('students');
+          if (batchDoc && Array.isArray(batchDoc.students)) {
+            recipientStudentIds = batchDoc.students.filter(id => mongoose.Types.ObjectId.isValid(id));
+          }
+        } else if (targetType === 'ALL') {
+          const enrollments = await Enrollment.find({
+            courseId,
+            status: { $in: ['active', 'enrolled', 'completed', 'paused', 'ACTIVE', 'ENROLLED', 'COMPLETED', 'PAUSED'] }
+          }).select('studentId');
+          recipientStudentIds = enrollments.map(e => e.studentId).filter(id => mongoose.Types.ObjectId.isValid(id));
+        }
+
+        if (recipientStudentIds.length > 0 && finalPublished) {
+          const ops = recipientStudentIds.map(stId => ({
+            updateOne: {
+              filter: { assignmentId: newAssignment._id, studentId: stId },
+              update: {
+                $setOnInsert: {
+                  assignmentId: newAssignment._id,
+                  studentId: stId,
+                  courseId,
+                  batchId: batchId || null,
+                  maxMarks: parsedMaxMarks,
+                  status: 'NOT_STARTED'
+                }
+              },
+              upsert: true
+            }
+          }));
+          await AssignmentSubmission.bulkWrite(ops);
+        }
+      } catch (distErr) {
+        console.warn('Assignment distribution non-blocking error:', distErr.message);
+      }
 
       await recordAudit(req, {
         action: 'CREATE_ASSIGNMENT',
@@ -452,7 +647,7 @@ const lmsController = {
 
       return res.status(201).json({
         success: true,
-        message: 'Assignment created successfully.',
+        message: 'Assignment created and distributed successfully.',
         data: newAssignment
       });
     } catch (error) {
@@ -478,7 +673,9 @@ const lmsController = {
       const oldValue = assignment.toObject();
       const fields = [
         'title', 'description', 'instructions', 'maxMarks',
-        'dueDate', 'allowedSubmissionTypes', 'isPublished', 'moduleId', 'lessonId'
+        'dueDate', 'allowedSubmissionTypes', 'allowedFileFormats',
+        'maxFileSize', 'isPublished', 'status', 'moduleId', 'lessonId',
+        'batchId', 'assignedMentor', 'targetType', 'targetStudents', 'attachmentUrl'
       ];
 
       fields.forEach(field => {
@@ -493,6 +690,11 @@ const lmsController = {
           }
         }
       });
+
+      if (req.body.isPublished !== undefined) {
+        assignment.isPublished = Boolean(req.body.isPublished);
+        assignment.status = assignment.isPublished ? 'PUBLISHED' : 'DRAFT';
+      }
 
       assignment.updatedBy = req.user?.id || req.user?._id;
       await assignment.save();
@@ -551,7 +753,7 @@ const lmsController = {
 
   /**
    * POST /api/v1/academy/assignments/:assignmentId/submit
-   * Enrolled student submits solution to assignment
+   * Enrolled student submits solution to assignment (PDF / Image / Text)
    */
   submitAssignment: async (req, res, next) => {
     try {
@@ -568,47 +770,94 @@ const lmsController = {
         throw new AppError('Assignment not found.', 404);
       }
 
-      if (!assignment.isPublished) {
-        throw new AppError('Assignment is not accepting submissions.', 403);
+      if (assignment.isPublished === false || assignment.status === 'DRAFT') {
+        throw new AppError('Assignment is in draft mode and not accepting submissions.', 403);
       }
 
+      if (assignment.targetType === 'STUDENTS') {
+        const targets = (assignment.targetStudents || []).map(s => String(s._id || s));
+        if (!targets.includes(String(studentId))) {
+          throw new AppError('This assignment was specifically assigned to other student(s). You are not eligible to submit.', 403);
+        }
+      }
+
+      // Look up student's enrollment
       const enrollment = await Enrollment.findOne({
         studentId,
         courseId: assignment.courseId,
-        status: { $in: ['active', 'completed', 'paused'] }
+        status: { $in: ['active', 'completed', 'paused', 'ACTIVE', 'COMPLETED', 'PAUSED'] }
       });
 
-      if (!enrollment) {
-        throw new AppError('You do not have an active enrollment for this course.', 403);
-      }
-
-      const actualFileUrl = fileUrl || req.body.submissionUrl || '';
+      const actualFileUrl = (fileUrl || req.body.submissionUrl || '').trim();
       const actualTextAnswer = (textAnswer || req.body.submissionText || req.body.content || '').trim();
       const actualExternalUrl = (externalUrl || req.body.link || req.body.githubUrl || '').trim();
-      const determinedType = submissionType || (actualFileUrl ? 'FILE' : (actualExternalUrl ? 'URL' : 'TEXT'));
+      const determinedType = submissionType || (actualFileUrl ? 'FILE' : (actualExternalUrl ? 'LINK' : 'TEXT'));
+
+      if (determinedType === 'FILE') {
+        if (!actualFileUrl) {
+          throw new AppError('Please attach a PDF or image file for this submission.', 400);
+        }
+
+        // File format validation
+        const allowedExtensions = assignment.allowedFileFormats?.length > 0
+          ? assignment.allowedFileFormats.map(ext => ext.toLowerCase().replace(/^\./, ''))
+          : ['pdf', 'jpg', 'jpeg', 'png'];
+
+        const rawFileName = fileMetadata?.originalName || actualFileUrl;
+        const fileExtMatch = rawFileName.match(/\.([a-zA-Z0-9]+)($|\?)/);
+        const fileExt = fileExtMatch ? fileExtMatch[1].toLowerCase() : '';
+
+        // If file extension is identifiable, check against allowed extensions
+        if (fileExt && !allowedExtensions.includes(fileExt) && !actualFileUrl.startsWith('data:image/')) {
+          throw new AppError(`Allowed file formats: ${allowedExtensions.join(', ').toUpperCase()}. Found .${fileExt}`, 400);
+        }
+
+        // File size validation (default 10MB)
+        const maxBytes = assignment.maxFileSize || 10485760;
+        if (fileMetadata?.size && fileMetadata.size > maxBytes) {
+          const maxMB = (maxBytes / (1024 * 1024)).toFixed(0);
+          throw new AppError(`File exceeds maximum allowed size of ${maxMB}MB.`, 400);
+        }
+      }
+
+      // Check deadline for late submission indicator
+      const now = new Date();
+      const isLate = assignment.dueDate ? now > new Date(assignment.dueDate) : false;
+
+      // Existing submission check (to handle resubmission)
+      const existingSub = await AssignmentSubmission.findOne({ assignmentId, studentId });
+      const isResubmission = existingSub && existingSub.status === 'RESUBMISSION_REQUIRED';
+
+      const updateData = {
+        assignmentId,
+        studentId,
+        courseId: assignment.courseId,
+        batchId: assignment.batchId || enrollment?.batchId || null,
+        enrollmentId: enrollment?._id || null,
+        submissionType: determinedType,
+        fileUrl: actualFileUrl,
+        fileMetadata: fileMetadata || (existingSub?.fileMetadata || {}),
+        textAnswer: actualTextAnswer,
+        externalUrl: actualExternalUrl,
+        submittedAt: now,
+        isLate,
+        status: 'SUBMITTED',
+        maxMarks: assignment.maxMarks
+      };
+
+      if (isResubmission) {
+        updateData.resubmittedAt = now;
+      }
 
       const submission = await AssignmentSubmission.findOneAndUpdate(
         { assignmentId, studentId },
-        {
-          assignmentId,
-          studentId,
-          courseId: assignment.courseId,
-          enrollmentId: enrollment._id,
-          submissionType: determinedType,
-          fileUrl: actualFileUrl,
-          fileMetadata: fileMetadata || {},
-          textAnswer: actualTextAnswer,
-          externalUrl: actualExternalUrl,
-          submittedAt: new Date(),
-          status: 'SUBMITTED',
-          maxMarks: assignment.maxMarks
-        },
+        { $set: updateData },
         { upsert: true, new: true }
       );
 
       return res.status(201).json({
         success: true,
-        message: 'Assignment submitted successfully.',
+        message: isLate ? 'Assignment submitted (Late Submission recorded).' : 'Assignment submitted successfully!',
         data: submission
       });
     } catch (error) {
@@ -617,8 +866,104 @@ const lmsController = {
   },
 
   /**
+   * GET /api/v1/academy/my-submissions
+   * Logged-in student queries all their submissions with grades & feedback
+   */
+  getMySubmissions: async (req, res, next) => {
+    try {
+      const studentId = req.user?.id || req.user?._id;
+      if (!studentId) {
+        throw new AppError('Authentication required.', 401);
+      }
+
+      const submissions = await AssignmentSubmission.find({ studentId })
+        .populate({
+          path: 'assignmentId',
+          select: 'title description instructions dueDate maxMarks allowedFileFormats status'
+        })
+        .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode')
+        .populate('gradedBy', 'name email designation')
+        .sort({ submittedAt: -1, createdAt: -1 })
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        data: submissions
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/academy/grading/submissions
+   * HR and Mentors fetch submissions requiring evaluation
+   */
+  getGradingQueue: async (req, res, next) => {
+    try {
+      const { courseId, batchId, status, search } = req.query;
+      const auth = await getAuthUserContext(req);
+      const query = { status: { $ne: 'NOT_STARTED' } };
+
+      if (courseId && courseId !== 'ALL' && mongoose.Types.ObjectId.isValid(courseId)) {
+        query.courseId = courseId;
+      }
+      if (batchId && batchId !== 'ALL' && mongoose.Types.ObjectId.isValid(batchId)) {
+        query.batchId = batchId;
+      }
+      if (status && status !== 'ALL') {
+        query.status = status;
+      }
+
+      // Mentor Scoping
+      if (auth.isInstructor && !auth.isSuperAdmin && !auth.isHr) {
+        const mentorUserObj = new mongoose.Types.ObjectId(auth.userId);
+        const taughtBatches = await Batch.find({
+          $or: [{ instructorId: mentorUserObj }, { instructors: mentorUserObj }]
+        }).select('_id courseId').lean();
+
+        const mentorBatchIds = taughtBatches.map(b => b._id);
+        const mentorCourseIds = taughtBatches.map(b => b.courseId).filter(Boolean);
+
+        query.$or = [
+          { batchId: { $in: mentorBatchIds } },
+          { courseId: { $in: mentorCourseIds } }
+        ];
+      }
+
+      const submissions = await AssignmentSubmission.find(query)
+        .populate('assignmentId', 'title maxMarks dueDate instructions')
+        .populate('studentId', 'name email phone studentId profile_image')
+        .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode')
+        .populate('gradedBy', 'name email')
+        .sort({ submittedAt: -1 })
+        .lean();
+
+      let filtered = submissions;
+      if (search && search.trim()) {
+        const term = search.toLowerCase().trim();
+        filtered = submissions.filter(s => 
+          s.studentId?.name?.toLowerCase().includes(term) ||
+          s.studentId?.studentId?.toLowerCase().includes(term) ||
+          s.studentId?.email?.toLowerCase().includes(term) ||
+          s.assignmentId?.title?.toLowerCase().includes(term)
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: filtered
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * GET /api/v1/academy/assignments/:assignmentId/submissions
-   * Instructor/Admin fetches student submissions for an assignment
+   * Instructor/Admin fetches student submissions for a specific assignment
    */
   getAssignmentSubmissions: async (req, res, next) => {
     try {
@@ -627,7 +972,12 @@ const lmsController = {
         throw new AppError('Invalid assignment ID format.', 400);
       }
 
-      const assignment = await Assignment.findById(assignmentId).lean();
+      const assignment = await Assignment.findById(assignmentId)
+        .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode')
+        .populate('assignedMentor', 'name email employeeId')
+        .lean();
+
       if (!assignment) {
         throw new AppError('Assignment not found.', 404);
       }
@@ -652,32 +1002,52 @@ const lmsController = {
 
   /**
    * PATCH /api/v1/academy/submissions/:submissionId/grade
-   * Instructor grades student submission with grade range validation
+   * Reviewer grades student submission, adds marks & feedback, or requests resubmission
    */
   gradeSubmission: async (req, res, next) => {
     try {
       const { submissionId } = req.params;
-      const { grade, score, marks, feedback, status } = req.body;
+      const { grade, score, marks, feedback, status, resubmissionReason } = req.body;
       const evaluatorId = req.user?.id || req.user?._id;
 
       if (!mongoose.Types.ObjectId.isValid(submissionId)) {
         throw new AppError('Invalid submission ID format.', 400);
       }
 
-      const submission = await AssignmentSubmission.findById(submissionId);
+      const submission = await AssignmentSubmission.findById(submissionId).populate('assignmentId');
       if (!submission) {
         throw new AppError('Submission record not found.', 404);
       }
 
-      const rawGrade = grade !== undefined ? grade : (score !== undefined ? score : marks);
-      const numericGrade = parseFloat(rawGrade);
-      if (isNaN(numericGrade) || numericGrade < 0 || numericGrade > submission.maxMarks) {
-        throw new AppError(`Grade must be a number between 0 and ${submission.maxMarks}.`, 400);
+      const targetStatus = status || 'GRADED';
+
+      if (targetStatus === 'RESUBMISSION_REQUIRED') {
+        const reason = (resubmissionReason || feedback || '').trim();
+        if (!reason) {
+          throw new AppError('Please provide a reason or correction instructions when requesting resubmission.', 400);
+        }
+        submission.status = 'RESUBMISSION_REQUIRED';
+        submission.resubmissionReason = reason;
+        submission.feedback = feedback ? feedback.trim() : reason;
+      } else if (targetStatus === 'GRADED') {
+        const rawGrade = grade !== undefined ? grade : (score !== undefined ? score : marks);
+        if (rawGrade === undefined || rawGrade === null || rawGrade === '') {
+          throw new AppError('Marks or grade is required to publish evaluation.', 400);
+        }
+        const numericGrade = parseFloat(rawGrade);
+        const maxMarks = submission.maxMarks || submission.assignmentId?.maxMarks || 100;
+        if (isNaN(numericGrade) || numericGrade < 0 || numericGrade > maxMarks) {
+          throw new AppError(`Grade must be a valid number between 0 and ${maxMarks}.`, 400);
+        }
+
+        submission.grade = numericGrade;
+        submission.status = 'GRADED';
+        submission.feedback = feedback ? feedback.trim() : '';
+      } else if (targetStatus === 'UNDER_REVIEW') {
+        submission.status = 'UNDER_REVIEW';
+        if (feedback) submission.feedback = feedback.trim();
       }
 
-      submission.grade = numericGrade;
-      submission.feedback = feedback ? feedback.trim() : '';
-      submission.status = status || 'GRADED';
       submission.gradedBy = evaluatorId;
       submission.gradedAt = new Date();
       await submission.save();
@@ -691,7 +1061,9 @@ const lmsController = {
 
       return res.status(200).json({
         success: true,
-        message: 'Submission graded successfully.',
+        message: targetStatus === 'RESUBMISSION_REQUIRED' 
+          ? 'Resubmission requested from student.' 
+          : 'Submission graded successfully.',
         data: submission
       });
     } catch (error) {

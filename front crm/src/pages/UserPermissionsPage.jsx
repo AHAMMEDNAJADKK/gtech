@@ -47,6 +47,11 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Daily Operations OS', path: '/daily-operations', category: 'Operations', desc: 'MD & Management daily operations overview, routines & briefing review' },
   { label: 'TL Daily Operations', path: '/tl-daily-operations', category: 'Operations', desc: 'Team Lead department routine checklist, briefing table & EOD closures' },
 
+  // Employee Management
+  { label: 'Students', path: '/employees/students', category: 'Employees', desc: 'Student directory, profile viewer & attendance stats' },
+  { label: 'HR', path: '/employees/hr', category: 'Employees', desc: 'HR staff members directory & employee records' },
+  { label: 'Mentors', path: '/employees/mentors', category: 'Employees', desc: 'Mentors & faculty roster with batch & course assignments' },
+
   // HR & Recruitment
   { label: 'Staff Attendance', path: '/staff-attendance', category: 'HR', desc: 'Mark and manage daily staff attendance logs & roster' },
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },

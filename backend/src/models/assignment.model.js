@@ -52,6 +52,41 @@ const assignmentSchema = new mongoose.Schema({
     default: true,
     index: true
   },
+  batchId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Batch',
+    default: null,
+    index: true
+  },
+  assignedMentor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true
+  },
+  targetType: {
+    type: String,
+    enum: ['ALL', 'BATCH', 'STUDENTS'],
+    default: 'ALL'
+  },
+  targetStudents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  allowedFileFormats: {
+    type: [String],
+    default: ['pdf', 'jpg', 'jpeg', 'png']
+  },
+  maxFileSize: {
+    type: Number,
+    default: 10485760 // 10MB in bytes
+  },
+  status: {
+    type: String,
+    enum: ['DRAFT', 'PUBLISHED'],
+    default: 'PUBLISHED',
+    index: true
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

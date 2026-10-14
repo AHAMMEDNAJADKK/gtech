@@ -93,8 +93,8 @@ const StudentLmsPortal = () => {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
             { label: "Live Classes", desc: "Join Google Meet / Zoom", path: "/live-classes", icon: PlayCircle, color: "text-sky-600 bg-sky-50 dark:bg-sky-950/40" },
-            { label: "My Assignments", desc: "Submissions & marks", path: "/assignments", icon: CheckCircle2, color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
-            { label: "My Attendance", desc: "Attendance records", path: "/student-attendance", icon: Clock, color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
+            { label: "My Assignments", desc: "Submissions & marks", path: "/student/assignments", icon: CheckCircle2, color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
+            { label: "My Attendance", desc: "Attendance records", path: "/attendance", icon: Clock, color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
             { label: "Fee Accounts", desc: "Installments & receipts", path: "/accounts", icon: Sparkles, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" },
             { label: "Certificates", desc: "Graduation awards", path: "/certificates", icon: Award, color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
           ].map(hub => {

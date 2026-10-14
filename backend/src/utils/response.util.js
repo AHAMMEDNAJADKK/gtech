@@ -13,7 +13,7 @@ export const sendSuccess = (res, {
     message,
     data,
     meta: {
-      requestId: res.req.id || 'N/A',
+      requestId: res?.req?.id || 'N/A',
       timestamp: new Date()
     }
   };
@@ -43,7 +43,7 @@ export const sendError = (res, {
     status,
     message,
     meta: {
-      requestId: res.req.id || 'N/A',
+      requestId: res?.req?.id || 'N/A',
       timestamp: new Date()
     }
   };

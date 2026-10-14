@@ -152,8 +152,8 @@ export const requireAdminOrStaff = (req, res, next) => {
   }
 
   const isStaffOrAdmin = 
-    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager', 'counselor'].includes(roleId) ||
-    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager', 'counselor'].includes(roleName) ||
+    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager', 'counselor', 'mentor'].includes(roleId) ||
+    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager', 'counselor', 'mentor'].includes(roleName) ||
     roleName.toUpperCase() === 'MD' || roleName.toUpperCase() === 'COO';
 
   if (!isStaffOrAdmin) {
@@ -205,10 +205,12 @@ export const requireInstructorOrAdmin = (req, res, next) => {
     roleId === '0' ||
     roleId === '1' ||
     roleId === '2' ||
-    ['admin', 'superadmin', 'instructor', 'teacher', 'faculty', 'trainer'].includes(roleName) ||
+    ['admin', 'superadmin', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor', 'hr'].includes(roleName) ||
     roleName.includes('instructor') ||
+    roleName.includes('mentor') ||
     roleName.includes('teach') ||
-    roleName.includes('admin');
+    roleName.includes('admin') ||
+    roleName.includes('hr');
 
   if (!isAllowed) {
     return res.status(403).json({

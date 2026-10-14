@@ -44,6 +44,16 @@ const attendanceSchema = new mongoose.Schema({
   overtime: {
     type: String,
     default: '0.00'
+  },
+
+  role: {
+    type: String,
+    default: null
+  },
+
+  loginMethod: {
+    type: String,
+    default: 'credentials'
   }
 
 }, {

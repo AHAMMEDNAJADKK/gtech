@@ -78,10 +78,12 @@ export const getAuthUserContext = async (req) => {
     role === 'teacher' ||
     role === 'faculty' ||
     role === 'trainer' ||
+    role === 'mentor' ||
     designation.includes('instructor') ||
     designation.includes('teacher') ||
     designation.includes('faculty') ||
-    designation.includes('trainer')
+    designation.includes('trainer') ||
+    designation.includes('mentor')
   );
 
   const isAdmin = Boolean(
@@ -117,6 +119,17 @@ export const getAuthUserContext = async (req) => {
     )
   );
 
+  const isHr = Boolean(
+    !isSuperAdmin &&
+    (
+      role === 'hr' ||
+      roleId === '2' ||
+      designation.includes('hr') ||
+      department.includes('hr') ||
+      department.includes('human resources')
+    )
+  );
+
   return {
     userId: String(userId || ''),
     role,
@@ -126,8 +139,10 @@ export const getAuthUserContext = async (req) => {
     permissions,
     isSuperAdmin,
     isAdmin,
+    isHr,
     isCounselor,
     isInstructor,
+    isMentor: isInstructor,
     isStudent
   };
 };

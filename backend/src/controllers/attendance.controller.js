@@ -3,6 +3,8 @@
 // ===============================
 
 import Attendance from '../models/attendance.model.js';
+import StudentAttendance from '../models/studentattendance.js';
+import { getDailyAttendanceRosterData } from '../services/attendance.service.js';
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -243,9 +245,13 @@ export const getAttendanceByDate =
             date
           });
   
-        return res.status(200).json(
-          serializeAttendance(record)
-        );
+        const serialized = serializeAttendance(record);
+        return res.status(200).json({
+          success: true,
+          data: serialized,
+          attendance: serialized,
+          ...(serialized || {})
+        });
       } catch (err) {
         console.error(err);
         return res.status(500).json({
@@ -309,3 +315,161 @@ export const markUserAttendance = async (req, res) => {
     return res.status(500).json({ detail: error.message });
   }
 };
+
+export const getMyShift = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ detail: "Authentication required." });
+    }
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    const userId = req.user.id || req.user._id;
+    const todayStr = getISTDate();
+
+    const now = new Date();
+    const istTimeStr = now.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+
+    const record = await Attendance.findOne({ user_id: userId, date: todayStr });
+
+    const isActive = Boolean(record?.check_in_time && !record?.check_out_time);
+    let currentWorkingHours = record?.working_hours || "0.00";
+    if (isActive && record?.check_in_time) {
+      const ms = now.getTime() - new Date(record.check_in_time).getTime();
+      const hrs = Math.max(0, ms / (1000 * 60 * 60));
+      currentWorkingHours = hrs.toFixed(2);
+    }
+
+    const serialized = serializeAttendance(record);
+
+    return res.status(200).json({
+      success: true,
+      today: todayStr,
+      serverTimeIST: istTimeStr,
+      isActiveShift: isActive,
+      currentWorkingHours,
+      attendance: serialized,
+      data: serialized,
+      isStudent
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};
+
+export const getMyHistory = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ detail: "Authentication required." });
+    }
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    const userId = req.user.id || req.user._id;
+    const limit = parseInt(req.query.limit, 10) || 30;
+
+    if (isStudent) {
+      const dailyRecords = await Attendance.find({ user_id: userId })
+        .sort({ date: -1 })
+        .limit(limit)
+        .lean();
+
+      const studentRecords = await StudentAttendance.find({ user_id: userId })
+        .sort({ date: -1 })
+        .limit(limit)
+        .populate('courseId', 'courseName courseCode')
+        .populate('batchId', 'batchName batchCode')
+        .lean();
+
+      const formattedClasses = studentRecords.map(r => ({
+        id: r._id.toString(),
+        date: r.date,
+        status: r.status,
+        courseName: r.courseId?.courseName || 'Course',
+        batchName: r.batchId?.batchName || 'Batch',
+        markedAt: r.createdAt
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: dailyRecords.map(serializeAttendance),
+        studentClasses: formattedClasses,
+        isStudent: true
+      });
+    }
+
+    const records = await Attendance.find({ user_id: userId })
+      .sort({ date: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: records.map(serializeAttendance)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};
+
+export const getAttendanceSummary = async (req, res) => {
+  try {
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const userRoleId = String(req.user?.role_id || '');
+    const isSuperAdmin = Boolean(req.user?.isSuperAdmin || userRole === 'superadmin' || userRoleId === '0');
+    const isHr = Boolean(userRole === 'hr' || userRoleId === '2');
+
+    if (!isSuperAdmin && !isHr) {
+      return res.status(403).json({
+        success: false,
+        detail: "Access denied. Only Super Admin and HR can view organization attendance summary."
+      });
+    }
+
+    const todayStr = req.query.date || getISTDate();
+    const records = await Attendance.find({ date: todayStr }).populate('user_id', 'name email role department designation employeeId avatar');
+    const totalStaff = records.length;
+    const activeShifts = records.filter(r => r.check_in_time && !r.check_out_time).length;
+    const completedShifts = records.filter(r => r.check_out_time).length;
+    const lateArrivals = records.filter(r => r.is_late).length;
+
+    return res.status(200).json({
+      success: true,
+      date: todayStr,
+      totalMarked: totalStaff,
+      activeShifts,
+      completedShifts,
+      lateArrivals,
+      records: records.map(serializeAttendance)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ detail: error.message });
+  }
+};
+
+export const getDailyAttendanceRoster = async (req, res) => {
+  try {
+    const data = await getDailyAttendanceRosterData({
+      currentUser: req.user,
+      date: req.query.date,
+      role: req.query.role,
+      status: req.query.status,
+      courseId: req.query.courseId,
+      batchId: req.query.batchId,
+      search: req.query.search
+    });
+
+    return res.status(200).json(data);
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      detail: error.message || "Failed to retrieve daily attendance roster."
+    });
+  }
+};

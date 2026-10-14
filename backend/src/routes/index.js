@@ -11,6 +11,8 @@ import attendanceRoutes from './attendance.routes.js';
 import notificationRoutes from './notification.routes.js';
 import accountRoutes from './account.routes.js';
 import academicCounselorReportRoutes from './academicCounselorReport.routes.js';
+import departmentRoutes from '../modules/departments/department.routes.js';
+import taskRoutes from './task.routes.js';
 
 const router = Router();
 
@@ -29,6 +31,9 @@ router.use('/edtech-dashboard', edtechDashboardRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/academic-counselor-reports', academicCounselorReportRoutes);
+router.use('/daily-shift-reports', academicCounselorReportRoutes);
+router.use('/departments', departmentRoutes);
+router.use('/tasks', taskRoutes);
 
 // Fallback legacy account endpoints maintained for backwards compatibility
 router.use('/legacy-accounts', accountRoutes);
