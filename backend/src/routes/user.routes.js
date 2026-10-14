@@ -35,10 +35,37 @@ router.get(
   userController.getUserList
 );
 
-// GET USER BY ID (Admin / HR only)
+// GET CURRENT USER PROFILE (Self)
+router.get(
+  '/me',
+  (req, res, next) => {
+    req.params.id = req.user?.id || req.user?._id;
+    next();
+  },
+  userController.getUserById
+);
+
+// GET USER BY ID (Self or Admin / HR)
 router.get(
   '/:id',
-  requireRole(['admin', 'hr']),
+  (req, res, next) => {
+    const loggedInId = String(req.user?.id || req.user?._id || '');
+    const requestedId = String(req.params.id || '');
+    const userRole = String(req.user?.role || '').toLowerCase().trim();
+    const userRoleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isSuperAdmin = req.user?.isSuperAdmin === true || userRole === 'superadmin' || userRoleId === '0';
+    const isPrivileged = isSuperAdmin || ['admin', 'hr', '1', '2'].includes(userRole) || ['1', '2'].includes(userRoleId);
+
+    // Allow user to fetch their own profile, or privileged roles to fetch any profile
+    if ((loggedInId && requestedId && loggedInId === requestedId) || isPrivileged) {
+      return next();
+    }
+
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. You can only view your own profile.'
+    });
+  },
   userController.getUserById
 );
 

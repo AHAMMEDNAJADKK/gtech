@@ -54,19 +54,13 @@ async function run() {
   assert(adminLogin.status === 200, 'Super Admin logs in successfully');
   const adminToken = adminLogin.body.token;
 
-  // 2. Attendance & Student Isolation Fixes
-  console.log('\n--- 2. ATTENDANCE PAGE & STUDENT SHIFT ACCESS FIXES ---');
-  // Student trying to check in to employee shift -> must be 403
+  // 2. Attendance & Student Check-In / Check-Out
+  console.log('\n--- 2. ATTENDANCE PAGE & STUDENT ATTENDANCE CHECK-IN / CHECK-OUT ---');
+  // Student checking in -> allowed (201 or 400 if already checked in today)
   const studentCheckIn = await request(app)
     .post('/api/v1/attendance/check-in')
     .set('Authorization', `Bearer ${studentToken}`);
-  assert(studentCheckIn.status === 403, 'Student is strictly forbidden from checking into employee shift (403)');
-
-  // Student trying to check out of employee shift -> must be 403
-  const studentCheckOut = await request(app)
-    .post('/api/v1/attendance/check-out')
-    .set('Authorization', `Bearer ${studentToken}`);
-  assert(studentCheckOut.status === 403, 'Student is strictly forbidden from checking out of employee shift (403)');
+  assert([201, 400].includes(studentCheckIn.status), 'Student can check in (201 or 400 if already checked in)');
 
   // Student fetching my-shift: must return 200 with safe object (not crash)
   const studentMyShift = await request(app)
@@ -75,7 +69,13 @@ async function run() {
   assert(studentMyShift.status === 200, 'Student /attendance/my-shift returns 200 OK');
   assert(studentMyShift.body.success === true, 'Returns success: true flag');
   assert(studentMyShift.body.isStudent === true, 'Identifies student correctly');
-  assert(studentMyShift.body.attendance === null, 'Attendance safely set to null without crash');
+  assert(studentMyShift.body.serverTimeIST, 'Includes IST server time');
+
+  // Student checking out -> allowed (200 or 400 if already checked out)
+  const studentCheckOut = await request(app)
+    .post('/api/v1/attendance/check-out')
+    .set('Authorization', `Bearer ${studentToken}`);
+  assert([200, 400].includes(studentCheckOut.status), 'Student can check out (200 or 400 if already checked out)');
 
   // Student fetching attendance summary: forbidden (403)
   const studentSummary = await request(app)
@@ -97,6 +97,20 @@ async function run() {
   assert(studentHistory.status === 200, 'Student /attendance/my-history returns 200 OK');
   assert(Array.isArray(studentHistory.body.data), 'History returns an array');
   assert(studentHistory.body.isStudent === true, 'Identifies student history payload');
+
+  // Student Submissions & Results API Fix
+  console.log('\n--- STUDENT SUBMISSIONS & RESULTS API (/api/v1/academy/my-submissions) ---');
+  const subRes = await request(app)
+    .get('/api/v1/academy/my-submissions')
+    .set('Authorization', `Bearer ${studentToken}`);
+  assert(subRes.status === 200, 'GET /api/v1/academy/my-submissions returns 200 OK');
+  assert(subRes.body.success === true, 'Returns success: true flag');
+  assert(Array.isArray(subRes.body.data), 'Returns submissions array');
+
+  const subAliasRes = await request(app)
+    .get('/api/v1/academy/assignments/my-submissions')
+    .set('Authorization', `Bearer ${studentToken}`);
+  assert(subAliasRes.status === 200, 'Alias /academy/assignments/my-submissions returns 200 OK');
 
   // 3. Task API Fix
   console.log('\n--- 3. TASK DUE REMINDER MODAL API (/api/v1/tasks/all) ---');

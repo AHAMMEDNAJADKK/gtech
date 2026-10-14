@@ -9,7 +9,8 @@ import {
   markUserAttendance,
   getMyShift,
   getMyHistory,
-  getAttendanceSummary
+  getAttendanceSummary,
+  getDailyAttendanceRoster
 } from '../controllers/attendance.controller.js';
 
 const router = Router();
@@ -21,6 +22,7 @@ router.use(protectRoute);
 router.get('/my-shift', getMyShift);
 router.get('/my-history', getMyHistory);
 router.get('/summary', getAttendanceSummary);
+router.get('/roster', getDailyAttendanceRoster);
 router.post('/check-in', checkIn);
 router.post('/check-out', checkOut);
 router.post('/mark-user', markUserAttendance);

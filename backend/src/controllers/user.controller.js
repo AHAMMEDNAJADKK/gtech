@@ -551,10 +551,13 @@ export const userController = {
           'Employee details successfully retrieved.',
         data: {
           id: user._id,
+          _id: user._id,
           name: user.name,
           email: user.email,
           phone: user.phone,
           role: user.role,
+          role_id: user.role_id,
+          studentId: user.studentId || null,
           employeeId: user.employeeId,
           department: isDeptActive ? (user.departmentId.name || user.department) : '',
           departmentId: isDeptActive ? user.departmentId : null,
@@ -576,7 +579,7 @@ export const userController = {
           identityType: user.identityType,
           identityNumber: user.identityNumber,
           permissions: user.permissions || [],
-          isSuperAdmin: user.isSuperAdmin || user.role === 'superadmin'
+          isSuperAdmin: Boolean(user.isSuperAdmin || user.role === 'superadmin' || user.role_id === '0')
         }
       });
 

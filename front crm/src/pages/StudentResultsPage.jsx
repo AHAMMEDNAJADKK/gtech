@@ -14,6 +14,7 @@ const StudentResultsPage = () => {
   const { showToast } = useToast();
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const user = useMemo(() => {
@@ -36,13 +37,15 @@ const StudentResultsPage = () => {
 
   const fetchMySubmissions = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const base = API_BASE.endsWith('/v1') ? API_BASE : `${API_BASE}/v1`;
       const res = await fetch(`${base}/academy/my-submissions`, { headers: getHeaders() });
       if (!res.ok) throw new Error('Failed to load submissions and results.');
       const data = await res.json();
-      setSubmissions(data.data || []);
+      setSubmissions(Array.isArray(data.data) ? data.data : []);
     } catch (err) {
+      setError(err.message || 'Failed to load submissions and results.');
       showToast(err.message, 'error');
     } finally {
       setLoading(false);
@@ -255,9 +258,19 @@ const StudentResultsPage = () => {
             <Loader2 size={32} className="animate-spin text-indigo-600 mx-auto mb-2" />
             <span className="text-xs text-slate-400">Loading results...</span>
           </div>
+        ) : error ? (
+          <div className="py-16 text-center space-y-3">
+            <p className="text-xs text-rose-500 font-medium">{error}</p>
+            <button
+              onClick={fetchMySubmissions}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Retry Loading
+            </button>
+          </div>
         ) : filteredSubmissions.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-xs">
-            No assignment evaluations or submissions found.
+            No assignment evaluations or submissions found. Submissions and grades will appear here as mentors evaluate your work.
           </div>
         ) : (
           <div className="overflow-x-auto">

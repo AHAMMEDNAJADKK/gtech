@@ -162,6 +162,14 @@ const menuItems = [
     allowedDesignationNames: ['admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor', 'student']
   },
   { 
+    icon: UserCheck, 
+    label: 'Daily Present / Absent List', 
+    path: '/attendance?tab=roster', 
+    category: 'Attendance', 
+    allowedRoles: ['0', '1', '2', '3', 'admin', 'superadmin', 'instructor', 'faculty', 'teacher', 'mentor', 'hr'],
+    allowedDesignationNames: ['admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
+  },
+  { 
     icon: Clipboard, 
     label: 'Class Attendance Sheets', 
     path: '/student-attendance', 
@@ -253,9 +261,13 @@ const PortalTooltip = ({ children }) => {
 const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }) => {
   const isSingleItem = group.items.length === 1;
 
-  const isAnyChildActive = group.items.some(item => 
-    activePath === item.path || (item.children && item.children.some(c => activePath === c.path))
-  );
+  const isAnyChildActive = group.items.some(item => {
+    const itemPathOnly = item.path.split('?')[0];
+    const activePathOnly = activePath.split('?')[0];
+    if (activePath === item.path) return true;
+    if (activePathOnly === itemPathOnly) return true;
+    return item.children && item.children.some(c => activePath.startsWith(c.path));
+  });
 
   const [isOpen, setIsOpen] = useState(isAnyChildActive);
   const [isHovered, setIsHovered] = useState(false);
@@ -416,7 +428,7 @@ const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }
 
 const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
-  const activePath = location.pathname;
+  const activePath = location.pathname + (location.search || '');
   const { user: liveUser } = useUser() || {};
   const [, setPermissionsVersion] = React.useState(0);
 
@@ -491,6 +503,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           '/assignments',
           '/live-classes',
           '/attendance',
+          '/attendance?tab=roster',
           '/student-attendance',
           '/accounts',
           '/reports',
@@ -512,6 +525,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           '/assignments',
           '/live-classes',
           '/attendance',
+          '/attendance?tab=roster',
           '/reports',
           '/daily-shift-report'
         ];

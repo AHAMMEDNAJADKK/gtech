@@ -32,8 +32,10 @@ export const ToastProvider = ({ children }) => {
     setTimeout(() => dismissToast(id), 4000);
   }, [dismissToast]);
 
+  const contextValue = React.useMemo(() => ({ showToast, dismissToast }), [showToast, dismissToast]);
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <div className="fixed top-5 right-5 z-[999999] flex w-[calc(100vw-2.5rem)] max-w-sm flex-col gap-3 pointer-events-none">
         <AnimatePresence>

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import redis from '../config/redis.js';
 import mongoose from 'mongoose';
 import { OAuth2Client } from 'google-auth-library';
+import { recordLoginAttendance } from '../services/attendance.service.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -289,6 +290,13 @@ export const login = async (req, res) => {
       console.warn("Failed to update lastLogin timestamp:", lastLoginErr.message);
     }
 
+    // 6.5 Record Automatic Login Attendance (Present)
+    try {
+      await recordLoginAttendance(user, { loginMethod: 'credentials' });
+    } catch (attErr) {
+      console.warn("Automatic login attendance warning:", attErr.message);
+    }
+
     // 7. Resolve department and team lead info safely
     let isTeamLead = false;
     let departmentName = user.department || '';
@@ -331,6 +339,7 @@ export const login = async (req, res) => {
         department: departmentName,
         departmentId: user.departmentId || null,
         employeeId: user.employeeId || null,
+        studentId: user.studentId || null,
         avatar: user.avatar || null,
         isActive: user.isActive ?? true,
         status: user.status || "active",
@@ -524,6 +533,13 @@ export const googleLogin = async (req, res) => {
 
     user.lastLogin = new Date();
     await user.save();
+
+    // Record Automatic Google Login Attendance (Present)
+    try {
+      await recordLoginAttendance(user, { loginMethod: 'google' });
+    } catch (attErr) {
+      console.warn("Automatic Google login attendance warning:", attErr.message);
+    }
 
     return res.json({
       success: true,

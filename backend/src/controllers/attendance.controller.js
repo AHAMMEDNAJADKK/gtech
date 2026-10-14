@@ -4,6 +4,7 @@
 
 import Attendance from '../models/attendance.model.js';
 import StudentAttendance from '../models/studentattendance.js';
+import { getDailyAttendanceRosterData } from '../services/attendance.service.js';
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -101,13 +102,6 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
-    if (isStudent) {
-      return res.status(403).json({
-        detail: "Shift attendance is reserved for employees. Student class attendance is managed by instructors."
-      });
-    }
-
     const userId =
       req.user.id || req.user._id;
 
@@ -170,13 +164,6 @@ export const checkOut = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({
         detail: "Authentication required."
-      });
-    }
-
-    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
-    if (isStudent) {
-      return res.status(403).json({
-        detail: "Shift attendance is reserved for employees. Student class attendance is managed by instructors."
       });
     }
 
@@ -347,19 +334,6 @@ export const getMyShift = async (req, res) => {
       hour12: true
     });
 
-    if (isStudent) {
-      return res.status(200).json({
-        success: true,
-        today: todayStr,
-        serverTimeIST: istTimeStr,
-        isActiveShift: false,
-        currentWorkingHours: "0.00",
-        attendance: null,
-        data: null,
-        isStudent: true
-      });
-    }
-
     const record = await Attendance.findOne({ user_id: userId, date: todayStr });
 
     const isActive = Boolean(record?.check_in_time && !record?.check_out_time);
@@ -379,7 +353,8 @@ export const getMyShift = async (req, res) => {
       isActiveShift: isActive,
       currentWorkingHours,
       attendance: serialized,
-      data: serialized
+      data: serialized,
+      isStudent
     });
   } catch (error) {
     console.error(error);
@@ -397,6 +372,11 @@ export const getMyHistory = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 30;
 
     if (isStudent) {
+      const dailyRecords = await Attendance.find({ user_id: userId })
+        .sort({ date: -1 })
+        .limit(limit)
+        .lean();
+
       const studentRecords = await StudentAttendance.find({ user_id: userId })
         .sort({ date: -1 })
         .limit(limit)
@@ -404,7 +384,7 @@ export const getMyHistory = async (req, res) => {
         .populate('batchId', 'batchName batchCode')
         .lean();
 
-      const formatted = studentRecords.map(r => ({
+      const formattedClasses = studentRecords.map(r => ({
         id: r._id.toString(),
         date: r.date,
         status: r.status,
@@ -415,7 +395,8 @@ export const getMyHistory = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        data: formatted,
+        data: dailyRecords.map(serializeAttendance),
+        studentClasses: formattedClasses,
         isStudent: true
       });
     }
@@ -470,3 +451,25 @@ export const getAttendanceSummary = async (req, res) => {
     return res.status(500).json({ detail: error.message });
   }
 };
+
+export const getDailyAttendanceRoster = async (req, res) => {
+  try {
+    const data = await getDailyAttendanceRosterData({
+      currentUser: req.user,
+      date: req.query.date,
+      role: req.query.role,
+      status: req.query.status,
+      courseId: req.query.courseId,
+      batchId: req.query.batchId,
+      search: req.query.search
+    });
+
+    return res.status(200).json(data);
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      detail: error.message || "Failed to retrieve daily attendance roster."
+    });
+  }
+};
