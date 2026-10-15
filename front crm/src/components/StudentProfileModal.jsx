@@ -246,7 +246,7 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, onDele
                     <button
                       onClick={handleCancelEditing}
                       disabled={saving}
-                      className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer"
+                      className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer border border-white/25"
                     >
                       Cancel
                     </button>

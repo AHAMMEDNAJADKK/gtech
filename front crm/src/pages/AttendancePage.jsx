@@ -365,26 +365,26 @@ const AttendancePage = () => {
       {/* Top Breadcrumb & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-2">
-            <Clock size={13} className="text-indigo-400" /> Attendance Management System
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 mb-2">
+            <Clock size={13} className="text-indigo-600 dark:text-indigo-400" /> Attendance Management System
           </div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-100 tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             Attendance Log In / Log Out
           </h1>
-          <p className="text-xs md:text-sm text-slate-400 mt-1">
+          <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mt-1">
             Indian Standard Time (IST) automated shift logging, duration calculation, and verified records.
           </p>
         </div>
 
         {/* Tab switch for Super Admin, HR, and Mentors */}
         {(isSuperAdmin || isHr || isMentor) && (
-          <div className="flex items-center bg-slate-900 border border-slate-800 p-1.5 rounded-2xl self-start sm:self-auto shadow-inner">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl self-start sm:self-auto shadow-xs">
             <button
               onClick={() => handleTabChange('my-shift')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'my-shift'
                   ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               My Shift Log
@@ -394,7 +394,7 @@ const AttendancePage = () => {
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'organization-records'
                   ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               {isMentor && !isSuperAdmin && !isHr ? 'Batch Attendance Roster' : 'Daily Present / Absent List'}
@@ -658,7 +658,7 @@ const AttendancePage = () => {
             {loadingHistory ? (
               <div className="py-12 flex flex-col items-center justify-center gap-2">
                 <RefreshCw size={24} className="animate-spin text-indigo-600" />
-                <span className="text-xs text-slate-400">Loading history logs...</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Loading history logs...</span>
               </div>
             ) : historyError ? (
               <div className="py-10 text-center space-y-2">
@@ -672,7 +672,7 @@ const AttendancePage = () => {
               </div>
             ) : isStudent && studentHistoryTab === 'classes' ? (
               studentClasses.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs">
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
                   No class lecture attendance records recorded yet.
                 </div>
               ) : (
@@ -720,7 +720,7 @@ const AttendancePage = () => {
                 </div>
               )
             ) : history.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-xs">
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
                 No past attendance records found yet. Check in above to create your first log!
               </div>
             ) : (
@@ -756,7 +756,7 @@ const AttendancePage = () => {
                         <td className="py-3.5 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
                           {record.working_hours || '0.00'} hrs
                         </td>
-                        <td className="py-3.5 px-4 font-mono text-slate-500">
+                        <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
                           {record.overtime || '0.00'} hrs
                         </td>
                         <td className="py-3.5 px-4">
@@ -1046,7 +1046,7 @@ const AttendancePage = () => {
             {loadingRoster ? (
               <div className="py-20 text-center">
                 <RefreshCw size={30} className="animate-spin text-indigo-600 mx-auto mb-3" />
-                <span className="text-xs text-slate-400 font-medium">Verifying and loading daily attendance roster...</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Verifying and loading daily attendance roster...</span>
               </div>
             ) : !rosterData?.records || rosterData.records.length === 0 ? (
               <div className="py-20 text-center">
@@ -1054,7 +1054,7 @@ const AttendancePage = () => {
                   <Users size={22} />
                 </div>
                 <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No attendance records found</h4>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
                   No active eligible students or employees matched your selected date ({rosterDate}) or filters.
                 </p>
               </div>
@@ -1100,7 +1100,7 @@ const AttendancePage = () => {
                                 <div className="font-bold text-slate-900 dark:text-white">
                                   {record.name || 'Anonymous User'}
                                 </div>
-                                <div className="text-[11px] text-slate-400">
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
                                   {record.email || 'No email provided'}
                                 </div>
                               </div>

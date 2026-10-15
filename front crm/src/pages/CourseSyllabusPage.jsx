@@ -326,13 +326,13 @@ const CourseSyllabusPage = () => {
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 backdrop-blur-xs text-indigo-200 border border-white/10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-xs text-white border border-white/25">
                 <BookOpen size={13} /> Academic Course Syllabus &amp; Curriculum
               </div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white">
                 Course Syllabus &amp; Curriculum Specifications
               </h1>
-              <p className="text-sm text-indigo-200/90 max-w-2xl font-medium">
+              <p className="text-sm text-indigo-100 max-w-2xl font-medium">
                 Official modular breakdown, technical milestones, learning objectives, and certified multi-page PDF curriculum downloads.
               </p>
             </div>
@@ -342,7 +342,7 @@ const CourseSyllabusPage = () => {
                 type="button"
                 onClick={handlePreviewPdf}
                 disabled={!selectedCourseId || loading}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition border border-white/10 cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition border border-white/25 cursor-pointer disabled:opacity-50 shadow-xs"
               >
                 <Eye size={14} /> Preview PDF
               </button>

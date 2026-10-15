@@ -940,7 +940,7 @@ const StudentAttendance = () => {
                             className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                               isPresent 
                               ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' 
-                              : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 border border-slate-100 dark:border-slate-850 hover:bg-emerald-500 hover:text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 hover:bg-emerald-600 hover:text-white'
                             }`}
                           >
                             <CheckCircle2 size={14} /> {isPresent ? 'Saved' : 'Present'}
@@ -949,8 +949,8 @@ const StudentAttendance = () => {
                             onClick={() => handleAction(studentId, 'absent')}
                             className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                               isAbsent 
-                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/10' 
-                              : 'bg-slate-50 dark:bg-slate-950 text-red-600 border border-slate-100 dark:border-slate-850 hover:bg-red-500 hover:text-white'
+                              ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/10' 
+                              : 'bg-slate-100 dark:bg-slate-800 text-rose-700 dark:text-rose-400 border border-slate-200 dark:border-slate-700 hover:bg-rose-600 hover:text-white'
                             }`}
                           >
                             <XCircle size={14} /> {isAbsent ? 'Saved' : 'Absent'}
@@ -1000,7 +1000,13 @@ const StudentAttendance = () => {
                               </div>
                             </td>
                             <td className="px-8 py-6 text-center">
-                              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${status === 'PRESENT' ? 'text-emerald-500 bg-emerald-500/10' : status === 'ABSENT' ? 'text-red-500 bg-red-500/10' : 'text-slate-500 dark:text-slate-400 bg-slate-500/10 dark:bg-slate-500/20'}`}>
+                              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                                status === 'PRESENT' 
+                                  ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60' 
+                                  : status === 'ABSENT' 
+                                  ? 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/60' 
+                                  : 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                              }`}>
                                 {status}
                               </span>
                             </td>
@@ -1008,34 +1014,42 @@ const StudentAttendance = () => {
                               <div className="flex justify-end items-center gap-3">
                                 <button
                                   onClick={() => handleOpenProfile(studentId)}
-                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
+                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
                                   title="View Profile"
                                 >
                                   <Eye size={14} />
                                 </button>
                                 <button
                                   onClick={() => handleOpenEditModal(s)}
-                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl transition-all cursor-pointer"
+                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
                                   title="Edit Student"
                                 >
                                   <Edit size={14} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteStudent(s)}
-                                  className="p-2 bg-red-50 dark:bg-red-950/40 hover:bg-red-600 text-red-600 dark:text-red-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                                  className="p-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white rounded-xl transition-all cursor-pointer border border-rose-200 dark:border-rose-800/60"
                                   title="Delete Student"
                                 >
                                   <Trash2 size={14} />
                                 </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'present')} 
-                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'PRESENT' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
+                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
+                                    status === 'PRESENT' 
+                                      ? 'bg-emerald-600 text-white shadow-md' 
+                                      : 'bg-slate-100 dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-slate-200 dark:border-slate-700 hover:bg-emerald-600 hover:text-white'
+                                  }`}
                                 >
                                   Present
                                 </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'absent')} 
-                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'ABSENT' ? 'bg-red-600 text-white shadow-md' : 'bg-red-500/10 dark:bg-red-800 text-red-500 dark:text-red-400 hover:bg-red-500 hover:text-white'}`}
+                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${
+                                    status === 'ABSENT' 
+                                      ? 'bg-rose-600 text-white shadow-md' 
+                                      : 'bg-slate-100 dark:bg-slate-800 text-rose-700 dark:text-rose-400 border border-slate-200 dark:border-slate-700 hover:bg-rose-600 hover:text-white'
+                                  }`}
                                 >
                                   Absent
                                 </button>
