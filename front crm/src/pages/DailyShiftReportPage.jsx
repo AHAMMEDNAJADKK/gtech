@@ -364,7 +364,7 @@ const DailyShiftReportPage = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Employee Name
             </label>
             <input
@@ -376,7 +376,7 @@ const DailyShiftReportPage = () => {
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Employee ID
             </label>
             <input
@@ -388,7 +388,7 @@ const DailyShiftReportPage = () => {
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Designation
             </label>
             <input
@@ -400,7 +400,7 @@ const DailyShiftReportPage = () => {
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Department
             </label>
             <input
@@ -412,7 +412,7 @@ const DailyShiftReportPage = () => {
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Shift Timing
             </label>
             <input
@@ -424,7 +424,7 @@ const DailyShiftReportPage = () => {
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Reporting Manager
             </label>
             <input
@@ -436,19 +436,19 @@ const DailyShiftReportPage = () => {
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Report Date
             </label>
-            <div className="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+            <div className="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-700 dark:text-slate-200">
               {selectedDate}
             </div>
           </div>
 
           <div>
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-1.5">
               Day of Week
             </label>
-            <div className="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+            <div className="bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200">
               {getDayName(selectedDate)}
             </div>
           </div>
@@ -665,23 +665,23 @@ const DailyShiftReportPage = () => {
                   {kpi.kpi}
                 </span>
                 <div className="flex items-center gap-2">
-                  <div className="text-[11px] text-slate-400 font-mono">
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono font-medium">
                     Target:
                   </div>
                   <input
                     type="text"
                     value={kpi.target}
                     onChange={(e) => updateKpi(idx, 'target', e.target.value)}
-                    className="w-14 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center outline-none focus:border-indigo-500"
+                    className="w-14 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-200"
                   />
-                  <div className="text-[11px] text-slate-400 font-mono ml-1">
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono font-medium ml-1">
                     Achieved:
                   </div>
                   <input
                     type="text"
                     value={kpi.achieved}
                     onChange={(e) => updateKpi(idx, 'achieved', e.target.value)}
-                    className="w-14 bg-white dark:bg-slate-900 border border-emerald-500/50 rounded-lg px-2 py-1 text-xs font-mono font-bold text-emerald-500 text-center outline-none"
+                    className="w-14 bg-white dark:bg-slate-900 border border-emerald-500/50 rounded-lg px-2 py-1 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 text-center outline-none"
                   />
                 </div>
               </div>
@@ -703,12 +703,12 @@ const DailyShiftReportPage = () => {
               <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60">
                 <div>
                   <div className="text-xs font-bold text-slate-900 dark:text-white">CRM Leads & Notes Updated</div>
-                  <div className="text-[10px] text-slate-400">All call dispositions logged in database</div>
+                  <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">All call dispositions logged in database</div>
                 </div>
                 <select
                   value={finalHandover.crmUpdated}
                   onChange={(e) => setFinalHandover(prev => ({ ...prev, crmUpdated: e.target.value }))}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-emerald-500 outline-none"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 outline-none"
                 >
                   <option value="Yes">Yes</option>
                   <option value="No">No</option>
@@ -718,12 +718,12 @@ const DailyShiftReportPage = () => {
               <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60">
                 <div>
                   <div className="text-xs font-bold text-slate-900 dark:text-white">Daily Reports Submitted</div>
-                  <div className="text-[10px] text-slate-400">Shift report verified for manager review</div>
+                  <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">Shift report verified for manager review</div>
                 </div>
                 <select
                   value={finalHandover.reportsSubmitted}
                   onChange={(e) => setFinalHandover(prev => ({ ...prev, reportsSubmitted: e.target.value }))}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-emerald-500 outline-none"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 outline-none"
                 >
                   <option value="Yes">Yes</option>
                   <option value="No">No</option>
