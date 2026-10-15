@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   GraduationCap, Search, RefreshCw, Eye, Edit, Filter, 
   BookOpen, Layers, CheckCircle2, UserCheck, Phone, Mail, 
@@ -25,6 +26,7 @@ const getApiEndpoint = (path) => {
 const PAGE_SIZE = 10;
 
 const StudentsPage = () => {
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [students, setStudents] = useState([]);
@@ -547,6 +549,13 @@ const StudentsPage = () => {
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => navigate(`/academy/learning?studentId=${student.id || student._id}`)}
+                            className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"
+                            title="Open Student LMS Dashboard"
+                          >
+                            <GraduationCap size={15} />
+                          </button>
                           <button
                             onClick={() => handleOpenProfile(student.id || student._id)}
                             className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition cursor-pointer"

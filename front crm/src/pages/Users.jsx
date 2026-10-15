@@ -106,7 +106,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Batches', path: '/academy/batches', category: 'Academy & LMS' },
   { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'Academy & LMS' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'Academy & LMS' },
-  { label: 'My LMS Learning', path: '/academy/learning', category: 'Academy & LMS' },
+  { label: 'My LMS Student Portal', path: '/academy/learning', category: 'Academy & LMS' },
 
   // --- REPORTS & ANALYTICS ---
   { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports' },

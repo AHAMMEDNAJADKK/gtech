@@ -23,6 +23,7 @@ import EnrollmentTracking from './pages/EnrollmentTracking';
 import EnrollmentDetails from './pages/EnrollmentDetails';
 import StudentLmsPortal from './pages/StudentLmsPortal';
 import StudentCourseViewer from './pages/StudentCourseViewer';
+import CourseSyllabusPage from './pages/CourseSyllabusPage';
 import NotificationPage from './pages/NotificationPage';
 import AccountsPage from './pages/AccountsPage';
 import LiveClassrooms from './pages/LiveClassrooms';
@@ -216,7 +217,10 @@ function App() {
 
           {/* Student LMS & Learning */}
           <Route path="/academy/learning" element={<ProtectedRoute><MainLayout><StudentLmsPortal /></MainLayout></ProtectedRoute>} />
+          <Route path="/student/dashboard" element={<ProtectedRoute><MainLayout><StudentLmsPortal /></MainLayout></ProtectedRoute>} />
           <Route path="/academy/learning/:courseId" element={<ProtectedRoute><MainLayout><StudentCourseViewer /></MainLayout></ProtectedRoute>} />
+          <Route path="/academy/syllabus" element={<ProtectedRoute><MainLayout><CourseSyllabusPage /></MainLayout></ProtectedRoute>} />
+          <Route path="/student/syllabus" element={<ProtectedRoute><MainLayout><CourseSyllabusPage /></MainLayout></ProtectedRoute>} />
 
           {/* Employee Management Section (Students, HR, Mentors) */}
           <Route path="/employees" element={<Navigate to="/employees/students" replace />} />

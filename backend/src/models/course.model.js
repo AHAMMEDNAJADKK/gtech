@@ -103,6 +103,12 @@ const courseSchema = new mongoose.Schema({
     index: true
   },
   syllabus: [moduleSchema],
+  syllabusPdf: {
+    url: { type: String, default: '' },
+    fileName: { type: String, default: '' },
+    fileSize: { type: Number, default: 0 },
+    uploadedAt: { type: Date }
+  },
   instructorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

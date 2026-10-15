@@ -71,7 +71,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Batches', path: '/academy/batches', category: 'LMS / Academy', desc: 'Student batch creation & schedule tracking' },
   { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'LMS / Academy', desc: 'Student course enrollment & fee status' },
   { label: 'Training LMS', path: '/training-lms', category: 'LMS / Academy', desc: 'Employee internal staff training LMS portal' },
-  { label: 'My LMS Learning', path: '/academy/learning', category: 'LMS / Academy', desc: 'Student LMS portal & course materials' },
+  { label: 'My LMS Student Portal', path: '/academy/learning', category: 'LMS / Academy', desc: 'Student LMS portal & course materials' },
 
   // Analytics & Reports
   { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },

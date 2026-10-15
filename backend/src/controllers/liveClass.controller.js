@@ -10,23 +10,32 @@ export const liveClassController = {
    */
   getLiveClasses: async (req, res) => {
     try {
-      const { courseId, batchId, status, date } = req.query;
+      const { courseId, batchId, status, date, studentId } = req.query;
       const user = req.user || {};
       const userRole = String(user.role || '').toLowerCase();
       const userRoleId = String(user.role_id || '');
+      const isStudent = userRole === 'student' || userRoleId === '10';
 
       const query = {};
 
-      if (userRole === 'student' || userRoleId === '10') {
-        const studentId = user.id || user._id;
+      const targetStudentId = isStudent 
+        ? (user.id || user._id) 
+        : (studentId && mongoose.Types.ObjectId.isValid(studentId) ? studentId : null);
+
+      if (targetStudentId) {
         // Find student's active enrollments
         const enrollments = await Enrollment.find({
-          studentId,
-          status: { $in: ['active', 'completed', 'paused'] }
-        }).select('batchId');
+          studentId: targetStudentId,
+          status: { $in: ['active', 'completed', 'paused', 'ACTIVE', 'COMPLETED', 'PAUSED'] }
+        }).select('batchId courseId');
 
         const batchIds = enrollments.map(e => e.batchId).filter(Boolean);
-        query.batchId = { $in: batchIds };
+        const courseIds = enrollments.map(e => e.courseId).filter(Boolean);
+
+        query.$or = [
+          { batchId: { $in: batchIds } },
+          { courseId: { $in: courseIds }, batchId: null }
+        ];
       } else if (batchId && batchId !== 'ALL' && mongoose.Types.ObjectId.isValid(batchId)) {
         query.batchId = batchId;
       }

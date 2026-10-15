@@ -23,6 +23,11 @@ router.patch('/courses/:id', courseController.updateCourse);
 router.post('/courses/:id/archive', courseController.archiveCourse);
 router.post('/courses/:id/activate', courseController.activateCourse);
 router.put('/courses/:id/syllabus', courseController.updateSyllabus);
+router.get('/courses/:id/syllabus', courseController.getCourseSyllabus);
+router.get('/courses/:id/syllabus/pdf', courseController.downloadSyllabusPdf);
+router.post('/courses/:id/syllabus/upload-pdf', requireAdminOrStaff, upload.single('file'), courseController.uploadSyllabusPdf);
+router.get('/student/syllabus', courseController.getStudentSyllabuses);
+router.get('/my-syllabus', courseController.getStudentSyllabuses);
 router.delete('/courses/:id', courseController.deleteCourse);
 
 // Batch Management Routes (Module 4.2)
