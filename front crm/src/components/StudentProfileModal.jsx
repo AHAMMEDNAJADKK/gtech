@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -9,6 +10,7 @@ import {
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, onDeleteStudent, getHeaders }) => {
+  const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -251,6 +253,17 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, onDele
                   </>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        navigate(`/academy/learning?studentId=${studentId}`);
+                      }}
+                      className="flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md cursor-pointer border border-white/20"
+                      title="Open Student LMS Dashboard"
+                    >
+                      <GraduationCap size={14} /> Open LMS Portal
+                    </button>
                     <button
                       onClick={() => {
                         if (onEditStudent) {

@@ -400,24 +400,42 @@ const lmsController = {
       }
 
       // Role Scoping
-      if (auth.isStudent) {
+      const queryStudentId = !auth.isStudent && req.query.studentId && mongoose.Types.ObjectId.isValid(req.query.studentId) ? req.query.studentId : null;
+      if (auth.isStudent || queryStudentId) {
         // Students only see published assignments for their enrolled courses/batches
+        const targetStudentId = auth.isStudent ? auth.userId : queryStudentId;
         query.isPublished = true;
         const studentEnrollments = await Enrollment.find({
-          studentId: auth.userId,
+          studentId: targetStudentId,
           status: { $in: ['active', 'completed', 'paused', 'ACTIVE', 'COMPLETED', 'PAUSED'] }
         }).select('courseId batchId').lean();
 
         const enrolledCourseIds = studentEnrollments.map(e => e.courseId).filter(Boolean);
         const enrolledBatchIds = studentEnrollments.map(e => e.batchId).filter(Boolean);
 
-        const studentIdObj = new mongoose.Types.ObjectId(auth.userId);
-        query.$or = [
-          { targetType: 'ALL' },
-          { courseId: { $in: enrolledCourseIds } },
-          { batchId: { $in: enrolledBatchIds } },
-          { targetStudents: studentIdObj }
-        ];
+        const studentIdObj = new mongoose.Types.ObjectId(targetStudentId);
+        const scopingConditions = [];
+
+        if (enrolledCourseIds.length > 0) {
+          scopingConditions.push({
+            courseId: { $in: enrolledCourseIds },
+            $or: [
+              { targetType: 'ALL' },
+              { targetType: { $exists: false } }
+            ]
+          });
+        }
+        if (enrolledBatchIds.length > 0) {
+          scopingConditions.push({
+            batchId: { $in: enrolledBatchIds },
+            targetType: 'BATCH'
+          });
+        }
+        scopingConditions.push({
+          targetStudents: studentIdObj
+        });
+
+        query.$or = scopingConditions;
       } else if (auth.isInstructor && !auth.isSuperAdmin && !auth.isHr) {
         // Mentors only see assignments for courses or batches they teach, or created by them
         const mentorUserObj = new mongoose.Types.ObjectId(auth.userId);
@@ -871,7 +889,12 @@ const lmsController = {
    */
   getMySubmissions: async (req, res, next) => {
     try {
-      const studentId = req.user?.id || req.user?._id;
+      const auth = await getAuthUserContext(req);
+      const queryStudentId = !auth.isStudent && req.query.studentId && mongoose.Types.ObjectId.isValid(req.query.studentId)
+        ? req.query.studentId
+        : null;
+
+      const studentId = queryStudentId || req.user?.id || req.user?._id;
       if (!studentId) {
         throw new AppError('Authentication required.', 401);
       }

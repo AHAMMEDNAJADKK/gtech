@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, BookOpen, Calendar, Clock, User, Users, Plus, Edit, 
   Trash2, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, 
-  FolderKanban, Loader2, X, Sparkles, AlertTriangle, Layers, Award, Search
+  FolderKanban, Loader2, X, Sparkles, AlertTriangle, Layers, Award, Search,
+  Download, Upload, FileText, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import LmsContentManager from '../components/lms/LmsContentManager';
@@ -57,6 +58,87 @@ const CourseDetails = () => {
   const [batchToDelete, setBatchToDelete] = useState(null);
   const [isDeleteBatchModalOpen, setIsDeleteBatchModalOpen] = useState(false);
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+
+  // Syllabus PDF Management State
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [isUploadPdfModalOpen, setIsUploadPdfModalOpen] = useState(false);
+  const [selectedPdfFile, setSelectedPdfFile] = useState(null);
+  const [uploadPdfError, setUploadPdfError] = useState('');
+
+  const handleDownloadSyllabusPdf = async () => {
+    if (!courseId) return;
+    setDownloadingPdf(true);
+    try {
+      const rawToken = localStorage.getItem('token');
+      const cleanToken = rawToken ? rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').replace(/^Bearer\s+/i, '').trim() : '';
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/courses/${courseId}/syllabus/pdf?download=true`
+        : `${cleanBase}/v1/academy/courses/${courseId}/syllabus/pdf?download=true`;
+
+      const res = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${cleanToken}` }
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const safeFilename = `${(course?.courseName || 'Course').replace(/[^a-zA-Z0-9_-]/g, '_')}_Syllabus.pdf`;
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.setAttribute('download', safeFilename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      showToast('Syllabus PDF downloaded successfully.', 'success');
+    } catch (e) {
+      console.error('Download error:', e);
+      showToast('Could not download syllabus PDF.', 'error');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleUploadSyllabusPdf = async (e) => {
+    e.preventDefault();
+    if (!selectedPdfFile) {
+      setUploadPdfError('Please choose a PDF file to upload.');
+      return;
+    }
+    setUploadingPdf(true);
+    setUploadPdfError('');
+    try {
+      const rawToken = localStorage.getItem('token');
+      const cleanToken = rawToken ? rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').replace(/^Bearer\s+/i, '').trim() : '';
+      const formData = new FormData();
+      formData.append('syllabusPdf', selectedPdfFile);
+
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/courses/${courseId}/syllabus/upload-pdf`
+        : `${cleanBase}/v1/academy/courses/${courseId}/syllabus/upload-pdf`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cleanToken}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'PDF upload failed.');
+
+      showToast('Official syllabus PDF uploaded successfully!', 'success');
+      setIsUploadPdfModalOpen(false);
+      setSelectedPdfFile(null);
+      fetchCourseDetails();
+    } catch (err) {
+      console.error('Upload error:', err);
+      setUploadPdfError(err.message || 'Could not upload PDF.');
+      showToast(err.message || 'Could not upload PDF.', 'error');
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
 
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -457,16 +539,51 @@ const CourseDetails = () => {
             {/* Left Column: Interactive Syllabus Tree */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
-                <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-3">
                     <BookOpen className="text-indigo-600 dark:text-indigo-400" size={24} />
-                    <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
-                      Course Syllabus & Modules
-                    </h2>
+                    <div>
+                      <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                        Course Syllabus &amp; Modules
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        {course.syllabus?.length || 0} Modules Total &bull; {course.syllabusPdf?.url ? 'Official PDF Uploaded' : 'Dynamic Multi-Page PDF Available'}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                    {course.syllabus?.length || 0} Modules Total
-                  </span>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/academy/syllabus?courseId=${courseId}`)}
+                      className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      title="Open full interactive syllabus explorer"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Explorer</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadSyllabusPdf}
+                      disabled={downloadingPdf}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Download complete curriculum PDF"
+                    >
+                      {downloadingPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                      <span>Download PDF</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedPdfFile(null); setUploadPdfError(''); setIsUploadPdfModalOpen(true); }}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Upload official syllabus PDF document"
+                    >
+                      <Upload size={13} />
+                      <span>Upload PDF</span>
+                    </button>
+                  </div>
                 </div>
 
                 {!course.syllabus || course.syllabus.length === 0 ? (
@@ -1067,6 +1184,116 @@ const CourseDetails = () => {
       </AnimatePresence>,
       document.body
     )}
+
+      {/* Upload Official Syllabus PDF Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {isUploadPdfModalOpen && course && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                      {course.courseCode}
+                    </span>
+                    <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+                      Upload Official Syllabus PDF
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Upload a certified PDF document for {course.courseName}. It will become directly available to enrolled students.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsUploadPdfModalOpen(false)}
+                    className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleUploadSyllabusPdf} className="space-y-4">
+                  <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 rounded-2xl p-6 text-center transition cursor-pointer bg-slate-50/50 dark:bg-slate-800/20">
+                    <input
+                      type="file"
+                      id="course-syllabus-pdf-input"
+                      accept="application/pdf,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                            setUploadPdfError('Only official PDF documents (.pdf) are allowed.');
+                            return;
+                          }
+                          if (file.size > 25 * 1024 * 1024) {
+                            setUploadPdfError('PDF file size must be less than 25MB.');
+                            return;
+                          }
+                          setSelectedPdfFile(file);
+                          setUploadPdfError('');
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <label htmlFor="course-syllabus-pdf-input" className="cursor-pointer space-y-2 block">
+                      <FileText size={36} className="mx-auto text-indigo-600 dark:text-indigo-400" />
+                      {selectedPdfFile ? (
+                        <div>
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-xs mx-auto">
+                            {selectedPdfFile.name}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {(selectedPdfFile.size / (1024 * 1024)).toFixed(2)} MB &bull; Ready to upload
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Click to select PDF syllabus file
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Maximum file size: 25MB (PDF only)
+                          </p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
+                  {uploadPdfError && (
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle size={15} /> {uploadPdfError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setIsUploadPdfModalOpen(false)}
+                      disabled={uploadingPdf}
+                      className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={uploadingPdf || !selectedPdfFile}
+                      className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {uploadingPdf ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                      <span>{uploadingPdf ? 'Uploading...' : 'Upload & Save PDF'}</span>
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

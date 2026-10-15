@@ -23,14 +23,26 @@ import {
   Activity,
   CheckCircle
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useUser } from "../contexts/UserContext";
+import StudentDashboard from "../components/student/StudentDashboard";
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const Dashboard = () => {
   const { user } = useUser() || {};
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const userRole = String(user?.role_id || user?.roleId || user?.role || '').toLowerCase().trim();
+  const userDesig = String(user?.designation || user?.designationId?.name || '').toLowerCase().trim();
+  const isStudent = userRole === 'student' || userRole === '10' || userDesig.includes('student');
+  const inspectStudentId = searchParams.get('studentId') || searchParams.get('userId');
+
+  // Role-Based Isolation: Students or Admin inspecting a student receive the clean Student LMS Dashboard
+  if (isStudent || inspectStudentId) {
+    return <StudentDashboard />;
+  }
 
   const [stats, setStats] = useState({
     totalEnquiries: 0,

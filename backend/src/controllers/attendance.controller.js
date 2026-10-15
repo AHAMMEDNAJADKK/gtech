@@ -2,8 +2,10 @@
 // BACKEND: attendance.controller.js
 // ===============================
 
+import mongoose from 'mongoose';
 import Attendance from '../models/attendance.model.js';
 import StudentAttendance from '../models/studentattendance.js';
+import User from '../models/user.model.js';
 import { getDailyAttendanceRosterData } from '../services/attendance.service.js';
 
 const getISTDate = () => {
@@ -368,10 +370,22 @@ export const getMyHistory = async (req, res) => {
       return res.status(401).json({ detail: "Authentication required." });
     }
     const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
-    const userId = req.user.id || req.user._id;
+    let userId = req.user.id || req.user._id;
+    const queryStudentId = req.query.studentId || req.query.userId;
+
+    if (!isStudent && queryStudentId && mongoose.Types.ObjectId.isValid(queryStudentId)) {
+      userId = queryStudentId;
+    }
+
     const limit = parseInt(req.query.limit, 10) || 30;
 
-    if (isStudent) {
+    let isTargetStudent = isStudent;
+    if (!isStudent && queryStudentId) {
+      const targetUser = await User.findById(userId).lean();
+      isTargetStudent = String(targetUser?.role || '').toLowerCase() === 'student' || String(targetUser?.role_id || '') === '10';
+    }
+
+    if (isTargetStudent) {
       const dailyRecords = await Attendance.find({ user_id: userId })
         .sort({ date: -1 })
         .limit(limit)

@@ -178,6 +178,14 @@ export const getStudentProfile = async (req, res) => {
       return res.status(400).json({ success: false, detail: 'Invalid student ID format.' });
     }
 
+    const isStudent = String(req.user?.role || '').toLowerCase() === 'student' || String(req.user?.role_id || '') === '10';
+    const requesterId = String(req.user?.id || req.user?._id || '');
+
+    // Isolation: Student can only view their own profile
+    if (isStudent && requesterId !== String(id)) {
+      return res.status(403).json({ success: false, detail: 'Access denied. You can only view your own student profile.' });
+    }
+
     let studentObj = await User.findById(id).select('-password -passwordHash').lean();
     if (!studentObj) {
       const Student = (await import('../models/student.js')).default;

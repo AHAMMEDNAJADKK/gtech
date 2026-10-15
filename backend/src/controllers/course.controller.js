@@ -1,10 +1,15 @@
+import fs from 'fs';
+import path from 'path';
 import mongoose from 'mongoose';
 import Course from '../models/course.model.js';
 import Batch from '../models/batch.model.js';
 import User from '../models/user.model.js';
+import Enrollment from '../models/enrollment.model.js';
 import Counter from '../models/counter.model.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { recordAudit } from '../middleware/audit.middleware.js';
+import { generateSyllabusPdfBuffer } from '../utils/syllabusPdfGenerator.js';
+import { uploadToCloudinary } from '../utils/cloudinary.util.js';
 
 const generateCourseCode = async () => {
   const year = new Date().getFullYear();
@@ -467,6 +472,267 @@ export const courseController = {
       return res.status(200).json({
         success: true,
         message: 'Course deleted successfully.'
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/academy/courses/:id/syllabus
+   * Retrieve course syllabus details.
+   * Access: Staff or students enrolled in this course.
+   */
+  getCourseSyllabus: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const user = req.user || {};
+      const userRole = String(user.role || '').toLowerCase();
+      const userRoleId = String(user.role_id || '');
+      const isStudent = userRole === 'student' || userRoleId === '10';
+
+      const course = await Course.findById(id).lean();
+      if (!course) {
+        throw new AppError('Course not found.', 404);
+      }
+
+      if (isStudent) {
+        const studentId = user.id || user._id;
+        const enrolled = await Enrollment.findOne({
+          studentId,
+          courseId: id,
+          status: { $in: ['active', 'paused', 'completed', 'ACTIVE', 'PAUSED', 'COMPLETED'] }
+        });
+        if (!enrolled) {
+          throw new AppError('Access denied: You are not enrolled in this course.', 403);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          course: {
+            _id: course._id,
+            courseName: course.courseName,
+            courseCode: course.courseCode,
+            category: course.category,
+            durationValue: course.durationValue,
+            durationUnit: course.durationUnit,
+            courseFee: course.courseFee,
+            description: course.description,
+            shortDescription: course.shortDescription,
+            status: course.status
+          },
+          syllabus: course.syllabus || [],
+          syllabusPdf: course.syllabusPdf || null
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/academy/courses/:id/syllabus/pdf
+   * Download or preview syllabus PDF.
+   * If official PDF exists, serves/redirects. Else dynamically generates publication-quality PDF via PDFKit.
+   */
+  downloadSyllabusPdf: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const user = req.user || {};
+      const userRole = String(user.role || '').toLowerCase();
+      const userRoleId = String(user.role_id || '');
+      const isStudent = userRole === 'student' || userRoleId === '10';
+
+      const course = await Course.findById(id).lean();
+      if (!course) {
+        throw new AppError('Course not found.', 404);
+      }
+
+      if (isStudent) {
+        const studentId = user.id || user._id;
+        const enrolled = await Enrollment.findOne({
+          studentId,
+          courseId: id,
+          status: { $in: ['active', 'paused', 'completed', 'ACTIVE', 'PAUSED', 'COMPLETED'] }
+        });
+        if (!enrolled) {
+          throw new AppError('Access denied: You are not enrolled in this course.', 403);
+        }
+      }
+
+      const isPreview = String(req.query.preview || '').toLowerCase() === 'true';
+      const dispositionType = isPreview ? 'inline' : 'attachment';
+      const safeCourseName = String(course.courseName || 'Course').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `${safeCourseName}_Syllabus.pdf`;
+
+      // 1. If an official uploaded PDF file exists
+      if (course.syllabusPdf && course.syllabusPdf.url) {
+        const fileUrl = course.syllabusPdf.url;
+        if (fileUrl.startsWith('/uploads/')) {
+          const localPath = path.resolve(process.cwd(), fileUrl.replace(/^\//, ''));
+          if (fs.existsSync(localPath)) {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `${dispositionType}; filename="${filename}"`);
+            return fs.createReadStream(localPath).pipe(res);
+          }
+        } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+          return res.redirect(fileUrl);
+        }
+      }
+
+      // 2. Otherwise generate dynamic vector PDF using PDFKit
+      const pdfBuffer = await generateSyllabusPdfBuffer(course);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.setHeader('Content-Disposition', `${dispositionType}; filename="${filename}"`);
+      return res.send(pdfBuffer);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/v1/academy/courses/:id/syllabus/upload-pdf
+   * Upload an official syllabus PDF for a course (Admin & Authorized Staff only).
+   */
+  uploadSyllabusPdf: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (!req.file) {
+        throw new AppError('Please select a PDF file to upload.', 400);
+      }
+
+      const ext = path.extname(req.file.originalname || '').toLowerCase();
+      if (req.file.mimetype !== 'application/pdf' && ext !== '.pdf') {
+        throw new AppError('Only official PDF documents are supported for syllabus upload.', 400);
+      }
+
+      if (req.file.size > 25 * 1024 * 1024) {
+        throw new AppError('Syllabus PDF file size cannot exceed 25MB.', 400);
+      }
+
+      const course = await Course.findById(id);
+      if (!course) {
+        throw new AppError('Course not found.', 404);
+      }
+
+      let fileUrl = '';
+      if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+        try {
+          const fileBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+          if (fileBuffer) {
+            const result = await uploadToCloudinary(fileBuffer, req.file.originalname);
+            fileUrl = result.secure_url || result.url;
+          }
+        } catch (err) {
+          console.warn('Cloudinary syllabus upload failed, falling back to disk:', err.message);
+        }
+      }
+
+      if (!fileUrl) {
+        const syllabusDir = path.resolve(process.cwd(), 'uploads', 'syllabus');
+        fs.mkdirSync(syllabusDir, { recursive: true });
+        const safeFilename = `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const targetPath = path.join(syllabusDir, safeFilename);
+
+        if (req.file.path && fs.existsSync(req.file.path)) {
+          fs.copyFileSync(req.file.path, targetPath);
+        } else if (req.file.buffer) {
+          fs.writeFileSync(targetPath, req.file.buffer);
+        }
+        fileUrl = `/uploads/syllabus/${safeFilename}`;
+      }
+
+      const oldValue = course.toObject();
+      course.syllabusPdf = {
+        url: fileUrl,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        uploadedAt: new Date()
+      };
+      course.updatedBy = req.user?.id || req.user?._id;
+      await course.save();
+
+      await recordAudit(req, {
+        action: 'UPLOAD_SYLLABUS_PDF',
+        entity: 'Course',
+        entityId: id,
+        oldValue,
+        newValue: course
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Official syllabus PDF uploaded and linked successfully.',
+        data: {
+          courseId: course._id,
+          syllabusPdf: course.syllabusPdf
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/academy/student/syllabus
+   * Retrieve all syllabus information for courses the student is enrolled in.
+   * Also supports ?studentId= for authorized staff inspection.
+   */
+  getStudentSyllabuses: async (req, res, next) => {
+    try {
+      const user = req.user || {};
+      const userRole = String(user.role || '').toLowerCase();
+      const userRoleId = String(user.role_id || '');
+      const isStudent = userRole === 'student' || userRoleId === '10';
+
+      const queryStudentId = req.query.studentId || req.query.userId;
+      const targetStudentId = isStudent ? (user.id || user._id) : (queryStudentId || user.id || user._id);
+
+      const enrollments = await Enrollment.find({
+        studentId: targetStudentId,
+        status: { $in: ['active', 'paused', 'completed', 'ACTIVE', 'PAUSED', 'COMPLETED'] }
+      })
+        .populate('courseId', 'courseName courseCode category shortDescription description durationValue durationUnit status syllabus syllabusPdf')
+        .populate('batchId', 'batchCode batchName startDate endDate')
+        .lean();
+
+      const syllabuses = enrollments.map(en => {
+        const course = en.courseId || {};
+        const batch = en.batchId || {};
+        return {
+          enrollmentId: en._id,
+          status: en.status,
+          course: {
+            _id: course._id,
+            courseName: course.courseName,
+            courseCode: course.courseCode,
+            category: course.category,
+            shortDescription: course.shortDescription,
+            description: course.description,
+            durationValue: course.durationValue,
+            durationUnit: course.durationUnit,
+            status: course.status
+          },
+          batch: {
+            _id: batch._id,
+            batchCode: batch.batchCode,
+            batchName: batch.batchName,
+            startDate: batch.startDate,
+            endDate: batch.endDate
+          },
+          syllabus: course.syllabus || [],
+          syllabusPdf: course.syllabusPdf || null,
+          pdfDownloadUrl: `/api/v1/academy/courses/${course._id}/syllabus/pdf`,
+          pdfPreviewUrl: `/api/v1/academy/courses/${course._id}/syllabus/pdf?preview=true`
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: syllabuses
       });
     } catch (error) {
       next(error);

@@ -34,7 +34,6 @@ import {
 } from 'lucide-react';
 
 const CATEGORY_ORDER = [
-  'Overview',
   'Admissions',
   'Academics',
   'Employees',
@@ -47,7 +46,6 @@ const CATEGORY_ORDER = [
 ];
 
 const CATEGORY_CONFIG = {
-  'Overview': { label: 'Overview', icon: LayoutDashboard },
   'Admissions': { label: 'Admissions', icon: Target },
   'Academics': { label: 'Academics', icon: GraduationCap },
   'Employees': { label: 'Employees', icon: Users },
@@ -60,19 +58,13 @@ const CATEGORY_CONFIG = {
 };
 
 const menuItems = [
-  // --- OVERVIEW ---
+  // Standalone Dashboard navigation (rendered directly at top of menu)
   { 
     icon: LayoutDashboard, 
     label: 'Dashboard', 
     path: '/dashboard', 
-    category: 'Overview', 
+    isStandalone: true,
     allowedRoles: ['0', '1', '2', '3', '10', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor', 'mentor', 'hr', 'student'] 
-  },
-  { 
-    icon: Bell, 
-    label: 'Notifications', 
-    path: '/notifications', 
-    category: 'Overview' 
   },
 
   // --- ADMISSIONS ---
@@ -119,11 +111,19 @@ const menuItems = [
   },
   { 
     icon: GraduationCap, 
-    label: 'My Learning LMS', 
+    label: 'My LMS Student Portal', 
     path: '/academy/learning', 
     category: 'Academics', 
     allowedRoles: ['10', 'student', 'instructor', 'faculty', 'teacher', 'mentor', '0', '1', '2', 'admin', 'superadmin'],
     allowedDesignationNames: ['student', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
+  },
+  { 
+    icon: FileText, 
+    label: 'Course Syllabus', 
+    path: '/academy/syllabus', 
+    category: 'Academics', 
+    allowedRoles: ['0', '1', '2', '3', '10', 'admin', 'superadmin', 'counselor', 'telecaller', 'instructor', 'faculty', 'teacher', 'mentor', 'hr', 'student'],
+    allowedDesignationNames: ['student', 'admin', 'hr', 'instructor', 'teacher', 'faculty', 'trainer', 'mentor']
   },
 
   // --- EMPLOYEES ---
@@ -426,10 +426,95 @@ const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }
   );
 };
 
+const StandaloneDashboard = ({ isCollapsed, activePath, userDashboardPath, onMobileClick }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const itemRef = useRef(null);
+
+  const targetPath = userDashboardPath || '/dashboard';
+  const isActive = activePath === '/dashboard' || activePath === '/dashboard/' || activePath === targetPath;
+
+  const handleMouseEnter = () => {
+    if (itemRef.current) {
+      const rect = itemRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.top + rect.height / 2,
+        left: rect.right + 12,
+      });
+    }
+    setIsHovered(true);
+  };
+
+  if (isCollapsed) {
+    return (
+      <div
+        ref={itemRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setIsHovered(false)}
+        className="w-full flex justify-center mb-1 relative"
+      >
+        <Link
+          to={targetPath}
+          onClick={onMobileClick}
+          className={`flex items-center justify-center w-10 h-10 rounded-2xl transition-all duration-200 cursor-pointer ${
+            isActive
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 font-bold scale-105'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+          title="Dashboard"
+        >
+          <LayoutDashboard size={20} />
+        </Link>
+
+        <AnimatePresence>
+          {isHovered && (
+            <PortalTooltip>
+              <motion.div
+                initial={{ opacity: 0, x: -10, y: '-50%' }}
+                animate={{ opacity: 1, x: 0, y: '-50%' }}
+                exit={{ opacity: 0, x: -10, y: '-50%' }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                style={{
+                  position: 'fixed',
+                  top: `${coords.top}px`,
+                  left: `${coords.left}px`,
+                }}
+                className="fixed pointer-events-none z-[9999] px-3 py-1.5 bg-slate-900 dark:bg-slate-800 text-white text-[11px] font-bold rounded-xl shadow-xl border border-slate-700/50 whitespace-nowrap -translate-y-1/2 flex items-center gap-2"
+              >
+                <span>Dashboard</span>
+                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-1.5 bg-slate-900 dark:bg-slate-800 rotate-45" />
+              </motion.div>
+            </PortalTooltip>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-1.5">
+      <Link
+        to={targetPath}
+        onClick={onMobileClick}
+        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl font-bold text-xs transition-all duration-150 cursor-pointer ${
+          isActive
+            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-indigo-600 dark:hover:text-white'
+        }`}
+      >
+        <div className={`p-1 rounded-lg ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+          <LayoutDashboard size={18} />
+        </div>
+        <span className="tracking-tight uppercase text-[11px] font-black">Dashboard</span>
+      </Link>
+    </div>
+  );
+};
+
 const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
   const activePath = location.pathname + (location.search || '');
-  const { user: liveUser } = useUser() || {};
+  const { user: liveUser, setUser } = useUser() || {};
   const [, setPermissionsVersion] = React.useState(0);
 
   React.useEffect(() => {
@@ -440,23 +525,30 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Safely resolve the active user with seamless fallback to localStorage
+  const user = React.useMemo(() => {
+    if (liveUser && typeof liveUser === 'object') return liveUser;
+    try {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) return JSON.parse(savedUser);
+    } catch (e) {
+      console.warn("Failed to parse saved user in Sidebar:", e);
+    }
+    return null;
+  }, [liveUser]);
+
+  // Global role and designation resolution for entire Sidebar component
+  const currentUserRole = String(user?.role_id || user?.roleId || user?.role?.name || user?.role || '').toLowerCase().trim();
+  const currentDesigName = String(user?.designation || user?.designationId?.name || '').toLowerCase().trim();
+  const isStudent = currentUserRole === '10' || currentUserRole === 'student' || currentDesigName === 'student';
+
   const getVisibleMenuItems = () => {
     try {
-      let userObj = liveUser;
-      if (!userObj) {
-        const savedUser = localStorage.getItem('user');
-        if (savedUser) {
-          try { userObj = JSON.parse(savedUser); } catch (e) {}
-        }
-      }
+      const userObj = user;
 
       if (!userObj) {
-        return menuItems.filter(item => item.path === '/academy/learning');
+        return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/dashboard');
       }
-
-      const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
-      const currentDesigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-      const isStudent = currentUserRole === '10' || currentUserRole === 'student' || currentDesigName === 'student';
       
       const isSuperAdminUser = 
         userObj.isSuperAdmin === true ||
@@ -472,17 +564,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         return menuItems;
       }
 
-      // 2. Student: Learning dashboard, enrolled courses, assignments, submissions, live classes, attendance
+      // 2. Student: Learning dashboard, syllabus, assignments, submissions, live classes, attendance
       if (isStudent) {
         const studentAllowedPaths = [
-          '/dashboard',
           '/academy/learning',
+          '/academy/syllabus',
           '/student/assignments',
           '/student/results',
           '/live-classes',
           '/attendance',
-          '/certificates',
-          '/notifications'
+          '/accounts',
+          '/certificates'
         ];
         return menuItems.filter(item => studentAllowedPaths.includes(item.path));
       }
@@ -492,7 +584,6 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       if (isHR) {
         const hrAllowedPaths = [
           '/dashboard',
-          '/notifications',
           '/leads',
           '/leads-telecaller',
           '/employees/students',
@@ -500,6 +591,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           '/academy/courses',
           '/academy/batches',
           '/academy/enrollments',
+          '/academy/syllabus',
           '/assignments',
           '/live-classes',
           '/attendance',
@@ -517,11 +609,11 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       if (isMentor) {
         const mentorAllowedPaths = [
           '/dashboard',
-          '/notifications',
           '/employees/students',
           '/academy/courses',
           '/academy/batches',
           '/academy/enrollments',
+          '/academy/syllabus',
           '/assignments',
           '/live-classes',
           '/attendance',
@@ -532,14 +624,13 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         return menuItems.filter(item => mentorAllowedPaths.includes(item.path));
       }
 
-      // 3. Custom permissions if defined
+      // 5. Custom permissions if defined
       if (Array.isArray(userObj.permissions) && userObj.permissions.length > 0) {
         const allowedSet = userObj.permissions.map(p => String(p).toLowerCase().trim());
         const customVisible = menuItems.filter(item => {
           const itemLabelLower = item.label.toLowerCase().trim();
           const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
           return (
-            item.path === '/notifications' ||
             allowedSet.includes(itemLabelLower) ||
             allowedSet.includes(itemPathLower) ||
             allowedSet.includes(item.category ? item.category.toLowerCase().trim() : '')
@@ -548,7 +639,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         if (customVisible.length > 0) return customVisible;
       }
 
-      // 4. Role / Designation Based Matching for Counselor, Instructor, HR, etc.
+      // 6. Role / Designation Based Matching for Counselor, Instructor, HR, etc.
       const isCounselor = currentUserRole === 'counselor' || currentDesigName.includes('counselor') || currentDesigName.includes('tele');
       const isInstructor = currentUserRole === 'instructor' || currentUserRole === 'mentor' || currentDesigName.includes('instructor') || currentDesigName.includes('faculty') || currentDesigName.includes('teacher') || currentDesigName.includes('trainer') || currentDesigName.includes('mentor');
 
@@ -572,29 +663,22 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         return roleMatch || desigMatch;
       });
 
-      // Place user's primary dashboard at top if resolved
-      const userDashboardPath = resolveUserDashboardPath(userObj);
-      let primaryDash = visible.find(item => item.path === userDashboardPath);
-      let finalVisible = [...visible];
-      if (primaryDash && primaryDash.path !== '/dashboard') {
-        finalVisible = finalVisible.filter(item => item.path !== primaryDash.path);
-        finalVisible.unshift({ ...primaryDash, category: 'Overview' });
-      }
-
-      return finalVisible;
+      return visible;
     } catch (e) {
       console.error("Error reading operator authorization layout paths:", e);
-      return menuItems.filter(item => item.path === '/academy/learning');
+      return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/dashboard');
     }
   };
 
   const visibleMenuItems = getVisibleMenuItems();
 
-  // Group visible items by Category
+  // Group visible items by Category (excluding standalone Dashboard and Notifications)
   const groupMenuItemsByCategory = (items) => {
     const groups = {};
     items.forEach(item => {
-      const cat = item.category || 'Overview';
+      if (item.isStandalone || item.path === '/dashboard' || item.path === '/notifications') return;
+      const cat = item.category;
+      if (!cat) return;
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(item);
     });
@@ -606,6 +690,21 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
   };
 
   const groupedMenuItems = groupMenuItemsByCategory(visibleMenuItems);
+  const userDashboardPath = resolveUserDashboardPath(user) || '/dashboard';
+  const isDashboardActive = activePath === '/dashboard' || activePath === '/dashboard/' || (userDashboardPath && activePath === userDashboardPath);
+
+  const userName = user?.name || user?.fullName || (user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'User');
+  const userRoleDisplay = String(user?.role?.name || user?.role || (isStudent ? 'Student' : 'Staff')).toUpperCase();
+  const userInitial = (userName.charAt(0) || 'U').toUpperCase();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_id');
+    if (typeof setUser === 'function') {
+      setUser(null);
+    }
+  };
 
   return (
     <>
@@ -650,8 +749,19 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           </button>
         </div>
 
-        {/* Menu Items (Grouped as Category Accordion Dropdowns) */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Menu Items: Standalone Dashboard at Top, followed by Category Accordion Dropdowns */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* 1. Standalone Top Dashboard Item */}
+          <StandaloneDashboard
+            isCollapsed={isCollapsed}
+            activePath={activePath}
+            userDashboardPath={userDashboardPath}
+          />
+
+          {/* Section Divider */}
+          <div className="h-[1px] bg-slate-100 dark:bg-slate-800/60 my-2 mx-1" />
+
+          {/* 2. Feature Categories */}
           {groupedMenuItems.map((group) => (
             <CategoryDropdownGroup
               key={group.name}
@@ -662,23 +772,74 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           ))}
         </div>
 
-        {/* User profile / Logout bottom container */}
-        <div className="p-3 border-t border-slate-100 dark:border-slate-800/50 shrink-0">
-          <Link
-            to="/login"
-            onClick={() => {
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              localStorage.removeItem('user_id');
-            }}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-all font-medium ${
-              isCollapsed ? 'justify-center' : ''
-            }`}
-            title="Logout"
-          >
-            <LogOut size={18} className="shrink-0" />
-            {!isCollapsed && <span className="text-xs font-semibold">Sign Out</span>}
-          </Link>
+        {/* 3. Lower Section: User Profile & Notification & Logout Controls */}
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+          {!isCollapsed ? (
+            <div className="space-y-2">
+              {/* Profile Card */}
+              <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-xs">
+                  {userInitial}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">
+                    {userName}
+                  </p>
+                  <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded-md mt-0.5">
+                    {userRoleDisplay}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons: Alerts & Sign Out */}
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <Link
+                  to="/notifications"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  title="View Notifications"
+                >
+                  <Bell size={15} className="shrink-0" />
+                  <span>Alerts</span>
+                </Link>
+
+                <Link
+                  to="/login"
+                  onClick={handleLogout}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-bold text-rose-500 hover:bg-rose-500/10 transition"
+                  title="Sign Out of Session"
+                >
+                  <LogOut size={15} className="shrink-0" />
+                  <span>Sign Out</span>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <div 
+                className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-black text-xs shadow-xs cursor-default"
+                title={`${userName} (${userRoleDisplay})`}
+              >
+                {userInitial}
+              </div>
+
+              <Link
+                to="/notifications"
+                className="p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                title="Notifications"
+              >
+                <Bell size={18} />
+              </Link>
+
+              <Link
+                to="/login"
+                onClick={handleLogout}
+                className="p-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition"
+                title="Sign Out"
+              >
+                <LogOut size={18} />
+              </Link>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -710,13 +871,23 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           </div>
           <button 
             onClick={() => setIsMobileOpen(false)}
-            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X size={20} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+          {/* Standalone Dashboard */}
+          <StandaloneDashboard
+            isCollapsed={false}
+            activePath={activePath}
+            userDashboardPath={userDashboardPath}
+            onMobileClick={() => setIsMobileOpen(false)}
+          />
+
+          <div className="h-[1px] bg-slate-100 dark:bg-slate-800/60 my-2" />
+
           {groupedMenuItems.map((group) => (
             <CategoryDropdownGroup
               key={group.name}
@@ -728,20 +899,43 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           ))}
         </div>
 
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 shrink-0">
-          <Link
-            to="/login"
-            onClick={() => {
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              localStorage.removeItem('user_id');
-              setIsMobileOpen(false);
-            }}
-            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-all font-medium"
-          >
-            <LogOut size={20} className="shrink-0" />
-            <span className="text-sm font-medium">Sign Out</span>
-          </Link>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/60 shrink-0 space-y-3">
+          <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-black text-sm shrink-0">
+              {userInitial}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                {userName}
+              </p>
+              <span className="inline-block text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded-md">
+                {userRoleDisplay}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              to="/notifications"
+              onClick={() => setIsMobileOpen(false)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 transition"
+            >
+              <Bell size={15} />
+              <span>Notifications</span>
+            </Link>
+
+            <Link
+              to="/login"
+              onClick={() => {
+                handleLogout();
+                setIsMobileOpen(false);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-500 bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40 hover:bg-rose-50 transition"
+            >
+              <LogOut size={15} />
+              <span>Sign Out</span>
+            </Link>
+          </div>
         </div>
       </aside>
     </>
