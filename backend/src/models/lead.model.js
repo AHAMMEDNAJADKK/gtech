@@ -45,6 +45,11 @@ const leadSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  studentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   status: {
     type: String,
     enum: ['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost'],

@@ -20,6 +20,8 @@ const AccountsPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState('ALL');
+  const [selectedBatchFilter, setSelectedBatchFilter] = useState('ALL');
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -160,9 +162,11 @@ const AccountsPage = () => {
   // Handle Course selection in Create Fee to auto-populate fee
   const handleCourseChange = (courseId) => {
     const selectedCourse = courses.find(c => c._id === courseId);
+    const matchingBatches = batches.filter(b => String(b.courseId?._id || b.courseId) === String(courseId));
     setCreateForm(prev => ({
       ...prev,
       courseId,
+      batchId: matchingBatches.length === 1 ? matchingBatches[0]._id : '',
       totalAmount: selectedCourse?.courseFee || prev.totalAmount || ''
     }));
   };
@@ -552,6 +556,10 @@ const AccountsPage = () => {
   const allInstallments = useMemo(() => {
     const list = [];
     fees.forEach(fee => {
+      const matchesCourse = selectedCourseFilter === 'ALL' || String(fee.courseId?._id || fee.courseId) === selectedCourseFilter;
+      const matchesBatch = selectedBatchFilter === 'ALL' || String(fee.batchId?._id || fee.batchId) === selectedBatchFilter;
+      if (!matchesCourse || !matchesBatch) return;
+
       (fee.installments || []).forEach((ins, idx) => {
         list.push({
           ...ins,
@@ -566,7 +574,7 @@ const AccountsPage = () => {
       });
     });
     return list.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-  }, [fees]);
+  }, [fees, selectedCourseFilter, selectedBatchFilter]);
 
   // Compile all receipts across statements for payment history tab
   const allReceipts = useMemo(() => {
@@ -595,7 +603,9 @@ const AccountsPage = () => {
       f.courseId?.courseName?.toLowerCase().includes(q);
 
     const matchesStatus = statusFilter === 'ALL' || f.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCourse = selectedCourseFilter === 'ALL' || String(f.courseId?._id || f.courseId) === selectedCourseFilter;
+    const matchesBatch = selectedBatchFilter === 'ALL' || String(f.batchId?._id || f.batchId) === selectedBatchFilter;
+    return matchesSearch && matchesStatus && matchesCourse && matchesBatch;
   });
 
   return (
@@ -733,20 +743,53 @@ const AccountsPage = () => {
               />
             </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
-              {['ALL', 'PENDING', 'PARTIALLY_PAID', 'PAID'].map(st => (
-                <button
-                  key={st}
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    statusFilter === st
-                      ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100'
-                  }`}
-                >
-                  {st.replace('_', ' ')}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <select
+                value={selectedCourseFilter}
+                onChange={(e) => {
+                  const newCourse = e.target.value;
+                  setSelectedCourseFilter(newCourse);
+                  if (selectedBatchFilter !== 'ALL') {
+                    const valid = batches.some(b => String(b._id) === selectedBatchFilter && (newCourse === 'ALL' || String(b.courseId?._id || b.courseId) === newCourse));
+                    if (!valid) setSelectedBatchFilter('ALL');
+                  }
+                }}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500 font-medium"
+              >
+                <option value="ALL">All Courses</option>
+                {courses.map(c => (
+                  <option key={c._id} value={c._id}>{c.courseName}</option>
+                ))}
+              </select>
+
+              <select
+                value={selectedBatchFilter}
+                onChange={(e) => setSelectedBatchFilter(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500 font-medium"
+              >
+                <option value="ALL">All Batches</option>
+                {batches
+                  .filter(b => selectedCourseFilter === 'ALL' || String(b.courseId?._id || b.courseId) === selectedCourseFilter)
+                  .map(b => (
+                    <option key={b._id} value={b._id}>{b.batchName} {b.batchCode ? `(${b.batchCode})` : ''}</option>
+                  ))}
+              </select>
+
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {['ALL', 'PENDING', 'PARTIALLY_PAID', 'PAID'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      statusFilter === st
+                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                    }`}
+                  >
+                    {st.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1369,9 +1412,11 @@ const AccountsPage = () => {
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs outline-none focus:border-indigo-500"
               >
                 <option value="">Select Batch...</option>
-                {batches.map(b => (
-                  <option key={b._id} value={b._id}>{b.batchName}</option>
-                ))}
+                {batches
+                  .filter(b => !createForm.courseId || String(b.courseId?._id || b.courseId) === String(createForm.courseId))
+                  .map(b => (
+                    <option key={b._id} value={b._id}>{b.batchName} {b.batchCode ? `(${b.batchCode})` : ''}</option>
+                  ))}
               </select>
             </div>
           </div>

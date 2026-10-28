@@ -559,9 +559,22 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         String(userObj.role || '').toLowerCase() === 'superadmin' ||
         String(userObj.role || '').toLowerCase() === '0';
 
+      const deduplicateItems = (items) => {
+        const seenKeys = new Set();
+        const uniqueVisibleItems = [];
+        items.forEach(item => {
+          const itemKey = item.path || item.label;
+          if (!seenKeys.has(itemKey)) {
+            seenKeys.add(itemKey);
+            uniqueVisibleItems.push(item);
+          }
+        });
+        return uniqueVisibleItems;
+      };
+
       // 1. Super Admin: Unrestricted access to all CRM modules
       if (isSuperAdminUser) {
-        return menuItems;
+        return deduplicateItems(menuItems);
       }
 
       // 2. Student: Learning dashboard, syllabus, assignments, submissions, live classes, attendance
@@ -663,7 +676,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         return roleMatch || desigMatch;
       });
 
-      return visible;
+      // Deduplicate to guarantee no item or path appears more than once
+      return deduplicateItems(visible);
     } catch (e) {
       console.error("Error reading operator authorization layout paths:", e);
       return menuItems.filter(item => item.path === '/academy/learning' || item.path === '/dashboard');

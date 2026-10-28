@@ -211,5 +211,6 @@ router.post('/import', leadMutationRateLimiter, requireLeadsCreate, leadControll
 
 // CONVERT LEAD TO STUDENT
 router.post('/:id/convert-to-student', leadMutationRateLimiter, requireLeadsConvert, leadController.convertToStudent);
+router.post('/:id/convert', leadMutationRateLimiter, requireLeadsConvert, leadController.convertToStudent);
 
 export default router;

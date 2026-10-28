@@ -1,6 +1,7 @@
 // src/routes/attendance.routes.js
 import { Router } from 'express';
-import protectRoute from '../middleware/auth.middleware.js'; 
+import protectRoute from '../middleware/auth.middleware.js';
+import { markAttendance as markStudentAttendance, getAttendanceByDate as getStudentAttendanceByDate } from '../controllers/student.controller.js'; 
 import { 
   checkIn, 
   checkOut, 
@@ -26,6 +27,8 @@ router.get('/roster', getDailyAttendanceRoster);
 router.post('/check-in', checkIn);
 router.post('/check-out', checkOut);
 router.post('/mark-user', markUserAttendance);
+router.post('/mark', markStudentAttendance);
+router.get('/student/:date', getStudentAttendanceByDate);
 router.get('/all/:date', getAllAttendanceByDate);
 router.get('/:date', getAttendanceByDate);
 

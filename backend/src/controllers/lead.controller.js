@@ -930,6 +930,20 @@ export const leadController = {
         return res.status(404).json({ success: false, message: 'Lead not found.' });
       }
 
+      if (lead.status === 'Converted') {
+        return res.status(400).json({
+          success: false,
+          message: 'This lead has already been converted to an enrolled student.'
+        });
+      }
+
+      if (!courseId || !mongoose.Types.ObjectId.isValid(String(courseId))) {
+        return res.status(400).json({
+          success: false,
+          message: 'A valid Course selection is required to convert a lead to an enrolled student.'
+        });
+      }
+
       const auth = await getAuthUserContext(req);
       if (auth.isStudent || auth.isInstructor) {
         return res.status(403).json({
@@ -1002,36 +1016,43 @@ export const leadController = {
         await studentUser.save();
       }
 
-      // 2. Mark lead as Converted
+      // 2. Link student to lead and mark as Converted
       lead.status = 'Converted';
       lead.convertedAt = new Date();
+      lead.studentId = studentUser._id;
       await lead.save();
 
-      // 3. If batchId is provided, enroll student into batch and course
+      // 3. Enroll student into course and/or batch
       let enrollment = null;
+      let targetBatch = null;
       if (batchId && mongoose.Types.ObjectId.isValid(batchId)) {
-        const batch = await Batch.findById(batchId);
-        if (batch) {
+        targetBatch = await Batch.findById(batchId);
+        if (targetBatch) {
           const studentIdStr = String(studentUser._id);
-          const alreadyInBatch = (batch.students || []).some(s => String(s) === studentIdStr);
+          const alreadyInBatch = (targetBatch.students || []).some(s => String(s) === studentIdStr);
           if (!alreadyInBatch) {
-            batch.students.push(studentUser._id);
-            await batch.save();
+            targetBatch.students.push(studentUser._id);
+            await targetBatch.save();
           }
-
-          const targetCourseId = courseId || batch.courseId;
-          enrollment = await Enrollment.findOneAndUpdate(
-            { studentId: studentUser._id, batchId: batch._id },
-            {
-              studentId: studentUser._id,
-              batchId: batch._id,
-              courseId: targetCourseId,
-              status: 'active',
-              enrolledAt: new Date()
-            },
-            { upsert: true, new: true }
-          );
         }
+      }
+
+      const targetCourseId = (courseId && mongoose.Types.ObjectId.isValid(courseId)) ? courseId : (targetBatch?.courseId || null);
+      if (targetCourseId && mongoose.Types.ObjectId.isValid(targetCourseId)) {
+        enrollment = await Enrollment.findOneAndUpdate(
+          { studentId: studentUser._id, courseId: targetCourseId },
+          {
+            studentId: studentUser._id,
+            courseId: targetCourseId,
+            batchId: targetBatch ? targetBatch._id : null,
+            status: 'active',
+            enrolledAt: new Date(),
+            totalModules: 10,
+            completedModules: 0,
+            progressPercentage: 0
+          },
+          { upsert: true, new: true }
+        );
       }
 
       await clearAnalyticsCache();

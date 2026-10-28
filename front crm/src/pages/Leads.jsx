@@ -1984,16 +1984,7 @@ const CreateModal = ({ isOpen, onClose, onCreated, staff, getAuthHeaders, showTo
                 placeholder="e.g. John Doe"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Company Name</label>
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition"
-                placeholder="e.g. Acme Corp"
-              />
-            </div>
+            {/* Company Name removed for EdTech Student Leads */}
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Phone Number *</label>
               <input
@@ -2726,7 +2717,7 @@ const ConvertModal = ({ isOpen, onClose, onConverted, lead, getAuthHeaders, show
               {/* Course Selector */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Enrolling Course (Optional)
+                  Enrolling Course *
                 </label>
                 <select
                   value={selectedCourse}

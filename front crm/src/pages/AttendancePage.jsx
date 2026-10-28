@@ -866,7 +866,7 @@ const AttendancePage = () => {
                 </div>
                 <div className="text-[11px] text-rose-700 dark:text-rose-400 mt-1 font-medium">
                   {(rosterData?.summary?.totalEligible ?? 0) > 0 
-                    ? Math.round(((rosterData?.summary?.absentCount ?? 0) / rosterData.summary.totalEligible) * 100) 
+                    ? Math.round(((rosterData?.summary?.absentCount ?? 0) / (rosterData?.summary?.totalEligible || 1)) * 100) 
                     : 0}% pending/absent today
                 </div>
               </div>
@@ -975,7 +975,15 @@ const AttendancePage = () => {
                   </label>
                   <select
                     value={rosterCourseId}
-                    onChange={(e) => setRosterCourseId(e.target.value)}
+                    onChange={(e) => {
+                      const newCId = e.target.value;
+                      setRosterCourseId(newCId);
+                      if (rosterBatchId !== 'all') {
+                        const batchList = rosterData?.filterOptions?.batches || [];
+                        const valid = batchList.some(b => String(b.id || b._id) === String(rosterBatchId) && (newCId === 'all' || String(b.courseId?._id || b.courseId) === String(newCId)));
+                        if (!valid) setRosterBatchId('all');
+                      }
+                    }}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
                   >
                     <option value="all">All Courses</option>
@@ -998,7 +1006,9 @@ const AttendancePage = () => {
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
                   >
                     <option value="all">All Batches</option>
-                    {(rosterData?.filterOptions?.batches || []).map(b => (
+                    {(rosterData?.filterOptions?.batches || [])
+                      .filter(b => !rosterCourseId || rosterCourseId === 'all' || String(b.courseId?._id || b.courseId) === String(rosterCourseId))
+                      .map(b => (
                       <option key={b.id || b._id} value={b.id || b._id}>
                         {b.batchName || b.name} {b.batchCode ? `(${b.batchCode})` : ''}
                       </option>

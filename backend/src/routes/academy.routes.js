@@ -81,6 +81,8 @@ router.post('/assignments/:assignmentId/submit', lmsController.submitAssignment)
 router.get('/grading/submissions', requireAdminOrStaff, lmsController.getGradingQueue);
 router.patch('/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
 router.post('/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
+router.post('/assignments/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
+router.patch('/assignments/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
 router.patch('/assignments/:assignmentId/grade', requireAdminOrStaff, (req, res, next) => {
   if (!req.params.submissionId && req.body.submissionId) {
     req.params.submissionId = req.body.submissionId;

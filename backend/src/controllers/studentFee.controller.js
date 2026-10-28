@@ -33,6 +33,66 @@ const generateReceiptNumber = async () => {
   return `RCP-${year}-${String(counter.seq).padStart(6, '0')}`;
 };
 
+
+/**
+ * Helper to sequentially allocate a payment amount across installment schedule.
+ * Updates paidAmount, status (PAID/PARTIALLY_PAID), paidDate, receiptNo, paymentMethod.
+ * Also shifts fee.dueDate to the next pending installment's dueDate.
+ */
+const allocatePaymentToInstallments = (fee, paymentAmount, explicitIndex = -1, paymentMethod = '', receiptNo = '') => {
+  if (!Array.isArray(fee.installments) || fee.installments.length === 0) {
+    return;
+  }
+
+  let remaining = Number(paymentAmount) || 0;
+  if (remaining <= 0) return;
+
+  // 1. If explicit installmentIndex is specified, apply to that installment first
+  const explicitIdx = Number(explicitIndex);
+  if (!isNaN(explicitIdx) && explicitIdx >= 0 && fee.installments[explicitIdx]) {
+    const target = fee.installments[explicitIdx];
+    const needed = Math.max(0, (target.amount || 0) - (target.paidAmount || 0));
+    const toApply = Math.min(remaining, needed > 0 ? needed : remaining);
+
+    target.paidAmount = (target.paidAmount || 0) + toApply;
+    target.status = target.paidAmount >= target.amount ? 'PAID' : (target.paidAmount > 0 ? 'PARTIALLY_PAID' : 'PENDING');
+    target.paidDate = new Date();
+    if (paymentMethod) target.paymentMethod = paymentMethod;
+    if (receiptNo) target.receiptNo = receiptNo;
+
+    remaining -= toApply;
+  }
+
+  // 2. Cascade any remaining payment sequentially across pending/partially paid installments
+  if (remaining > 0) {
+    for (const ins of fee.installments) {
+      if (remaining <= 0) break;
+      if (ins.status === 'PAID') continue;
+
+      const needed = Math.max(0, (ins.amount || 0) - (ins.paidAmount || 0));
+      if (needed <= 0) {
+        ins.status = 'PAID';
+        continue;
+      }
+
+      const toApply = Math.min(remaining, needed);
+      ins.paidAmount = (ins.paidAmount || 0) + toApply;
+      ins.status = ins.paidAmount >= ins.amount ? 'PAID' : 'PARTIALLY_PAID';
+      ins.paidDate = new Date();
+      if (paymentMethod) ins.paymentMethod = paymentMethod;
+      if (receiptNo) ins.receiptNo = receiptNo;
+
+      remaining -= toApply;
+    }
+  }
+
+  // 3. Update next dueDate on fee
+  const nextPending = fee.installments.find(ins => ins.status === 'PENDING' || ins.status === 'PARTIALLY_PAID');
+  if (nextPending && nextPending.dueDate) {
+    fee.dueDate = nextPending.dueDate;
+  }
+};
+
 const generateFeeCode = async () => {
   const year = new Date().getFullYear();
   const counter = await Counter.findOneAndUpdate(
@@ -408,19 +468,8 @@ export const studentFeeController = {
 
       const receiptNo = await generateReceiptNumber();
 
-      // Update installment if specified
-      if (installmentIndex !== undefined && installmentIndex >= 0 && fee.installments[installmentIndex]) {
-        const targetIns = fee.installments[installmentIndex];
-        targetIns.paidAmount = (targetIns.paidAmount || 0) + numAmount;
-        if (targetIns.paidAmount >= targetIns.amount) {
-          targetIns.status = 'PAID';
-        } else {
-          targetIns.status = 'PARTIALLY_PAID';
-        }
-        targetIns.paidDate = new Date();
-        targetIns.paymentMethod = paymentMethod || 'Online';
-        targetIns.receiptNo = receiptNo;
-      }
+      // Sequentially allocate payment across installments
+      allocatePaymentToInstallments(fee, numAmount, installmentIndex, paymentMethod || 'Online - UPI', receiptNo);
 
       // Append to payment history
       const paymentRecord = {
@@ -517,6 +566,32 @@ export const studentFeeController = {
           gatewayStatus: 'SUCCESS'
         };
 
+        const installments = [{
+          installmentNumber: 1,
+          title: 'Initial Payment / Receipt',
+          dueDate: new Date(),
+          amount: numAmount,
+          paidAmount: numAmount,
+          status: 'PAID',
+          paidDate: new Date(),
+          paymentMethod: paymentMethod || 'Cash at Counter',
+          receiptNo,
+          notes: notes || ''
+        }];
+
+        // Schedule remaining balance into installment 2 if dueAmount > 0
+        if (dueAmount > 0) {
+          installments.push({
+            installmentNumber: 2,
+            title: 'Remaining Balance',
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            amount: dueAmount,
+            paidAmount: 0,
+            status: 'PENDING',
+            notes: 'Auto-scheduled balance installment'
+          });
+        }
+
         fee = await StudentFee.create({
           feeCode,
           studentId,
@@ -528,24 +603,16 @@ export const studentFeeController = {
           paidAmount,
           dueAmount,
           status,
-          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          installments: [{
-            installmentNumber: 1,
-            title: 'Initial Payment / Receipt',
-            dueDate: new Date(),
-            amount: numAmount,
-            paidAmount: numAmount,
-            status: 'PAID',
-            paidDate: new Date(),
-            paymentMethod: paymentMethod || 'Cash at Counter',
-            receiptNo,
-            notes: notes || ''
-          }],
+          dueDate: dueAmount > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : new Date(),
+          installments,
           paymentHistory: [paymentRecord],
           notes: notes || '',
           createdBy: req.user?.id || req.user?._id
         });
       } else {
+        // Allocate payment across existing installments
+        allocatePaymentToInstallments(fee, numAmount, -1, paymentMethod || 'Cash at Counter', receiptNo);
+
         const paymentRecord = {
           receiptNo,
           amount: numAmount,
@@ -561,7 +628,7 @@ export const studentFeeController = {
         fee.paymentHistory.push(paymentRecord);
         fee.paidAmount = (fee.paidAmount || 0) + numAmount;
         fee.dueAmount = Math.max(0, fee.finalAmount - fee.paidAmount);
-        fee.status = fee.dueAmount === 0 ? 'PAID' : 'PARTIALLY_PAID';
+        fee.status = fee.dueAmount === 0 ? 'PAID' : (fee.paidAmount > 0 ? 'PARTIALLY_PAID' : 'PENDING');
         if (batchId) fee.batchId = batchId;
         fee.updatedBy = req.user?.id || req.user?._id;
         await fee.save();
@@ -690,16 +757,9 @@ export const studentFeeController = {
       const finalReceiptNo = receiptNo || await generateReceiptNumber();
       const numAmount = Number(amount) || 0;
 
-      // Update installment
+      // Sequentially allocate payment across installments
       const idx = Number(installmentIndex);
-      if (!isNaN(idx) && idx >= 0 && fee.installments[idx]) {
-        const ins = fee.installments[idx];
-        ins.paidAmount = (ins.paidAmount || 0) + numAmount;
-        ins.status = ins.paidAmount >= ins.amount ? 'PAID' : 'PARTIALLY_PAID';
-        ins.paidDate = new Date();
-        ins.paymentMethod = 'Online - Razorpay';
-        ins.receiptNo = finalReceiptNo;
-      }
+      allocatePaymentToInstallments(fee, numAmount, isNaN(idx) ? -1 : idx, 'Online - Razorpay', finalReceiptNo);
 
       // Record in payment history
       fee.paymentHistory.push({
