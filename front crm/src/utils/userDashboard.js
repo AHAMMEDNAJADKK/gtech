@@ -1,7 +1,7 @@
 /**
  * Dynamically resolves the primary dashboard path for any logged-in user in the EdTech CRM.
  * - Admin -> /dashboard
- * - Counselor -> /dashboard (or /leads-telecaller)
+ * - Counselor -> /leads
  * - Instructor -> /academy/batches
  * - Student -> /academy/learning
  */
@@ -24,7 +24,7 @@ export const resolveUserDashboardPath = (userObj) => {
 
   // 3. Academic Counselor Role
   if (userRole.includes('counsel') || userDesig.includes('counsel') || userDesig.includes('telecaller')) {
-    return '/leads-telecaller';
+    return '/leads';
   }
 
   // 4. Admin / Default -> Core EdTech Dashboard

@@ -74,10 +74,10 @@ const ALL_SIDEBAR_ITEMS = [
 
   // --- ADMISSIONS & CRM ---
   { label: 'Leads & Enquiries', path: '/leads', category: 'Admissions' },
-  { label: 'Counselor Follow-ups', path: '/leads-telecaller', category: 'Admissions' },
+
   { label: 'Clients', path: '/clients', category: 'Sales & CRM' },
   { label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM' },
-  { label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM' },
+
 
   // --- MARKETING & WORK ---
   { label: 'Projects', path: '/projects', category: 'Marketing & Work' },

@@ -10,8 +10,6 @@ import Register from './pages/Register';
 import Users from './pages/Users';
 import UserDetailPage from './pages/UserDetailPage';
 import Leads from './pages/Leads';
-import LeadsTelecaller from './pages/LeadsTelecaller';
-import LeadCounselor from './pages/LeadCounselor';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 import StudentAttendance from './pages/StudentAttendance';
@@ -204,8 +202,8 @@ function App() {
 
           {/* Admissions / Academic Counselor Pipeline */}
           <Route path="/leads" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'counselor', 'telecaller']}><MainLayout><Leads /></MainLayout></RoleRoute>} />
-          <Route path="/leads-telecaller" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'counselor', 'telecaller']}><MainLayout><LeadsTelecaller /></MainLayout></RoleRoute>} />
-          <Route path="/lead-counselor" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'counselor']}><MainLayout><LeadCounselor /></MainLayout></RoleRoute>} />
+          <Route path="/leads-telecaller" element={<Navigate to="/leads" replace />} />
+          <Route path="/lead-counselor" element={<Navigate to="/leads" replace />} />
 
           {/* Academic Management (Courses & Batches) */}
           <Route path="/academy/courses" element={<RoleRoute allowedRoles={['superadmin', 'admin', 'hr', 'mentor', 'instructor']} fallbackPath="/academy/learning"><MainLayout><CourseManagement /></MainLayout></RoleRoute>} />
