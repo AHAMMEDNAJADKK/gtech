@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import mongoose from 'mongoose';
 import Course from '../models/course.model.js';
 import Enrollment from '../models/enrollment.model.js';
@@ -1098,7 +1100,7 @@ const lmsController = {
    * POST /api/v1/academy/lms/upload
    * File Upload Endpoint for LMS materials (PDF, Video, Docs)
    */
-  uploadLmsFile: async (req, res, next) => {
+    uploadLmsFile: async (req, res, next) => {
     try {
       if (!req.file) {
         throw new AppError('No file attached to upload request.', 400);
@@ -1107,20 +1109,35 @@ const lmsController = {
       let resultUrl = '';
       let publicId = '';
 
-      if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+      let fileBuffer = req.file.buffer;
+      if (!fileBuffer && req.file.path && fs.existsSync(req.file.path)) {
         try {
-          const result = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+          fileBuffer = fs.readFileSync(req.file.path);
+        } catch (readErr) {
+          console.warn('Could not read file from disk path:', readErr.message);
+        }
+      }
+
+      if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && fileBuffer) {
+        try {
+          const result = await uploadToCloudinary(fileBuffer, req.file.originalname);
           resultUrl = result.secure_url || result.url;
           publicId = result.public_id;
         } catch (cloudErr) {
-          console.warn("Cloudinary upload failed, falling back to data URL:", cloudErr.message);
-          const base64 = req.file.buffer.toString('base64');
+          console.warn('Cloudinary upload failed, using disk/data fallback:', cloudErr.message);
+        }
+      }
+
+            // If Cloudinary didn't provide resultUrl, serve via static uploads path or base64
+      if (!resultUrl) {
+        if (req.file.path) {
+          const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+          const relPath = path.relative(uploadsRoot, req.file.path).replace(/\\/g, '/');
+          resultUrl = `/uploads/${relPath}`;
+        } else if (fileBuffer) {
+          const base64 = fileBuffer.toString('base64');
           resultUrl = `data:${req.file.mimetype};base64,${base64}`;
         }
-      } else {
-        // Fallback for environment without Cloudinary setup
-        const base64 = req.file.buffer.toString('base64');
-        resultUrl = `data:${req.file.mimetype};base64,${base64}`;
       }
 
       return res.status(200).json({

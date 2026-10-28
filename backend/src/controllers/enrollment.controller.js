@@ -118,7 +118,12 @@ export const enrollmentController = {
           let attendanceSummary = { totalSessions: 0, presentCount: 0, absentCount: 0, lateCount: 0, attendancePercentage: 0 };
 
           if (stId) {
-            const attRecords = await StudentAttendance.find({ user_id: String(stId) }).lean();
+            const attQuery = { user_id: String(stId) };
+            const cId = e.courseId?._id || e.courseId;
+            if (cId) attQuery.courseId = cId;
+            const bId = e.batchId?._id || e.batchId;
+      if (bId) attQuery.batchId = bId;
+      const attRecords = await StudentAttendance.find(attQuery).lean();
             const total = attRecords.length;
             const present = attRecords.filter(r => r.status?.toUpperCase() === 'PRESENT').length;
             const absent = attRecords.filter(r => r.status?.toUpperCase() === 'ABSENT').length;

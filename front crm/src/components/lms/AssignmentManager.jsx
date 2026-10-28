@@ -75,36 +75,57 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
         fetch(batchesUrl, { headers: getHeaders() })
       ]);
 
+      const uniqueStudents = [];
+      const seenIds = new Set();
+
       if (resEnroll.ok) {
         const enrollData = await resEnroll.json();
         const enrollments = enrollData.data?.enrollments || enrollData.data || [];
-        const studentList = enrollments
+        enrollments
           .filter(e => e.studentId && typeof e.studentId === 'object')
-          .map(e => ({
-            id: e.studentId._id || e.studentId.id,
-            name: e.studentId.name || 'Unnamed Student',
-            email: e.studentId.email || '',
-            studentId: e.studentId.studentId || '',
-            batchName: e.batchId?.batchName || 'No Batch Assigned',
-            batchId: e.batchId?._id || e.batchId || ''
-          }));
-
-        // Deduplicate students by ID
-        const uniqueStudents = [];
-        const seenIds = new Set();
-        studentList.forEach(s => {
-          if (s.id && !seenIds.has(String(s.id))) {
-            seenIds.add(String(s.id));
-            uniqueStudents.push(s);
-          }
-        });
-        setCourseStudents(uniqueStudents);
+          .forEach(e => {
+            const st = e.studentId;
+            const sId = st._id || st.id;
+            if (sId && !seenIds.has(String(sId))) {
+              seenIds.add(String(sId));
+              uniqueStudents.push({
+                id: sId,
+                name: st.name || 'Unnamed Student',
+                email: st.email || '',
+                studentId: st.studentId || '',
+                batchName: e.batchId?.batchName || 'No Batch Assigned',
+                batchId: e.batchId?._id || e.batchId || ''
+              });
+            }
+          });
       }
 
       if (resBatches.ok) {
         const batchesData = await resBatches.json();
-        setCourseBatches(batchesData.data?.batches || batchesData.data || []);
+        const batchList = batchesData.data?.batches || batchesData.data || [];
+        setCourseBatches(batchList);
+
+        batchList.forEach(b => {
+          (b.students || []).forEach(st => {
+            if (st && typeof st === 'object') {
+              const sId = st._id || st.id;
+              if (sId && !seenIds.has(String(sId))) {
+                seenIds.add(String(sId));
+                uniqueStudents.push({
+                  id: sId,
+                  name: st.name || 'Unnamed Student',
+                  email: st.email || '',
+                  studentId: st.studentId || '',
+                  batchName: b.batchName || 'Assigned Batch',
+                  batchId: b._id || b.id || ''
+                });
+              }
+            }
+          });
+        });
       }
+
+      setCourseStudents(uniqueStudents);
     } catch (err) {
       console.warn('Failed to fetch course recipients:', err.message);
     } finally {

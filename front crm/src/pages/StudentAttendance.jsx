@@ -224,7 +224,7 @@ const StudentAttendance = () => {
     syncAttendance();
   }, [selectedDate, selectedBatchId, selectedCourseId, syncAttendance]);
 
-  const getFilteredStudents = () => {
+    const getFilteredStudents = () => {
     let filtered = students.filter(s => {
       const nameMatch = (s.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       const emailMatch = (s.email || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -232,12 +232,20 @@ const StudentAttendance = () => {
       return nameMatch || emailMatch || idMatch;
     });
 
+    // If specific Batch is selected, filter strictly to students enrolled in that batch
     if (selectedBatchId && selectedBatchId !== 'ALL' && selectedBatchId !== '') {
       const activeBatch = batches.find(b => String(b._id || b.id) === String(selectedBatchId));
       if (activeBatch && Array.isArray(activeBatch.students)) {
-        const bStudentIds = activeBatch.students.map(st => String(st._id || st.id || st));
-        filtered = filtered.filter(s => bStudentIds.includes(String(s._id || s.id)));
+        const bStudentIds = new Set(activeBatch.students.map(st => String(st._id || st.id || st)));
+        filtered = filtered.filter(s => bStudentIds.has(String(s._id || s.id)));
+      } else {
+        filtered = [];
       }
+    } else if (selectedCourseId && selectedCourseId !== 'ALL' && selectedCourseId !== '') {
+      // If Course is selected without a batch, filter to students in batches of that course
+      const courseBatches = batches.filter(b => String(b.courseId?._id || b.courseId) === String(selectedCourseId));
+      const cStudentIds = new Set(courseBatches.flatMap(b => (b.students || []).map(st => String(st._id || st.id || st))));
+      filtered = filtered.filter(s => cStudentIds.has(String(s._id || s.id)) || String(s.coursePreference || '').toLowerCase().includes(String(selectedCourseId).toLowerCase()));
     }
 
     return filtered;

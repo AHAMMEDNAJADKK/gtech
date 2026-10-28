@@ -2391,15 +2391,7 @@ const EditModal = ({ isOpen, onClose, onUpdated, lead, staff, departmentStaff = 
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Company Name</label>
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none transition"
-              />
-            </div>
+            {/* Company Name removed for EdTech Student Leads */}
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Phone Number *</label>
               <input
