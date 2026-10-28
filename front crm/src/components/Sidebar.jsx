@@ -76,14 +76,6 @@ const menuItems = [
     allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller'],
     allowedDesignationNames: ['counselor', 'telecaller', 'admission', 'academic']
   },
-  { 
-    icon: PhoneCall, 
-    label: 'Counselor Follow-ups', 
-    path: '/leads-telecaller', 
-    category: 'Admissions', 
-    allowedRoles: ['0', '1', '2', 'admin', 'superadmin', 'counselor', 'telecaller'],
-    allowedDesignationNames: ['counselor', 'telecaller', 'admission', 'academic']
-  },
 
   // --- ACADEMICS ---
   { 
@@ -598,7 +590,6 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         const hrAllowedPaths = [
           '/dashboard',
           '/leads',
-          '/leads-telecaller',
           '/employees/students',
           '/employees/mentors',
           '/academy/courses',

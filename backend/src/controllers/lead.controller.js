@@ -135,6 +135,13 @@ export const leadController = {
       if (status && status !== 'all') {
         if (status === 'assigned') {
           whereClause.assignedTo = { $ne: null };
+        } else if (status === 'due') {
+          const endOfToday = new Date();
+          endOfToday.setHours(23, 59, 59, 999);
+          whereClause.$or = [
+            { nextFollowUpDate: { $lte: endOfToday }, status: { $nin: ['Converted', 'Lost'] } },
+            { status: 'Follow Up' }
+          ];
         } else if (status === 'follow-up') {
           whereClause.nextFollowUpDate = { $exists: true, $ne: null };
           whereClause.status = 'Follow Up';

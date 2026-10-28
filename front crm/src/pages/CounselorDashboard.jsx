@@ -327,7 +327,7 @@ const CounselorDashboard = () => {
               <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
               Refresh
             </button>
-            <button onClick={() => window.location.href = '/leads-telecaller'}
+            <button onClick={() => window.location.href = '/leads'}
               className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 transition-all cursor-pointer">
               <Users size={14} />
               Student Leads
@@ -608,7 +608,7 @@ const CounselorDashboard = () => {
                 Student & Telecaller Leads Pipeline
               </h2>
               <button
-                onClick={() => window.location.href = '/leads-telecaller'}
+                onClick={() => window.location.href = '/leads'}
                 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 View Full Student Leads <ChevronRight size={14} />
@@ -786,7 +786,7 @@ const CounselorDashboard = () => {
                   <span className="w-1 h-5 bg-amber-500 rounded-full" />
                   Recent Student Leads
                 </h3>
-                <button onClick={() => window.location.href = '/leads-telecaller'}
+                <button onClick={() => window.location.href = '/leads'}
                   className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider hover:text-indigo-400 cursor-pointer flex items-center gap-1 transition">
                   View All Student Leads <ChevronRight size={12} />
                 </button>

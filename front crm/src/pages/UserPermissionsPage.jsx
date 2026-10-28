@@ -62,9 +62,9 @@ const ALL_SIDEBAR_ITEMS = [
 
   // Admissions & Leads
   { label: 'Leads & Enquiries', path: '/leads', category: 'Admissions', desc: 'EdTech admission leads and student enquiries directory' },
-  { label: 'Counselor Follow-ups', path: '/leads-telecaller', category: 'Admissions', desc: 'Counselor follow-up calling queue and ownership tracker' },
+
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline & inquiries' },
-  { label: 'Student Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
+
 
   // LMS / Academy
   { label: 'Course Management', path: '/academy/courses', category: 'LMS / Academy', desc: 'Course catalog & curriculum management' },

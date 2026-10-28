@@ -126,7 +126,7 @@ const Dashboard = () => {
       icon: PhoneCall,
       color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900",
       desc: "In-progress counseling pipeline",
-      link: "/leads-telecaller"
+      link: "/leads"
     },
     {
       title: "Follow-ups Due",
@@ -134,7 +134,7 @@ const Dashboard = () => {
       icon: Clock,
       color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900",
       desc: "Scheduled counselor calls pending",
-      link: "/leads-telecaller"
+      link: "/leads?tab=due"
     },
     {
       title: "Converted Students",

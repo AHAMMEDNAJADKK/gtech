@@ -198,6 +198,19 @@ const Leads = () => {
     }
   }, []);
 
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam) {
+        setActiveTab(tabParam);
+      }
+    } catch (e) {
+      console.error("Error reading tab query param:", e);
+    }
+  }, []);
+
   const currentUser = liveUser || storedUser;
 
   const {
@@ -424,8 +437,51 @@ const Leads = () => {
   }, [uniqueCities, citySearchQuery]);
 
   // Filtered, searched & sorted leads
+  // Tab counts for quick navigation
+  const tabCounts = useMemo(() => {
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const counts = {
+      all: leads.length,
+      due: 0,
+      new: 0,
+      contacted: 0,
+      followUp: 0,
+      interested: 0,
+      converted: 0,
+      lost: 0
+    };
+
+    leads.forEach(l => {
+      const isDue = (l.nextFollowUpDate && new Date(l.nextFollowUpDate) <= endOfToday && l.status !== 'Converted' && l.status !== 'Lost') || l.status === 'Follow Up';
+      if (isDue) counts.due++;
+
+      const s = String(l.status || '').toLowerCase().trim();
+      if (s === 'new') counts.new++;
+      else if (s === 'contacted') counts.contacted++;
+      else if (s === 'follow up') counts.followUp++;
+      else if (s === 'interested') counts.interested++;
+      else if (s === 'converted') counts.converted++;
+      else if (s === 'lost') counts.lost++;
+    });
+
+    return counts;
+  }, [leads]);
+
   const filteredLeads = useMemo(() => {
     let result = leads.filter(lead => {
+      // Tab filter
+      if (activeTab === 'due') {
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+        const isDue = (lead.nextFollowUpDate && new Date(lead.nextFollowUpDate) <= endOfToday && lead.status !== 'Converted' && lead.status !== 'Lost') || lead.status === 'Follow Up';
+        if (!isDue) return false;
+      } else if (activeTab === 'follow-up') {
+        if (lead.status !== 'Follow Up') return false;
+      } else if (activeTab !== 'all') {
+        if (lead.status?.toLowerCase() !== activeTab.toLowerCase()) return false;
+      }
       // City dropdown filter (client-side)
       if (cityFilter !== 'all') {
         if (lead.city?.trim().toLowerCase() !== cityFilter.toLowerCase()) return false;
@@ -460,6 +516,14 @@ const Leads = () => {
   result = [...result].sort((a, b) => {
     if (sortOrder === 'name_asc') {
       return (a.leadName || '').localeCompare(b.leadName || '');
+    } else if (sortOrder === 'followup_asc') {
+      const dateA = a.nextFollowUpDate ? new Date(a.nextFollowUpDate).getTime() : Infinity;
+      const dateB = b.nextFollowUpDate ? new Date(b.nextFollowUpDate).getTime() : Infinity;
+      return dateA - dateB;
+    } else if (sortOrder === 'followup_desc') {
+      const dateA = a.nextFollowUpDate ? new Date(a.nextFollowUpDate).getTime() : -Infinity;
+      const dateB = b.nextFollowUpDate ? new Date(b.nextFollowUpDate).getTime() : -Infinity;
+      return dateB - dateA;
     } else if (sortOrder === 'name_desc') {
       return (b.leadName || '').localeCompare(a.leadName || '');
     } else if (sortOrder === 'asc') {
@@ -691,6 +755,48 @@ const Leads = () => {
 
 
 
+        {/* Quick Filter Tabs Navigation */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {[
+            { id: 'all', label: 'All Leads', count: tabCounts.all },
+            { id: 'due', label: 'Follow-ups Due', count: tabCounts.due, highlight: true },
+            { id: 'New', label: 'New', count: tabCounts.new },
+            { id: 'Contacted', label: 'Contacted', count: tabCounts.contacted },
+            { id: 'Follow Up', label: 'Follow Up', count: tabCounts.followUp },
+            { id: 'Interested', label: 'Interested', count: tabCounts.interested },
+            { id: 'Converted', label: 'Converted', count: tabCounts.converted },
+            { id: 'Lost', label: 'Lost', count: tabCounts.lost }
+          ].map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25'
+                    : tab.highlight && tab.count > 0
+                    ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 hover:bg-rose-100'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : tab.highlight && tab.count > 0
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Search Bar + Filter Button Row */}
         <div className="space-y-2.5">
           <div className="flex items-center gap-3">
@@ -792,6 +898,8 @@ const Leads = () => {
                         {[
                           { val: 'desc', label: '🕐 Newest First' },
                           { val: 'asc',  label: '🕐 Oldest First' },
+                          { val: 'followup_asc', label: '📅 Follow-up (Earliest)' },
+                          { val: 'followup_desc', label: '📅 Follow-up (Latest)' },
                           { val: 'name_asc',  label: '🔤 Name A–Z' },
                           { val: 'name_desc', label: '🔤 Name Z–A' }
                         ].map(opt => (
@@ -1067,6 +1175,39 @@ const Leads = () => {
                           <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                             {lead.leadName}
                           </h3>
+                          {lead.nextFollowUpDate && (
+                            <div className="mt-1 flex items-center">
+                              {(() => {
+                                const fuDate = new Date(lead.nextFollowUpDate);
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const endToday = new Date();
+                                endToday.setHours(23, 59, 59, 999);
+
+                                if (fuDate < today && lead.status !== 'Converted' && lead.status !== 'Lost') {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50 flex items-center gap-1">
+                                      <Clock size={10} /> Overdue: {fuDate.toLocaleDateString()}
+                                    </span>
+                                  );
+                                } else if (fuDate <= endToday && lead.status !== 'Converted' && lead.status !== 'Lost') {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50 flex items-center gap-1">
+                                      <Clock size={10} /> Due Today
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 flex items-center gap-1">
+                                      <Calendar size={10} /> Follow-up: {fuDate.toLocaleDateString()}
+                                    </span>
+                                  );
+                                }
+                              })()}
+                            </div>
+                          )}
+
+
                           {lead.companyName && !lead.companyName.toLowerCase().includes('software development leads form') && (
                             <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                               <Briefcase size={12} />
@@ -1291,6 +1432,38 @@ const Leads = () => {
                           <div className="font-semibold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
                             {lead.leadName}
                           </div>
+                          {lead.nextFollowUpDate && (
+                            <div className="mt-1 flex items-center">
+                              {(() => {
+                                const fuDate = new Date(lead.nextFollowUpDate);
+                                const today = new Date();
+                                today.setHours(0, 0, 0, 0);
+                                const endToday = new Date();
+                                endToday.setHours(23, 59, 59, 999);
+
+                                if (fuDate < today && lead.status !== 'Converted' && lead.status !== 'Lost') {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50 flex items-center gap-1">
+                                      <Clock size={10} /> Overdue: {fuDate.toLocaleDateString()}
+                                    </span>
+                                  );
+                                } else if (fuDate <= endToday && lead.status !== 'Converted' && lead.status !== 'Lost') {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50 flex items-center gap-1">
+                                      <Clock size={10} /> Due Today
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 flex items-center gap-1">
+                                      <Calendar size={10} /> Follow-up: {fuDate.toLocaleDateString()}
+                                    </span>
+                                  );
+                                }
+                              })()}
+                            </div>
+                          )}
+
                           {lead.companyName && (
                             <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
                               <Briefcase size={10} />
