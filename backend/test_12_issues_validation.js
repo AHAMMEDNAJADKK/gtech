@@ -265,6 +265,7 @@ async function runValidation() {
 
   // --- ISSUE 10: STUDENT FEE ACCOUNT COURSE & BATCH SELECTION ---
   console.log('\n--- ISSUE 10: STUDENT FEE ACCOUNT COURSE & BATCH LINKAGE ---');
+  await StudentFee.deleteMany({ studentId: studentId, courseId: testCourse._id });
   const createFeeRes = await request(app)
     .post('/api/v1/student-fees')
     .set('Authorization', `Bearer ${adminToken}`)
@@ -288,6 +289,7 @@ async function runValidation() {
   console.log('\n--- ISSUE 11: FEE RECEIPT & PLANS ---');
   // Issue direct receipt with partial payment for a fresh course
   const secondCourse = await Course.findOne({ _id: { $ne: testCourse._id } }) || testCourse;
+  await StudentFee.deleteMany({ studentId: studentId, courseId: secondCourse._id });
   const directReceiptRes = await request(app)
     .post('/api/v1/student-fees/issue-receipt')
     .set('Authorization', `Bearer ${adminToken}`)
@@ -341,6 +343,7 @@ async function runValidation() {
   console.log('================================================================\n');
 
   await mongoose.disconnect();
+  process.exit(0);
 }
 
 runValidation().catch(err => {

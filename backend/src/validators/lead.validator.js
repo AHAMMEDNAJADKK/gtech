@@ -8,7 +8,6 @@ const objectIdSchema = (fieldName) =>
 export const createLeadSchema = z.object({
   leadName: z.string().trim().optional(),
   name: z.string().trim().optional(),
-  name: z.string().trim().optional(),
   companyName: z.string().trim().optional(),
   email: z.string().trim().email('Invalid email address.').optional().or(z.literal('')),
   phone: z.string({ required_error: 'Phone Number is required.' }).trim().min(1, 'Phone Number is required.'),
@@ -30,7 +29,7 @@ export const createLeadSchema = z.object({
   followUpDate3: z.string().pipe(z.coerce.date()).nullable().optional().or(z.literal('')),
   followUpDate4: z.string().pipe(z.coerce.date()).nullable().optional().or(z.literal('')),
   followUpDate5: z.string().pipe(z.coerce.date()).nullable().optional().or(z.literal(''))
-});
+}).refine(data => Boolean((data.leadName && data.leadName.trim()) || (data.name && data.name.trim())), { message: 'Lead name is required.', path: ['leadName'] });
 
 export const updateLeadSchema = z.object({
   id: objectIdSchema('id').optional(),
